@@ -11,20 +11,26 @@
 #include "framework.h"
 
 
-//#include "bits/stdc++.h"
+#include <cstdint>
 #include <string>
 #include <vector>
-#include <cstdint>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
 
-namespace eventcore
-{
-    struct Event
-    {
-        int64_t t_us = 0;   // timestamp in microseconds
-        int x = 0;
-        int y = 0;
-        int polarity = 0;  // +1 or -1
-    };
-}
+#include <opencv2/opencv.hpp>
+
+//namespace eventcore
+//{
+//    struct Event
+//    {
+//        int64_t t_us = 0;   // timestamp in microseconds
+//        int x = 0;
+//        int y = 0;
+//        int polarity = 0;  // +1 or -1
+//    };
+//}
+
 
 #endif //PCH_H
