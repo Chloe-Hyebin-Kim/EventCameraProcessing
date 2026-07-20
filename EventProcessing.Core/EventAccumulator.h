@@ -1,9 +1,9 @@
 #pragma once
 
-
-#include "opencv.hpp"
-#include "Event.h"
 #include <vector>
+#include <opencv2/opencv.hpp>
+
+#include "TypeDef.h"
 
 namespace eventcore
 {

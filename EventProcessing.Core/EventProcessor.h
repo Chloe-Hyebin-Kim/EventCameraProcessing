@@ -1,10 +1,10 @@
 #pragma once
 
-#include "BallDetector.h"
-#include "Event.h"
-
-#include <opencv2/opencv.hpp>
 #include <vector>
+#include <opencv2/opencv.hpp>
+
+#include "BallDetector.h"
+#include "TypeDef.h"
 
 namespace eventcore
 {
