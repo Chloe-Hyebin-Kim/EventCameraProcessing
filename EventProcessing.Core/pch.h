@@ -7,10 +7,7 @@
 #ifndef PCH_H
 #define PCH_H
 
-// 여기에 미리 컴파일하려는 헤더 추가
-#include "framework.h"
-
-
+//c++ stl
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -19,18 +16,17 @@
 #include <sstream>
 #include <algorithm>
 
+//onpecv
 #include <opencv2/opencv.hpp>
 
-//namespace eventcore
-//{
-//    struct Event
-//    {
-//        int64_t t_us = 0;   // timestamp in microseconds
-//        int x = 0;
-//        int y = 0;
-//        int polarity = 0;  // +1 or -1
-//    };
-//}
+#include "framework.h"
 
+
+
+
+using namespace std;
+
+
+#define lli int64_t
 
 #endif //PCH_H

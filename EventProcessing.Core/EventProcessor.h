@@ -22,12 +22,6 @@ namespace eventcore
     class EventProcessor
     {
     public:
-        static EventProcessingResult Process(
-            const std::vector<Event>& events,
-            int width,
-            int height,
-            int64_t startUs,
-            int64_t windowUs
-        );
+        static EventProcessingResult Process(const vector<Event>& events, int width, int height, lli startUs, lli windowUs);
     };
 }

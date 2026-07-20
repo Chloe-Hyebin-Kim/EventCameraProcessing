@@ -21,22 +21,14 @@ namespace eventcore
         return dst;
     }
 
-    void EventAccumulator::Accumulate(
-        const std::vector<Event>& events,
-        int width,
-        int height,
-        int64_t startUs,
-        int64_t windowUs,
-        cv::Mat& positiveImage,
-        cv::Mat& negativeImage,
-        cv::Mat& mergedImage)
+    void EventAccumulator::Accumulate(const std::vector<Event>& events,int width,int height,lli startUs, lli windowUs, cv::Mat& positiveImage, cv::Mat& negativeImage, cv::Mat& mergedImage)
     {
-        const int64_t endUs = startUs + windowUs;
+        const lli endUs = startUs + windowUs;
 
         cv::Mat posAccum = cv::Mat::zeros(height, width, CV_32SC1);
         cv::Mat negAccum = cv::Mat::zeros(height, width, CV_32SC1);
 
-        for (const auto& e : events)
+        for (const Event& e : events)
         {
             if (e.t_us < startUs || e.t_us >= endUs)
             {
