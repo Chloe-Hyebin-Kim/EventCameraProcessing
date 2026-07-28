@@ -3,8 +3,8 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 
+#include "Event.h"
 #include "BallDetector.h"
-#include "TypeDef.h"
 
 namespace eventcore
 {
@@ -22,6 +22,6 @@ namespace eventcore
     class EventProcessor
     {
     public:
-        static EventProcessingResult Process(const vector<Event>& events, int width, int height, lli startUs, lli windowUs);
+        static EventProcessingResult Process(const std::vector<Event>& events, int width, int height, lli startUs, lli windowUs);
     };
 }

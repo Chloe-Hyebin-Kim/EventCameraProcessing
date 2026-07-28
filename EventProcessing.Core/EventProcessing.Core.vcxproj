@@ -176,7 +176,6 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="IEventSource.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="TypeDef.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BallDetector.cpp" />

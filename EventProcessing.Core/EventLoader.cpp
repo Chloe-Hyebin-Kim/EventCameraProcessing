@@ -7,7 +7,7 @@
 
 namespace eventcore
 {
-    bool EventLoader::LoadFromCsv(const string& filePath, vector<Event>& events)
+    bool EventLoader::LoadFromCsv(const std::string& filePath, std::vector<Event>& events)
     {
         ifstream file(filePath);
 
@@ -19,7 +19,7 @@ namespace eventcore
 
         events.clear();
 
-        string line;
+        std::string line;
 
         // header skip: t_us,x,y,p
         getline(file, line);
@@ -32,7 +32,7 @@ namespace eventcore
             }
 
             stringstream ss(line);
-            string token;
+            std::string token;
             Event e;
 
             try

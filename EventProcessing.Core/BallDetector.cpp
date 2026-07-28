@@ -12,7 +12,7 @@ BallDetectionResult BallDetector::Detect(const cv::Mat& binaryImage)
         return result;
     }
 
-    vector<vector<cv::Point>> contours;
+    std::vector<std::vector<cv::Point>> contours;
 
     cv::findContours(binaryImage,contours,cv::RETR_EXTERNAL,cv::CHAIN_APPROX_SIMPLE);
 

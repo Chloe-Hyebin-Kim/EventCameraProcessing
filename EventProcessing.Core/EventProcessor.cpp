@@ -6,7 +6,7 @@
 
 namespace eventcore
 {
-    EventProcessingResult EventProcessor::Process(const vector<Event>& events, int width, int height, lli startUs, lli windowUs)
+    EventProcessingResult EventProcessor::Process(const std::vector<Event>& events, int width, int height, lli startUs, lli windowUs)
     {
         EventProcessingResult result;
 
