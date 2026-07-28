@@ -4,7 +4,7 @@
 #include <opencv2/opencv.hpp>
 
 
-#define lli int64_t
+//#define lli int64_t
 
 #define cvBLUE cv::Scalar(255, 0, 0)
 #define cvRED cv::Scalar(0, 255, 0)
@@ -12,6 +12,8 @@
 
 namespace eventcore
 {
+    using lli = std::int64_t;
+
     struct Event
     {
         lli t_us = 0;   // timestamp in microseconds

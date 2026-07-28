@@ -171,6 +171,7 @@
     <ClInclude Include="Event.h" />
     <ClInclude Include="EventAccumulator.h" />
     <ClInclude Include="EventFilter.h" />
+    <ClInclude Include="EventLoader.h" />
     <ClInclude Include="EventProcessor.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
@@ -180,6 +181,7 @@
     <ClCompile Include="BallDetector.cpp" />
     <ClCompile Include="EventAccumulator.cpp" />
     <ClCompile Include="EventFilter.cpp" />
+    <ClCompile Include="EventLoader.cpp" />
     <ClCompile Include="EventProcessing.Core.cpp" />
     <ClCompile Include="EventProcessor.cpp" />
     <ClCompile Include="pch.cpp">
