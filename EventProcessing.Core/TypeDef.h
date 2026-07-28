@@ -6,6 +6,11 @@
 
 //#define lli int64_t
 
+//(EVK4 HD / IMX636)
+//1280¡¿720 pixel CMOS vision sensor
+#define WIDTH 1280
+#define HEIGHT 720
+
 #define cvBLUE cv::Scalar(255, 0, 0)
 #define cvRED cv::Scalar(0, 255, 0)
 #define cvGREEN cv::Scalar(0, 0, 255)

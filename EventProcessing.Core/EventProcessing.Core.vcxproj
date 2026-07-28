@@ -174,6 +174,7 @@
     <ClInclude Include="EventLoader.h" />
     <ClInclude Include="EventProcessor.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="IEventSource.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="TypeDef.h" />
   </ItemGroup>

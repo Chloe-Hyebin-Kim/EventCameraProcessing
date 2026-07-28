@@ -22,11 +22,6 @@
 #include "framework.h"
 
 
-
-
 using namespace std;
-
-
-//#define lli int64_t
 
 #endif //PCH_H
