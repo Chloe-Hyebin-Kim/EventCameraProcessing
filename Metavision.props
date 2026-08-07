@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  EVK4 HD / IMX636 RAW 파일 / 실시간 카메라 입력 지원을 위한 Prophesee Metavision SDK 연동 설정.
+
+  Metavision SDK가 설치되어 있지 않으면(즉, 아래 카메라 헤더를 찾을 수 없으면) 이 설정은 아무 것도
+  추가하지 않고, 프로젝트는 CSV 입력만 지원하는 상태로 정상 빌드된다. (MetavisionEventSource.*은
+  EVENTCORE_HAVE_METAVISION 매크로로 감싸져 있어 SDK 없이도 컴파일된다.)
+
+  기본 설치 경로(C:\Program Files\Prophesee)가 다르면 환경변수 또는 MSBuild 속성으로
+  MetavisionSDKDir을 재정의한다.
+    예) msbuild /p:MetavisionSDKDir="D:\Prophesee\Metavision"
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MetavisionSDKDir Condition="'$(MetavisionSDKDir)' == ''">C:\Program Files\Prophesee</MetavisionSDKDir>
+    <_MetavisionCameraHeader>$(MetavisionSDKDir)\include\metavision\sdk\driver\camera.h</_MetavisionCameraHeader>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="Exists('$(_MetavisionCameraHeader)')">
+    <ClCompile>
+      <PreprocessorDefinitions>EVENTCORE_HAVE_METAVISION;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MetavisionSDKDir)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(MetavisionSDKDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>metavision_sdk_base.lib;metavision_sdk_core.lib;metavision_sdk_driver.lib;metavision_hal.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Lib>
+      <AdditionalLibraryDirectories>$(MetavisionSDKDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+</Project>
