@@ -9,11 +9,11 @@ namespace eventcore
 {
     bool EventLoader::LoadFromCsv(const std::string& filePath, std::vector<Event>& events)
     {
-        ifstream file(filePath);
+        std::ifstream file(filePath);
 
         if (!file.is_open())
         {
-            cerr << "Failed to open file: " << filePath << endl;
+            std::cerr << "Failed to open file: " << filePath << std::endl;
             return false;
         }
 
@@ -31,7 +31,7 @@ namespace eventcore
                 continue;
             }
 
-            stringstream ss(line);
+            std::stringstream ss(line);
             std::string token;
             Event e;
 

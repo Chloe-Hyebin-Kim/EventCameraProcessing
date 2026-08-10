@@ -182,8 +182,10 @@
     <ClInclude Include="EventVisualizer.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="IEventSource.h" />
+    <ClInclude Include="LiveEventStream.h" />
     <ClInclude Include="MetavisionEventSource.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="ShotTrigger.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BallDetector.cpp" />
@@ -195,7 +197,9 @@
     <ClCompile Include="EventProcessor.cpp" />
     <ClCompile Include="EventSourceFactory.cpp" />
     <ClCompile Include="EventVisualizer.cpp" />
+    <ClCompile Include="LiveEventStream.cpp" />
     <ClCompile Include="MetavisionEventSource.cpp" />
+    <ClCompile Include="ShotTrigger.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

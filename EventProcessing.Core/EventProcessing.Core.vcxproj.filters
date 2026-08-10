@@ -54,6 +54,12 @@
     <ClInclude Include="EventVisualizer.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="ShotTrigger.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="LiveEventStream.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="EventProcessing.Core.cpp">
@@ -87,6 +93,12 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="EventVisualizer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="ShotTrigger.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="LiveEventStream.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
