@@ -9,7 +9,7 @@
 #include <thread>
 
 #include <metavision/sdk/base/events/event_cd.h>
-#include <metavision/sdk/driver/camera.h>
+#include <metavision/sdk/stream/camera.h>
 
 namespace eventcore
 {

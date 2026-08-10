@@ -12,7 +12,7 @@
 #include <thread>
 #include <vector>
 
-#include <metavision/sdk/driver/camera.h>
+#include <metavision/sdk/stream/camera.h>
 
 namespace eventcore
 {

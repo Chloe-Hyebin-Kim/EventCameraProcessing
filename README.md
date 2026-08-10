@@ -33,12 +33,29 @@ a plain CSV event stream, and render the result as debug images and an MP4 video
   `EventProcessing.Diag` (MFC GUI exe), x64, Visual Studio 2019 (`v142` toolset).
 - OpenCV 4.4.0 is bundled under `ocv440/`.
 - RAW/live input requires the [Prophesee Metavision SDK](https://www.prophesee.ai/)
-  to be installed. `Metavision.props` picks it up automatically from
-  `C:\Program Files\Prophesee` (override by setting the `MetavisionSDKDir`
-  MSBuild/environment property). If the SDK isn't found, `EventProcessing.Core`
-  and `EventProcessing.Console` still build fine with only CSV input supported
-  (RAW/live are compiled out via the `EVENTCORE_HAVE_METAVISION` macro) - but
-  `EventProcessing.Diag` needs the SDK to build at all (see below).
+  (Windows installer, version 5.x - see [installation
+  docs](https://docs.prophesee.ai/stable/installation/windows.html)). Since
+  SDK 5.0 it isn't free standalone, but it's included with any EVK4 purchase
+  and with a PRO license; the fully open-source
+  [OpenEB](https://github.com/prophesee-ai/openeb) covers the same Base/Core/
+  Stream/HAL modules this project uses if you don't have SDK access, but you'd
+  need to build it from source. `Metavision.props` picks the SDK up
+  automatically from the default install path `C:\Program Files\Prophesee`
+  (override by setting the `MetavisionSDKDir` MSBuild/environment property).
+  If the SDK isn't found, `EventProcessing.Core` and `EventProcessing.Console`
+  still build fine with only CSV input supported (RAW/live are compiled out
+  via the `EVENTCORE_HAVE_METAVISION` macro) - but `EventProcessing.Diag`
+  needs the SDK to build at all (see below).
+  - **After installing**, the installer does not update your environment for
+    you - add `<install dir>\bin` (default: `C:\Program Files\Prophesee\bin`)
+    to `PATH`, and set `MV_HAL_PLUGIN_PATH` to `<install dir>\lib\metavision\hal\plugins`,
+    otherwise the built exe will fail to start with a missing-DLL error (same
+    class of issue as the `opencv_world440d.dll` one) or fail to find the
+    camera plugin at runtime.
+  - This project targets SDK 5.x's module layout (`Stream`, formerly named
+    `Driver` pre-5.0 - `metavision/sdk/stream/camera.h`, `metavision_sdk_stream.lib`).
+    If you're on an older SDK 4.x install for some reason, you'd need to
+    revert those two to the old `driver` naming.
 - `EventProcessing.Diag` needs the MFC component of the VS Build Tools
   installed ("C++ MFC for latest v142 build tools (x86 & x64)" in the VS
   Installer).

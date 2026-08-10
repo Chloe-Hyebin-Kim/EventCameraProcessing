@@ -13,7 +13,8 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <MetavisionSDKDir Condition="'$(MetavisionSDKDir)' == ''">C:\Program Files\Prophesee</MetavisionSDKDir>
-    <_MetavisionCameraHeader>$(MetavisionSDKDir)\include\metavision\sdk\driver\camera.h</_MetavisionCameraHeader>
+    <!-- SDK 5.0부터 "Driver" 모듈이 "Stream"으로 개명되었다 (metavision/sdk/driver -> metavision/sdk/stream). -->
+    <_MetavisionCameraHeader>$(MetavisionSDKDir)\include\metavision\sdk\stream\camera.h</_MetavisionCameraHeader>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="Exists('$(_MetavisionCameraHeader)')">
     <ClCompile>
@@ -22,7 +23,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(MetavisionSDKDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>metavision_sdk_base.lib;metavision_sdk_core.lib;metavision_sdk_driver.lib;metavision_hal.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>metavision_sdk_base.lib;metavision_sdk_core.lib;metavision_sdk_stream.lib;metavision_hal.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Lib>
       <AdditionalLibraryDirectories>$(MetavisionSDKDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
