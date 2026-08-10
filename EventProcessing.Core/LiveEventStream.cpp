@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 
 #ifdef EVENTCORE_HAVE_METAVISION
 

@@ -1,4 +1,4 @@
-// EventProcessing.Console.cpp
+﻿// EventProcessing.Console.cpp
 //
 // Metavision EVK4 HD / IMX636 이벤트 카메라의 RAW 녹화(.raw), 실시간 카메라("live"),
 // 또는 테스트용 CSV(.csv)를 읽어 event accumulation 이미지와 동영상으로 출력한다.

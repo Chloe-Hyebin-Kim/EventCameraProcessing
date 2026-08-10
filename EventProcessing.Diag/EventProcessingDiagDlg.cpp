@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "framework.h"
 #include "EventProcessing.Diag.h"
 #include "EventProcessingDiagDlg.h"
