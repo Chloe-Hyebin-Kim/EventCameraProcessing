@@ -47,6 +47,9 @@ namespace eventcore
         int Width() const { return m_width; }
         int Height() const { return m_height; }
 
+        // Start()가 false를 반환했을 때, 실패 원인(SDK 예외 메시지 등)을 확인한다.
+        const std::string& LastError() const { return m_lastError; }
+
     private:
         void WindowLoop(lli windowUs, FrameCallback callback);
 
@@ -59,6 +62,7 @@ namespace eventcore
 
         int m_width = WIDTH;
         int m_height = HEIGHT;
+        std::string m_lastError;
     };
 }
 
