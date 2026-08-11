@@ -1,0 +1,1 @@
+set(MetavisionSDK_stream_NEEDED_COMPONENTS base;core)
