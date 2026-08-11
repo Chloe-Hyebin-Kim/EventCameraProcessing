@@ -124,6 +124,8 @@ namespace eventcore
     void LiveEventStream::WindowLoop(lli windowUs, FrameCallback callback)
     {
         lli runningClockUs = 0;
+        bool hasPrevBall = false;
+        cv::Point2f prevBallCenter;
 
         while (m_running && m_camera.is_running())
         {
@@ -139,7 +141,13 @@ namespace eventcore
             const lli batchEnd = batch.empty() ? (runningClockUs + windowUs) : (batch.back().t_us + 1);
             runningClockUs = batchEnd;
 
-            const EventProcessingResult result = EventProcessor::Process(batch, m_width, m_height, batchStart, batchEnd - batchStart);
+            const EventProcessingResult result = EventProcessor::Process(batch, m_width, m_height, batchStart, batchEnd - batchStart, hasPrevBall, prevBallCenter);
+
+            if (result.ball.detected)
+            {
+                hasPrevBall = true;
+                prevBallCenter = result.ball.center;
+            }
 
             if (callback)
             {

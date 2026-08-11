@@ -6,7 +6,8 @@
 
 namespace eventcore
 {
-    EventProcessingResult EventProcessor::Process(const std::vector<Event>& events, int width, int height, lli startUs, lli windowUs)
+    EventProcessingResult EventProcessor::Process(const std::vector<Event>& events, int width, int height, lli startUs, lli windowUs,
+        bool hasPreviousBallCenter, const cv::Point2f& previousBallCenter)
     {
         EventProcessingResult result;
 
@@ -14,7 +15,7 @@ namespace eventcore
         );
 
         result.binaryMask = EventFilter::RemoveSmallNoise(result.mergedImage);
-        result.ball = BallDetector::Detect(result.binaryMask);
+        result.ball = BallDetector::DetectTracked(result.binaryMask, hasPreviousBallCenter, previousBallCenter);
         cv::cvtColor(result.mergedImage, result.debugImage, cv::COLOR_GRAY2BGR);
 
         if (result.ball.detected)

@@ -83,13 +83,21 @@ int main(int argc, char** argv)
     }
 
     int windowIndex = 0;
+    bool hasPrevBall = false;
+    cv::Point2f prevBallCenter;
 
     for (lli start = startAll; start < endAll; start += windowUs)
     {
         std::vector<Event> events;
         source->ReadEvents(events, start, start + windowUs);
 
-        const EventProcessingResult result = EventProcessor::Process(events, width, height, start, windowUs);
+        const EventProcessingResult result = EventProcessor::Process(events, width, height, start, windowUs, hasPrevBall, prevBallCenter);
+
+        if (result.ball.detected)
+        {
+            hasPrevBall = true;
+            prevBallCenter = result.ball.center;
+        }
 
         videoWriter.WriteFrame(result.debugImage);
 
