@@ -298,7 +298,14 @@ void CEventProcessingDiagDlg::OnBnClickedButtonStart()
 
     if (!ok)
     {
-        AppendLog(_T("Failed to start stream (check source path / camera connection / Metavision SDK)"));
+        CString msg = _T("Failed to start stream");
+        const std::string& err = m_stream.LastError();
+        if (!err.empty())
+        {
+            CA2T errT(err.c_str());
+            msg.AppendFormat(_T(": %s"), static_cast<LPCTSTR>(errT));
+        }
+        AppendLog(msg);
         return;
     }
 

@@ -29,6 +29,7 @@ namespace eventcore
     bool LiveEventStream::Start(const char* path, lli windowUs, FrameCallback callback)
     {
         Stop();
+        m_lastError.clear();
 
         try
         {
@@ -43,7 +44,12 @@ namespace eventcore
         }
         catch (const std::exception& ex)
         {
-            std::cerr << "LiveEventStream: failed to open '" << (path ? path : "<live>") << "': " << ex.what() << std::endl;
+            m_lastError = ex.what();
+            return false;
+        }
+        catch (...)
+        {
+            m_lastError = "unknown error opening source";
             return false;
         }
 
@@ -72,7 +78,12 @@ namespace eventcore
         }
         catch (const std::exception& ex)
         {
-            std::cerr << "LiveEventStream: failed to start camera: " << ex.what() << std::endl;
+            m_lastError = ex.what();
+            return false;
+        }
+        catch (...)
+        {
+            m_lastError = "unknown error starting camera";
             return false;
         }
 
