@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Prophesee/bin/ holds the bundled Metavision SDK runtime DLLs (checked in on
+# purpose, like ocv440/'s DLLs), not a build output dir - carve it out from
+# the generic [Bb]in/ ignore rule above. Must stay at the end of this file:
+# gitignore uses "last matching rule wins", so this has to come after [Bb]in/.
+!/Prophesee/bin/
+!/Prophesee/bin/**

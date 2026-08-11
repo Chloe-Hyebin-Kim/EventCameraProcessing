@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "Event.h"
 
@@ -7,17 +7,11 @@
 
 namespace eventcore
 {
+    // CSV íŒŒì„œ ë³¸ì²´. CsvEventSource(IEventSource êµ¬í˜„ì²´)ê°€ ë‚´ë¶€ì ìœ¼ë¡œ ì‚¬ìš©í•œë‹¤.
+    // ì‹¤ì œ EVK4 HD / IMX636 RAW ì…ë ¥ì€ MetavisionEventSource(IEventSource êµ¬í˜„ì²´)ë¥¼ ì‚¬ìš©í•œë‹¤.
     class EventLoader
     {
     public:
-
-    //ÀÓ½Ã
         static bool LoadFromCsv(const std::string& filePath, std::vector<Event>& events);
-    
-    //ÃßÈÄ Metavision SDK Ãß°¡ 
-        // IEventSource
-        // CsvEventSource -> Å×½ºÆ®¿ë
-        // MetavisionEventSource ->½ÇÁ¦ RAW,camera stream¿ë
-    
     };
 }

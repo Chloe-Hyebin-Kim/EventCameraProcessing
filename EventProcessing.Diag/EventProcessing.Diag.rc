@@ -1,0 +1,55 @@
+// EventProcessing.Diag.rc
+//
+// UI text is kept in plain English on purpose to avoid .rc source-encoding /
+// code-page issues in MSVC's resource compiler (rc.exe). The rest of the
+// codebase's Korean comments are fine since those aren't compiled into
+// runtime string resources.
+
+#include "resource.h"
+#include "afxres.h"
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+IDD_EVENTPROCESSING_DIAG_DIALOG DIALOGEX 0, 0, 500, 330
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "Event Camera Diag Tool"
+FONT 9, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Source",IDC_STATIC,7,7,223,55
+    CONTROL         "Live camera",IDC_RADIO_LIVE,"Button",BS_AUTORADIOBUTTON | WS_GROUP,14,20,90,10
+    CONTROL         "RAW file",IDC_RADIO_RAW,"Button",BS_AUTORADIOBUTTON,110,20,90,10
+    EDITTEXT        IDC_EDIT_RAWPATH,14,35,155,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "Browse...",IDC_BUTTON_BROWSE_RAW,172,35,50,14
+
+    GROUPBOX        "Output",IDC_STATIC,7,65,223,30
+    EDITTEXT        IDC_EDIT_OUTPUTDIR,14,78,155,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "Browse...",IDC_BUTTON_BROWSE_OUTPUT,172,78,50,14
+
+    GROUPBOX        "Trigger settings",IDC_STATIC,7,98,223,150
+    LTEXT           "Ready hold time (sec)",IDC_STATIC,14,114,130,10
+    EDITTEXT        IDC_EDIT_READY_SEC,150,111,70,14,ES_AUTOHSCROLL
+    LTEXT           "Capture duration (sec)",IDC_STATIC,14,132,130,10
+    EDITTEXT        IDC_EDIT_CAPTURE_SEC,150,129,70,14,ES_AUTOHSCROLL
+    LTEXT           "Stable jitter (px)",IDC_STATIC,14,150,130,10
+    EDITTEXT        IDC_EDIT_STABLE_PX,150,147,70,14,ES_AUTOHSCROLL
+    LTEXT           "Shot speed threshold (px/s)",IDC_STATIC,14,168,130,10
+    EDITTEXT        IDC_EDIT_SHOT_SPEED,150,165,70,14,ES_AUTOHSCROLL
+    LTEXT           "Miss tolerance (ms)",IDC_STATIC,14,186,130,10
+    EDITTEXT        IDC_EDIT_MISS_TOLERANCE_MS,150,183,70,14,ES_AUTOHSCROLL
+    LTEXT           "Accumulation window (us)",IDC_STATIC,14,204,130,10
+    EDITTEXT        IDC_EDIT_WINDOW_US,150,201,70,14,ES_AUTOHSCROLL
+
+    PUSHBUTTON      "Start",IDC_BUTTON_START,14,224,90,20
+    PUSHBUTTON      "Stop",IDC_BUTTON_STOP,114,224,90,20,WS_DISABLED
+
+    LTEXT           "State:",IDC_STATIC,237,7,60,10
+    CTEXT           "IDLE",IDC_STATIC_STATE,237,18,256,20,SS_CENTERIMAGE | WS_BORDER
+    CONTROL         "",IDC_STATIC_PREVIEW,"Static",SS_BLACKRECT | WS_BORDER,237,42,256,193
+    LTEXT           "",IDC_STATIC_FPS,237,238,256,10
+
+    LISTBOX         IDC_LIST_LOG,7,252,486,70,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_BORDER | WS_TABSTOP
+END
+
+#endif

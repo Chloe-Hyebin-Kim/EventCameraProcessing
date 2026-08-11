@@ -21,7 +21,7 @@ namespace eventcore
         return dst;
     }
 
-    void EventAccumulator::Accumulate(const std::std::vector<Event>& events,int width,int height,lli startUs, lli windowUs, cv::Mat& positiveImage, cv::Mat& negativeImage, cv::Mat& mergedImage)
+    void EventAccumulator::Accumulate(const std::vector<Event>& events,int width,int height,lli startUs, lli windowUs, cv::Mat& positiveImage, cv::Mat& negativeImage, cv::Mat& mergedImage)
     {
         const lli endUs = startUs + windowUs;
 
