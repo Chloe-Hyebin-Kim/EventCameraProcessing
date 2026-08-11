@@ -1,6 +1,7 @@
 ## Project Structure
 
 프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 MFC Diagnostic Application으로 구성함.
+<img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
 
 ```text
 EventCameraProcessing/
