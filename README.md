@@ -1,166 +1,573 @@
-# Event Camera Processing Prototype
+## Project Structure
 
-## Purpose
-This prototype processes event camera data for image processing research,
-targeting the Prophesee **Metavision EVK4 HD / IMX636** (1280x720, EVT3
-format) event camera. It can read a `.raw` recording, connect to a live
-EVK4 HD camera, or (for testing) a plain CSV event stream, and turn that
-into viewable images/video - either as a one-shot batch conversion or as a
-live preview with automatic ball-detection-triggered capture.
+프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 MFC Diagnostic Application으로 구성함.
 
-## Projects
-- **`EventProcessing.Core`** (static lib) - event loading (CSV / Metavision
-  RAW / live camera), accumulation imaging, noise filtering, ball detection,
-  and the ready/trigger/capture state machine. Everything else builds on this.
-- **`EventProcessing.Console`** (exe) - batch conversion: point it at a
-  recording, get an MP4 + debug PNGs out. Works without the Metavision SDK
-  (CSV-only) if the SDK isn't available.
-- **`EventProcessing.Diag`** (MFC GUI exe) - live preview + automatic capture
-  tool. Requires the Metavision SDK to build at all (see below).
-
-## Pipeline (Console)
-1. Load events from a Metavision RAW recording (`.raw`), a live EVK4 HD camera
-   (`live`), or a CSV file (`.csv`, for testing)
-2. Slide a time window (`windowUs`) across the recording
-3. For each window, generate positive, negative, and merged event accumulation images
-4. Apply basic noise filtering
-5. Detect a ball candidate using contour analysis
-6. Write each window's debug frame to an output video, and save the first
-   window's images individually
-
-## Input
-- **RAW**: a Metavision RAW recording captured from an EVK4 HD / IMX636 camera
-- **live**: pass `live` (or `camera`) instead of a file path to capture directly
-  from the first connected EVK4 HD camera
-- **CSV** (ex, for testing without a camera):
-  ```
-  t_us,x,y,p
-  0,120,240,1
-  3,121,240,1
-  7,122,241,-1
-  ```
-
-## Bundled dependencies
-Both OpenCV and the Metavision SDK are checked into this repo (like a vendored
-build) so `git clone` + open the solution is enough for anyone to build,
-without a separate install step:
-- **`ocv440/`** - OpenCV 4.4.0 headers/libs, plus `opencv_world440(d).dll` at
-  the repo root.
-- **`Prophesee/`** - Metavision SDK 5.x `include/`, `lib/`, and `bin/`
-  (headers, import libs, and every runtime DLL the SDK needs, including
-  transitive third-party ones - see the OpenEB-from-source note below).
-
-`Metavision.props` prefers `Prophesee/` when present, falling back to a
-system-wide install (default `C:\Program Files\Prophesee`, override via the
-`MetavisionSDKDir` MSBuild/environment property) otherwise. Post-build steps
-on `EventProcessing.Console`/`EventProcessing.Diag` copy the right DLLs next
-to the built exe automatically, and `MetavisionRuntime::EnsureBundledHalPluginPath()`
-(called at the start of both apps) points `MV_HAL_PLUGIN_PATH` at the bundled
-camera plugin folder at runtime - so nothing needs to be installed or
-configured system-wide on a machine that just clones this repo.
-
-If `Prophesee/` isn't present and no system-wide SDK is found,
-`EventProcessing.Core`/`EventProcessing.Console` still build fine with
-CSV-only support (RAW/live are compiled out via the `EVENTCORE_HAVE_METAVISION`
-macro) - but `EventProcessing.Diag` needs the SDK to build at all, since a
-live-preview tool has no useful CSV-only mode.
-
-`EventProcessing.Diag` also needs the MFC component of the VS Build Tools
-installed ("C++ MFC for latest v142 build tools (x86 & x64)" in the VS
-Installer).
-
-### If you rebuild/update the bundled Metavision SDK
-- Get it from the [Prophesee installer](https://docs.prophesee.ai/stable/installation/windows.html)
-  if you have SDK access (comes with any EVK4 purchase or a PRO license), or
-  build [OpenEB](https://github.com/prophesee-ai/openeb) from source
-  (open-source, covers the same Base/Core/Stream/HAL modules) if you don't.
-- This project targets SDK 5.x's module layout (`Stream`, formerly named
-  `Driver` pre-5.0 - `metavision/sdk/stream/camera.h`, `metavision_sdk_stream.lib`).
-- **Building OpenEB from source**: its CMake install step does *not* copy
-  every third-party runtime DLL (hdf5, protobuf, libusb, libpng, zlib, its
-  own internal OpenCV build, etc.) into `<install>/bin` - some only end up in
-  vcpkg's own `installed/x64-windows/bin/`. Check what a built DLL actually
-  needs with `dumpbin /dependents <dll>` (VS Developer Command Prompt) and
-  copy anything missing from vcpkg's `bin/` into `Prophesee/bin/` too.
-- `Prophesee/bin/` is deliberately exempted from `.gitignore`'s generic
-  `[Bb]in/` rule (see the bottom of `.gitignore`) - don't remove that
-  exception, or `git add` on new DLLs there will silently no-op.
-- **Don't duplicate the same DLL into multiple search-path directories**
-  "to be safe" (e.g. also copying `metavision_sdk_*.dll`/`libprotobuf.dll`
-  into the `hal_plugins/` folder next to the plugin DLLs). That causes two
-  independent instances of the same DLL (protobuf in particular) to load in
-  one process, which crashes with `google::protobuf::FatalException` in
-  `descriptor.cc`. Only `libusb-1.0.dll` needs to be duplicated there
-  (it's a direct dependency of the camera plugin DLLs, confirmed via
-  `dumpbin`); everything else should live in exactly one place.
-
-## Example (Console)
+```text
+EventCameraProcessing/
+│
+├─ EventProcessing.Core/
+│  ├─ Event Source
+│  ├─ Event Filtering
+│  ├─ Event Accumulation
+│  ├─ Ball Detection
+│  └─ Ready / Trigger / Capture Logic
+│
+├─ EventProcessing.Console/
+│  └─ RAW / CSV / Live 입력 기반 Batch Processing
+│
+├─ EventProcessing.Diag/
+│  └─ MFC 기반 Live / RAW Diagnostic Viewer
+│
+├─ Prophesee/
+│  ├─ include/
+│  ├─ lib/
+│  └─ bin/
+│
+├─ ocv440/
+│  └─ OpenCV 4.4.0
+│
+├─ Metavision.props
+├─ EventCameraProcessing.sln
+└─ README.md
 ```
-EventProcessing.Console.exe recording.raw output 10000 30
-EventProcessing.Console.exe events.csv output 1000 30
-EventProcessing.Console.exe live output 10000 30
+
+### EventProcessing.Core
+
+이벤트 카메라 데이터 처리에 필요한 핵심 로직을 담당하는 Static Library.
+
+주요 기능:
+
+- CSV Event Stream Loading
+- Metavision RAW File Loading
+- EVK4 HD Live Camera Input
+- Event Data Representation
+- Event Noise Filtering
+- Time-window Event Accumulation
+- Positive / Negative Event Visualization
+- Ball Candidate Detection
+- Ready / Trigger / Capture State Management
+
+`EventProcessing.Console`, `EventProcessing.Diag`에서 공통으로 `EventProcessing.Core`를 사용함.
+
+### EventProcessing.Console
+
+Command-line 기반 Batch Processing Application.
+
+RAW, CSV 또는 Live Camera에서 입력된 Event Stream을 일정 시간 구간으로 분할하고 Event Accumulation Image 및 Debug 결과 생성에 사용함.
+
+주요 출력:
+
+- Positive Event Image
+- Negative Event Image
+- Merged Event Image
+- Binary Mask
+- Ball Detection Debug Image
+- MP4 Visualization Video
+
+기본 Processing Flow:
+
+```text
+RAW / CSV / Live
+       │
+       ▼
+Event Source
+       │
+       ▼
+Noise Filtering
+       │
+       ▼
+Time-window Accumulation
+       │
+       ▼
+Ball Detection
+       │
+       ▼
+Image / Video Output
 ```
-Arguments: `<input.raw|input.csv|live> [outputDir=output] [windowUs=10000] [fps=30]`
 
-### Output (in outputDir)
-- `event_video.mp4` - merged event accumulation + ball detection overlay, one
-  frame per `windowUs` window, encoded at `fps`
-- `01_positive_event.png` / `02_negative_event.png` / `03_merged_event.png` /
-  `04_binary_mask.png` / `05_debug_result.png` - images for the first window
+### EventProcessing.Diag
 
-## EventProcessing.Diag (live/RAW diag tool)
-An MFC GUI tool for watching the live camera (or a RAW file played back in
-real time) and automating capture, instead of running the batch console tool:
+MFC 기반 Diagnostic Application.
 
-1. **Searching**: no ball recognized yet, or it hasn't held still long enough.
-2. **Ready**: the recognized ball has stayed within `stableMovePx` of the same
-   spot for `readySeconds` - this is the "ready" signal.
-3. **Trigger**: from Ready, once the ball's center moves faster than
-   `shotSpeedPxPerSec`, that's treated as a shot and capture starts.
-4. **Capturing**: saves a PNG per accumulation window into
-   `outputDir\shot_<timestamp>\` for `captureSeconds`, then returns to Searching.
+EVK4 HD Live Camera 또는 RAW Recording의 Event Stream을 실시간으로 확인하고, Ball Detection 결과를 기반으로 Shot Capture 상태를 관리하는 용도로 구성함.
 
-All of the above thresholds, the accumulation window, and the RAW file / live
-camera choice are set directly in the tool's UI (defaults are pre-filled but
-tune them for your setup - see the known limitation below).
+```text
+Searching
+    │
+    ▼
+Ball Detection
+    │
+    ▼
+Ready
+    │
+    ▼
+Shot Trigger
+    │
+    ▼
+Capturing
+    │
+    └──────────► Searching
+```
 
-Step 4 from the original request ("공 관측을 통해 데이터 전송", e.g. ball
-speed/launch angle/spin) is *not* implemented here - that's a separate
-analysis task once frames are being reliably captured; NGSSensorDiag (or a
-similar tool) already covers that role.
+Ball이 일정 시간 동안 동일 위치에서 안정적으로 검출되면 `Ready` 상태로 전환함.
 
-## Known limitation: ball detection robustness
-`BallDetector`'s "largest contour" heuristic is not very robust on noisy
-real-world event data - on a real 7-iron swing RAW recording used to
-validate this feature, it frequently locked onto other objects (a shoe, a
-club) instead of the ball, which prevents "Ready" from firing reliably. This
-looked related to the sample's `.bias` file having all-zero sensor bias
-values (i.e. uncalibrated/default sensor sensitivity, which increases
-background noise). Tightening or loosening the `stableMovePx`/
-`missToleranceUs` thresholds did not fully fix it; a more robust fix
-(background/temporal filtering, or a real tracker) is a follow-up, not
-something implemented yet. Tune the thresholds per your own camera/bias
-setup in the meantime.
+Ready 상태에서 설정한 이동 속도 이상의 변화가 발생하면 Shot으로 판단하고 `Capturing` 상태로 전환함.
 
-## Troubleshooting
-Issues actually hit (and fixed) while building this out, in case they recur
-on another machine:
-- **`opencv_world440(d).dll` / `metavision_sdk_*.dll` not found at
-  startup**: the exe was built but the DLL isn't next to it. Rebuild (not
-  just Build) so the post-build copy step runs, or check it's not being run
-  from a different output folder than where the DLLs got copied.
-- **`Metavision HAL exception 101000: No plugin available for input
-  stream`**: HAL loaded but couldn't find/load the camera plugin DLL. Check
-  `hal_plugins\` next to the exe has `hal_plugin_prophesee.dll`,
-  `metavision_psee_hw_layer.dll`, and `libusb-1.0.dll`; also check for a
-  stale system-wide `MV_HAL_PLUGIN_PATH` pointing somewhere stale (the app
-  now prefers its own bundled plugin folder, but only once rebuilt with
-  that fix).
-- **`google::protobuf::FatalException` crash in `descriptor.cc`**: two
-  copies of `libprotobuf.dll` got loaded into the same process - almost
-  always from a DLL being duplicated into more than one directory that's on
-  the search path (see the "don't duplicate" note above). Delete any
-  `hal_plugins\` folder under the build output and rebuild.
-- **MSVC `C4819` code-page warnings** on files with Korean comments: add a
-  UTF-8 BOM to the file (`git log` this repo's history for examples) -
-  without it, MSVC on a CP949-locale machine misreads UTF-8 source as CP949.
+---
+
+## Dependencies
+
+### Development Environment
+
+```text
+Language        : C++
+IDE             : Visual Studio 2022
+Platform        : Windows x64
+GUI             : MFC
+Build           : MSBuild / Visual Studio Solution
+```
+
+### OpenCV
+
+Event Visualization 및 기본 Image Processing에 OpenCV 4.4.0 사용.
+
+```text
+OpenCV 4.4.0
+```
+
+Repository 내부 경로:
+
+```text
+ocv440/
+```
+
+주요 사용 용도:
+
+- Event Accumulation Image 생성
+- Binary Image Processing
+- Contour Detection
+- Debug Visualization
+- PNG 저장
+- MP4 Video 생성
+
+### Prophesee Metavision / OpenEB
+
+EVK4 HD / IMX636 Camera 및 Metavision RAW File 처리를 위해 Metavision SDK 5.x API 사용.
+
+주요 Module:
+
+```text
+Metavision SDK Base
+Metavision SDK Core
+Metavision SDK Stream
+Metavision HAL
+```
+
+SDK Header, Import Library, Runtime DLL을 Repository 내부에서도 참조할 수 있도록 구성함.
+
+```text
+Prophesee/
+│
+├─ include/
+├─ lib/
+└─ bin/
+```
+
+각 Directory의 역할:
+
+```text
+Prophesee/include
+        ↓
+Compile-time Header
+
+Prophesee/lib
+        ↓
+Link-time Import Library
+
+Prophesee/bin
+        ↓
+Runtime DLL
+```
+
+### Metavision SDK Path
+
+`Metavision.props`에서 Metavision SDK 경로를 관리함.
+
+Repository 내부에 `Prophesee/`가 존재하면 해당 경로를 우선 사용하고, 존재하지 않을 경우 System-wide Metavision SDK 경로를 사용하도록 구성함.
+
+```text
+1. $(SolutionDir)Prophesee
+
+        ↓ if not found
+
+2. C:\Program Files\Prophesee
+```
+
+개발 PC마다 동일한 System Path를 구성해야 하는 문제를 줄이고 Repository 기준으로 Build Environment를 재현하기 위한 구조.
+
+### Runtime DLL Deployment
+
+`EventProcessing.Console`, `EventProcessing.Diag`에 Post-Build Copy Step 적용.
+
+Build 완료 후
+
+```text
+Prophesee\bin\*.dll
+```
+
+의 Runtime DLL을 실행 파일 Output Directory로 자동 복사함.
+
+```text
+Prophesee\bin
+      │
+      │ Post-Build
+      ▼
+x64\Debug
+or
+x64\Release
+```
+
+System-wide `PATH` 설정에 대한 의존성을 줄이기 위한 구성.
+
+### HAL Plugin
+
+EVK4 HD Camera 사용을 위해 일반 Runtime DLL 외에 Metavision HAL Camera Plugin 사용.
+
+HAL Plugin 검색에는 다음 환경변수 사용.
+
+```text
+MV_HAL_PLUGIN_PATH
+```
+
+프로그램 시작 시 실행 파일 위치를 기준으로 Bundled HAL Plugin Directory를 검색하고 `MV_HAL_PLUGIN_PATH`를 설정하도록 구성함.
+
+```text
+EventProcessing.Diag.exe
+│
+├─ Metavision Runtime DLLs
+│
+└─ hal_plugins/
+   ├─ hal_plugin_prophesee.dll
+   ├─ metavision_psee_hw_layer.dll
+   └─ libusb-1.0.dll
+```
+
+별도의 System-wide HAL Plugin Path 설정 없이 실행할 수 있도록 구성함.
+
+### Debug / Release
+
+Metavision/OpenEB Library의 Debug / Release Binary를 분리하여 사용함.
+
+```text
+Debug
+├─ *_d.lib
+├─ *_d.dll
+└─ /MDd
+
+Release
+├─ *.lib
+├─ *.dll
+└─ /MD
+```
+
+Debug와 Release Binary 혼용 시 CRT/STL Symbol 충돌 및 Runtime Dependency 문제가 발생할 수 있으므로 Configuration별로 분리하여 관리함.
+
+---
+
+## Research Direction
+
+본 프로젝트의 현재 목적은 최종 Spin Estimation Algorithm을 바로 구현하는 것이 아니라, 실제 Event Camera Data를 취득·확인하고 후속 연구에 사용할 수 있는 Event Processing Pipeline을 구축하는 것임.
+
+전체 연구 방향:
+
+```text
+Event Acquisition
+       │
+       ▼
+Data Validation
+       │
+       ▼
+Event Visualization
+       │
+       ▼
+Noise Filtering
+       │
+       ▼
+Ball ROI Detection
+       │
+       ▼
+Ball Tracking
+       │
+       ▼
+Event-based Optical Flow
+       │
+       ▼
+Dimple / Surface Feature Tracking
+       │
+       ▼
+Rotation Estimation
+       │
+       ▼
+Spin Estimation
+```
+
+### Event-based Optical Flow
+
+Event Accumulation Image만 사용하는 방식에서 확장하여 각 Event의 Microsecond-level Timestamp를 이용한 Motion Estimation 적용 예정.
+
+```text
+Event = (x, y, t, polarity)
+```
+
+Ball Surface에서 발생하는 Event의 시간적 이동 관계를 이용한 Optical Flow 추정 검토.
+
+### Ball Tracking
+
+현재 Contour 기반 Ball Candidate Detection에서 시간적으로 연속된 Ball Position을 추적하는 Tracking 방식으로 확장 예정.
+
+Tracking을 통해 다음 객체와 Ball Event Cluster를 구분하는 방향으로 개선 예정.
+
+```text
+Club
+Shoe
+Player
+Background Noise
+Ball
+```
+
+### Dimple / Surface Feature Tracking
+
+골프공 표면의 Dimple 및 Texture에 의해 발생하는 Event Pattern을 이용한 Surface Motion 추적 검토.
+
+고속 회전 상황에서 Event Camera의 높은 시간 해상도를 활용하여 Frame Camera 기반 방식에서 발생할 수 있는 Motion Blur 및 Temporal Aliasing 문제 감소 가능성 분석 예정.
+
+### Rotation / Spin Estimation
+
+Ball Surface Motion 및 Event-based Optical Flow를 이용하여 Rotation Axis와 Angular Velocity를 추정하는 방향으로 확장 예정.
+
+검토 대상:
+
+```text
+Event-based Optical Flow
+Temporal Feature Tracking
+Ball Geometry Constraint
+Camera Calibration
+Rotation Model
+Physics-based Constraint
+```
+
+Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 최종 Motion / Spin Estimation에서는 원본 Event Timestamp 정보를 최대한 유지하는 방향으로 진행 예정.
+
+```text
+(x, y, t, polarity)
+```
+
+---
+
+## Current Status
+
+### Implemented
+
+- [x] Event Data Structure
+- [x] CSV Event Stream Input
+- [x] Metavision RAW File Input
+- [x] EVK4 HD Live Camera Input
+- [x] Event Time-window Accumulation
+- [x] Positive Event Visualization
+- [x] Negative Event Visualization
+- [x] Merged Event Visualization
+- [x] Basic Noise Filtering
+- [x] Binary Mask Generation
+- [x] Basic Ball Candidate Detection
+- [x] Debug Image Generation
+- [x] PNG Output
+- [x] MP4 Visualization
+- [x] Console Batch Processing
+- [x] MFC Diagnostic Viewer
+- [x] Searching / Ready / Trigger / Capturing State Machine
+- [x] Repository-local Metavision SDK Path 구성
+- [x] Metavision Runtime DLL Post-Build Copy
+- [x] HAL Plugin Path 자동 설정
+- [x] Debug / Release Metavision Build 구성
+
+### In Progress / Next
+
+- [ ] Real-world Event Data Quality Evaluation
+- [ ] Camera Bias Setting Validation
+- [ ] Event Noise Filtering 개선
+- [ ] Ball Detection Robustness 개선
+- [ ] Temporal Ball Tracking
+- [ ] Ball ROI Stabilization
+- [ ] Event-based Optical Flow
+- [ ] Motion Compensation
+- [ ] Dimple / Surface Feature Tracking
+- [ ] Rotation Axis Estimation
+- [ ] Angular Velocity Estimation
+- [ ] Golf Ball Spin Estimation
+- [ ] Camera Calibration Integration
+- [ ] Physics-based Motion Constraint Integration
+
+현재 개발 단계:
+
+```text
+Acquisition         [Done]
+        ↓
+RAW / Live Loading  [Done]
+        ↓
+Visualization       [Done]
+        ↓
+Basic Detection     [Done]
+        ↓
+Robust Tracking     [Next]
+        ↓
+Optical Flow        [Next]
+        ↓
+Rotation / Spin     [Future]
+```
+
+---
+
+## Current Limitations
+
+### Ball Detection Robustness
+
+현재 `BallDetector`는 Event Accumulation Image에서 Contour를 분석하여 Ball Candidate를 검출하는 기본 방식 사용.
+
+실제 Golf Swing Event Data에서는 Ball 이외에도 다음 영역에서 많은 Event가 발생함.
+
+```text
+Club
+Shoe
+Player
+Background Edge
+Lighting Noise
+```
+
+가장 큰 Contour 또는 단순 Shape 조건만 사용하는 경우 다른 객체가 Ball로 검출될 가능성이 존재함.
+
+따라서 현재 Ball Detection은 최종 Ball Tracking Algorithm이 아닌 **Data Validation 및 Trigger Logic 검증용 Prototype**에 해당함.
+
+향후 Temporal Tracking 및 ROI 기반 검출 방식 추가 필요.
+
+### Event Noise
+
+Event Camera는 픽셀의 밝기 변화에 반응하므로 Sensor Bias, Lighting, Reflection 및 Background Activity에 따라 Noise Event가 발생할 수 있음.
+
+현재 Basic Noise Filtering 적용 단계.
+
+추후 검토 대상:
+
+```text
+Background Activity Filtering
+Temporal Filtering
+Spatial Filtering
+Hot Pixel Removal
+ROI Filtering
+Motion-based Filtering
+```
+
+### Event Accumulation Window
+
+Event Visualization 시 일정 시간 동안 발생한 Event를 하나의 이미지로 누적함.
+
+주요 Parameter:
+
+```text
+windowUs
+```
+
+Window가 너무 작은 경우:
+
+```text
+Event 수 감소
+→ Ball Shape 표현 부족
+```
+
+Window가 너무 큰 경우:
+
+```text
+빠른 Motion이 동일 Frame에 누적
+→ Ball Event 확산
+→ Motion 정보 중첩
+```
+
+Camera Setting, Ball Speed 및 분석 목적에 따른 적절한 Window Size 선정 필요.
+
+### Camera Bias Dependency
+
+Event 발생 특성은 Sensor Bias Setting의 영향을 받음.
+
+Bias가 적절하지 않은 경우:
+
+```text
+Background Noise 증가
+Event Rate 과다
+Ball Surface Event 부족
+Feature Contrast 저하
+```
+
+등의 문제가 발생할 수 있음.
+
+실제 촬영 환경에서 다음 요소에 대한 반복 실험 필요.
+
+```text
+Lighting
+Sensor Bias
+Camera Position
+Ball Distance
+Lens
+Event Rate
+Background
+```
+
+### Accumulation Image Information Loss
+
+Event Accumulation Image는 비동기 Event Stream을 사람이 확인하기 쉬운 Image 형태로 표현하는 방법임.
+
+다만 여러 Timestamp의 Event를 하나의 Frame으로 합치므로 원본 Event의 Temporal Information 일부가 손실됨.
+
+```text
+Raw Event
+(x, y, t, polarity)
+
+        ↓ Accumulation
+
+Image
+(x, y, intensity)
+```
+
+따라서 후속 Optical Flow / Spin Estimation에서는 Accumulation Image만 사용하는 방식보다 원본 Event Timestamp를 직접 활용하는 처리 방식 병행 필요.
+
+### Spin Estimation
+
+현재 최종 Golf Ball Spin Estimation Algorithm은 구현되지 않은 상태.
+
+현재 구현 범위:
+
+```text
+Event Acquisition
+        ↓
+Visualization
+        ↓
+Basic Filtering
+        ↓
+Ball Detection
+        ↓
+Capture
+```
+
+후속 연구 범위:
+
+```text
+Ball Tracking
+        ↓
+Event-based Optical Flow
+        ↓
+Surface Feature Tracking
+        ↓
+Rotation Estimation
+        ↓
+Spin Estimation
+```
+
+현재 프로젝트는 위 후속 연구를 진행하기 위한 Event Acquisition / Processing / Visualization 기반 구축 단계임.
