@@ -2,6 +2,7 @@
 #include "framework.h"
 #include "EventProcessing.Diag.h"
 #include "EventProcessingDiagDlg.h"
+#include "MetavisionRuntime.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -19,6 +20,10 @@ CEventProcessingDiagApp theApp;
 BOOL CEventProcessingDiagApp::InitInstance()
 {
     CWinApp::InitInstance();
+
+#ifdef EVENTCORE_HAVE_METAVISION
+    eventcore::EnsureBundledHalPluginPath();
+#endif
 
     AfxEnableControlContainer();
 

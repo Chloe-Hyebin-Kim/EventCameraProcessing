@@ -14,6 +14,7 @@
 #include "EventProcessor.h"
 #include "EventSourceFactory.h"
 #include "EventVisualizer.h"
+#include "MetavisionRuntime.h"
 
 using namespace eventcore;
 namespace fs = std::filesystem;
@@ -35,6 +36,10 @@ namespace
 
 int main(int argc, char** argv)
 {
+#ifdef EVENTCORE_HAVE_METAVISION
+    EnsureBundledHalPluginPath();
+#endif
+
     if (argc < 2)
     {
         PrintUsage(argv[0]);

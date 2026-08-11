@@ -60,6 +60,9 @@
     <ClInclude Include="LiveEventStream.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="MetavisionRuntime.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="EventProcessing.Core.cpp">
@@ -99,6 +102,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="LiveEventStream.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="MetavisionRuntime.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>

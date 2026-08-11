@@ -6,15 +6,21 @@
   추가하지 않고, 프로젝트는 CSV 입력만 지원하는 상태로 정상 빌드된다. (MetavisionEventSource.*은
   EVENTCORE_HAVE_METAVISION 매크로로 감싸져 있어 SDK 없이도 컴파일된다.)
 
-  기본 설치 경로(C:\Program Files\Prophesee)가 다르면 환경변수 또는 MSBuild 속성으로
-  MetavisionSDKDir을 재정의한다.
+  ocv440\와 마찬가지로, SDK를 리포지토리의 Prophesee\ 폴더(include/lib/bin)에 그대로 복사해
+  같이 커밋해두면 별도 설치 없이도 clone만으로 빌드/실행된다. Prophesee\가 없으면 시스템에
+  설치된 Metavision SDK(기본 C:\Program Files\Prophesee)를 대신 사용한다.
+
+  다른 경로를 쓰려면 환경변수 또는 MSBuild 속성으로 MetavisionSDKDir을 재정의한다.
     예) msbuild /p:MetavisionSDKDir="D:\Prophesee\Metavision"
 -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
+    <MetavisionSDKDir Condition="'$(MetavisionSDKDir)' == '' AND Exists('$(SolutionDir)Prophesee\include\metavision\sdk\stream\camera.h')">$(SolutionDir)Prophesee</MetavisionSDKDir>
     <MetavisionSDKDir Condition="'$(MetavisionSDKDir)' == ''">C:\Program Files\Prophesee</MetavisionSDKDir>
     <!-- SDK 5.0부터 "Driver" 모듈이 "Stream"으로 개명되었다 (metavision/sdk/driver -> metavision/sdk/stream). -->
     <_MetavisionCameraHeader>$(MetavisionSDKDir)\include\metavision\sdk\stream\camera.h</_MetavisionCameraHeader>
+    <_MetavisionBinDir Condition="Exists('$(MetavisionSDKDir)\bin')">$(MetavisionSDKDir)\bin</_MetavisionBinDir>
+    <_MetavisionHalPluginDir Condition="Exists('$(MetavisionSDKDir)\lib\metavision\hal\plugins')">$(MetavisionSDKDir)\lib\metavision\hal\plugins</_MetavisionHalPluginDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="Exists('$(_MetavisionCameraHeader)')">
     <ClCompile>

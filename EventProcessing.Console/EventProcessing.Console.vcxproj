@@ -132,7 +132,9 @@
       <AdditionalLibraryDirectories>$(SolutionDir)\ocv440\lib;$(SolutionDir)\Prophesee\lib;$(MetavisionSDKDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)opencv_world440d.dll" "$(OutDir)"</Command>
+      <Command>copy /Y "$(SolutionDir)opencv_world440d.dll" "$(OutDir)"
+if exist "$(SolutionDir)Prophesee\bin" xcopy /Y /D "$(SolutionDir)Prophesee\bin\*.dll" "$(OutDir)"
+if exist "$(SolutionDir)Prophesee\lib\metavision\hal\plugins" xcopy /Y /D /I "$(SolutionDir)Prophesee\lib\metavision\hal\plugins\*.dll" "$(OutDir)hal_plugins\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -155,7 +157,9 @@
       <AdditionalLibraryDirectories>$(SolutionDir)\ocv440\lib;$(SolutionDir)\Prophesee\lib;$(MetavisionSDKDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)opencv_world440.dll" "$(OutDir)"</Command>
+      <Command>copy /Y "$(SolutionDir)opencv_world440.dll" "$(OutDir)"
+if exist "$(SolutionDir)Prophesee\bin" xcopy /Y /D "$(SolutionDir)Prophesee\bin\*.dll" "$(OutDir)"
+if exist "$(SolutionDir)Prophesee\lib\metavision\hal\plugins" xcopy /Y /D /I "$(SolutionDir)Prophesee\lib\metavision\hal\plugins\*.dll" "$(OutDir)hal_plugins\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
