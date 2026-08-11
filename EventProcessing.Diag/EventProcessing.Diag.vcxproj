@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -76,7 +76,8 @@
     <PostBuildEvent>
       <Command>copy /Y "$(SolutionDir)opencv_world440d.dll" "$(OutDir)"
 if exist "$(SolutionDir)Prophesee\bin" xcopy /Y /D "$(SolutionDir)Prophesee\bin\*.dll" "$(OutDir)"
-if exist "$(SolutionDir)Prophesee\lib\metavision\hal\plugins" xcopy /Y /D /I "$(SolutionDir)Prophesee\lib\metavision\hal\plugins\*.dll" "$(OutDir)hal_plugins\"</Command>
+if exist "$(SolutionDir)Prophesee\lib\metavision\hal\plugins" xcopy /Y /D /I "$(SolutionDir)Prophesee\lib\metavision\hal\plugins\*.dll" "$(OutDir)hal_plugins\"
+if exist "$(SolutionDir)Prophesee\bin" xcopy /Y /D /I "$(SolutionDir)Prophesee\bin\*.dll" "$(OutDir)hal_plugins\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -106,7 +107,8 @@ if exist "$(SolutionDir)Prophesee\lib\metavision\hal\plugins" xcopy /Y /D /I "$(
     <PostBuildEvent>
       <Command>copy /Y "$(SolutionDir)opencv_world440.dll" "$(OutDir)"
 if exist "$(SolutionDir)Prophesee\bin" xcopy /Y /D "$(SolutionDir)Prophesee\bin\*.dll" "$(OutDir)"
-if exist "$(SolutionDir)Prophesee\lib\metavision\hal\plugins" xcopy /Y /D /I "$(SolutionDir)Prophesee\lib\metavision\hal\plugins\*.dll" "$(OutDir)hal_plugins\"</Command>
+if exist "$(SolutionDir)Prophesee\lib\metavision\hal\plugins" xcopy /Y /D /I "$(SolutionDir)Prophesee\lib\metavision\hal\plugins\*.dll" "$(OutDir)hal_plugins\"
+if exist "$(SolutionDir)Prophesee\bin" xcopy /Y /D /I "$(SolutionDir)Prophesee\bin\*.dll" "$(OutDir)hal_plugins\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
