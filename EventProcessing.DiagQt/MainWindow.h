@@ -26,9 +26,8 @@ struct FrameMessage
     eventcore::lli windowEndUs = 0;
 };
 
-// EventProcessing.Diag(MFC)와 동일한 기능을 Qt Widgets로 구현한 버전.
-// MFC는 Windows 전용이므로, Linux(및 다른 Qt 지원 플랫폼)에서도 동일한 Live/RAW
-// Diagnostic Viewer를 빌드/실행할 수 있도록 이 프로젝트를 추가했다.
+// Qt Widgets 기반 Live/RAW Diagnostic Viewer. Windows/Linux(및 다른 Qt 지원 플랫폼)에서
+// 동일한 소스로 빌드/실행할 수 있다.
 class MainWindow : public QWidget
 {
     Q_OBJECT

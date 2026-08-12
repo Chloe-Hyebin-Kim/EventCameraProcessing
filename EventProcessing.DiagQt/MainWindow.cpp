@@ -50,7 +50,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_btnStop->setEnabled(false);
     m_labelState->setText(QStringLiteral("IDLE"));
 
-    setWindowTitle(QStringLiteral("EventProcessing.Diag (Qt)"));
+    setWindowTitle(QStringLiteral("EventProcessing.DiagQt"));
     resize(960, 640);
 }
 

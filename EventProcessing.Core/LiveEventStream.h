@@ -20,8 +20,8 @@ namespace eventcore
     // windowUs 간격(대략적인 화면 갱신 주기)마다 그 사이 수신된 이벤트를 EventProcessor::Process로
     // 누적/분석해 콜백으로 전달한다.
     //
-    // 콜백은 내부 워커 스레드에서 호출된다. UI(MFC 등)를 갱신할 때는 콜백 안에서 직접 컨트롤을
-    // 만지지 말고, PostMessage 등으로 UI 스레드에 마샬링해야 한다.
+    // 콜백은 내부 워커 스레드에서 호출된다. UI(Qt 등)를 갱신할 때는 콜백 안에서 직접 컨트롤을
+    // 만지지 말고, PostMessage/QMetaObject::invokeMethod 등으로 UI 스레드에 마샬링해야 한다.
     class LiveEventStream
     {
     public:
