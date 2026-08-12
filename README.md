@@ -1,6 +1,6 @@
 ## Project Structure
 
-프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 MFC Diagnostic Application으로 구성함.
+프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Diagnostic Application(Windows: MFC, Windows/Linux: Qt)으로 구성함.
 <img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
 
 ```text
@@ -17,7 +17,10 @@ EventCameraProcessing/
 │  └─ RAW / CSV / Live 입력 기반 Batch Processing
 │
 ├─ EventProcessing.Diag/
-│  └─ MFC 기반 Live / RAW Diagnostic Viewer
+│  └─ MFC 기반 Live / RAW Diagnostic Viewer (Windows 전용)
+│
+├─ EventProcessing.DiagQt/
+│  └─ Qt Widgets 기반 Live / RAW Diagnostic Viewer (Windows / Linux)
 │
 ├─ Prophesee/
 │  ├─ include/
@@ -28,9 +31,21 @@ EventCameraProcessing/
 │  └─ OpenCV 4.4.0
 │
 ├─ Metavision.props
-├─ EventCameraProcessing.sln
+├─ EventCameraProcessing.sln    (Windows / MSBuild / MFC)
+├─ CMakeLists.txt               (Windows / Linux / CMake / Qt)
 └─ README.md
 ```
+
+### EventProcessing.Diag vs EventProcessing.DiagQt
+
+두 프로젝트는 동일한 Live / RAW Diagnostic Viewer 기능(카메라 프리뷰, Shot Trigger 파라미터 설정, Ready/Capturing 상태 표시, Shot 캡처 PNG 저장)을 제공하는 동일한 애플리케이션의 서로 다른 GUI 구현체이며, 둘 다 내부적으로 `EventProcessing.Core`(`LiveEventStream`, `ShotTrigger`)를 그대로 사용함.
+
+```text
+EventProcessing.Diag     MFC              Windows 전용        EventCameraProcessing.sln (MSBuild)
+EventProcessing.DiagQt   Qt Widgets       Windows / Linux     CMakeLists.txt
+```
+
+MFC는 Windows 전용 GUI Framework이므로 Linux에서 빌드할 수 없음. `EventProcessing.DiagQt`는 Qt로 동일한 UI/동작을 다시 구현해 Linux(및 Qt가 지원하는 다른 플랫폼)에서도 같은 Diagnostic Viewer를 빌드/실행할 수 있도록 추가한 프로젝트임. 두 프로젝트 모두 실시간 Live/RAW 재생이 목적이므로 `EventProcessing.Console`과 달리 Metavision SDK가 반드시 필요함.
 
 ### EventProcessing.Core
 
@@ -122,10 +137,10 @@ Ready 상태에서 설정한 이동 속도 이상의 변화가 발생하면 Shot
 
 ```text
 Language        : C++
-IDE             : Visual Studio 2022
-Platform        : Windows x64
-GUI             : MFC
-Build           : MSBuild / Visual Studio Solution
+IDE             : Visual Studio 2022 (Windows) / 임의 IDE 또는 CLI (Linux)
+Platform        : Windows x64, Linux
+GUI             : MFC (Windows 전용, EventProcessing.Diag) / Qt Widgets (Windows·Linux, EventProcessing.DiagQt)
+Build           : MSBuild / Visual Studio Solution (Windows), CMake (Windows·Linux)
 ```
 
 ### OpenCV
@@ -254,6 +269,50 @@ EventProcessing.Diag.exe
 ```
 
 별도의 System-wide HAL Plugin Path 설정 없이 실행할 수 있도록 구성함.
+
+### Linux Build (CMake / Qt)
+
+Windows(MSBuild/MFC) 환경과 별개로, `CMakeLists.txt`를 이용해 Linux에서도 `EventProcessing.Core` / `EventProcessing.Console` / `EventProcessing.DiagQt`를 빌드할 수 있음.
+
+```text
+Language        : C++17
+Build           : CMake
+GUI             : Qt Widgets (Qt6, Qt5로 fallback)
+Platform        : Linux (Ubuntu 기준, 다른 배포판도 가능)
+```
+
+필요 패키지 설치 (Ubuntu/Debian 예):
+
+```bash
+sudo apt install cmake build-essential libopencv-dev qt6-base-dev
+```
+
+Metavision SDK(Prophesee)는 [공식 Linux 설치 안내](https://docs.prophesee.ai)를 따라 별도 설치함. `find_package(MetavisionSDK)`로 자동 감지되며,
+
+```text
+설치되어 있으면
+    → Live 카메라 / RAW 실시간 재생 지원 활성화
+    → EventProcessing.DiagQt 포함 전체 빌드
+
+설치되어 있지 않으면
+    → CSV 입력만 지원 (Windows에서 Metavision SDK 없이 빌드하는 경우와 동일)
+    → EventProcessing.Core / EventProcessing.Console만 빌드
+      (EventProcessing.DiagQt는 실시간 Live/RAW 재생이 목적이라 제외됨)
+```
+
+빌드:
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+실행:
+
+```bash
+./build/EventProcessing.Console/EventProcessing.Console input.csv output 10000 30
+./build/EventProcessing.DiagQt/EventProcessing.DiagQt   # Metavision SDK가 감지된 경우에만 빌드됨
+```
 
 ### Debug / Release
 
@@ -384,7 +443,9 @@ Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 
 - [x] PNG Output
 - [x] MP4 Visualization
 - [x] Console Batch Processing
-- [x] MFC Diagnostic Viewer
+- [x] MFC Diagnostic Viewer (Windows)
+- [x] Qt Diagnostic Viewer (Windows / Linux)
+- [x] CMake Build (Linux)
 - [x] Searching / Ready / Trigger / Capturing State Machine
 - [x] Repository-local Metavision SDK Path 구성
 - [x] Metavision Runtime DLL Post-Build Copy

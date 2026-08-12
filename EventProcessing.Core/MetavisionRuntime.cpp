@@ -7,20 +7,68 @@
 #include <cstdlib>
 #include <filesystem>
 
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <climits>
+#include <unistd.h>
+#endif
 
 namespace eventcore
 {
+    namespace
+    {
+        std::filesystem::path CurrentExecutablePath()
+        {
+#if defined(_WIN32)
+            char exePath[MAX_PATH] = {};
+            const DWORD n = ::GetModuleFileNameA(nullptr, exePath, MAX_PATH);
+            if (n == 0 || n == MAX_PATH)
+            {
+                return {};
+            }
+            return std::filesystem::path(exePath);
+#else
+            char exePath[PATH_MAX] = {};
+            const ssize_t n = ::readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+            if (n <= 0)
+            {
+                return {};
+            }
+            exePath[n] = '\0';
+            return std::filesystem::path(exePath);
+#endif
+        }
+
+        void SetEnvVar(const char* name, const std::string& value)
+        {
+#if defined(_WIN32)
+            _putenv_s(name, value.c_str());
+#else
+            ::setenv(name, value.c_str(), 1);
+#endif
+        }
+
+        // Windows: Metavision HAL 플러그인은 .dll. Linux: .so
+        bool IsHalPluginFile(const std::filesystem::path& p)
+        {
+#if defined(_WIN32)
+            return p.extension() == ".dll";
+#else
+            return p.extension() == ".so";
+#endif
+        }
+    }
+
     void EnsureBundledHalPluginPath()
     {
-        char exePath[MAX_PATH] = {};
-        const DWORD n = ::GetModuleFileNameA(nullptr, exePath, MAX_PATH);
-        if (n == 0 || n == MAX_PATH)
+        const std::filesystem::path exePath = CurrentExecutablePath();
+        if (exePath.empty())
         {
             return;
         }
 
-        const std::filesystem::path pluginDir = std::filesystem::path(exePath).parent_path() / "hal_plugins";
+        const std::filesystem::path pluginDir = exePath.parent_path() / "hal_plugins";
 
         // 실행 파일 옆에 번들된 hal_plugins\ (post-build에서 Prophesee\lib\metavision\hal\plugins를
         // 복사해둔 것)가 있으면, 시스템에 이미 설정된 MV_HAL_PLUGIN_PATH가 있더라도 이 리포에 맞는
@@ -32,7 +80,7 @@ namespace eventcore
         {
             for (const auto& entry : std::filesystem::directory_iterator(pluginDir, ec))
             {
-                if (entry.path().extension() == ".dll")
+                if (IsHalPluginFile(entry.path()))
                 {
                     hasBundledPlugin = true;
                     break;
@@ -42,7 +90,7 @@ namespace eventcore
 
         if (hasBundledPlugin)
         {
-            _putenv_s("MV_HAL_PLUGIN_PATH", pluginDir.string().c_str());
+            SetEnvVar("MV_HAL_PLUGIN_PATH", pluginDir.string());
         }
 
         // 번들된 플러그인이 없으면 손대지 않는다 - 시스템에 설정된 값(있다면)이 그대로 쓰인다.
