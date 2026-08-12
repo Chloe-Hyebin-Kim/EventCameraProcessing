@@ -95,17 +95,18 @@ namespace eventcore
 
     void LiveEventStream::Stop()
     {
-        if (!m_running)
+        // RAW 파일이 끝까지 재생되어 WindowLoop가 스스로 m_running을 false로 바꾼 경우에도
+        // m_windowThread는 여전히 joinable하고 카메라도 아직 stop()되지 않은 상태다. m_running만
+        // 보고 조기 리턴하면 이 경로에서 m_camera.stop()이 누락되어, 다음 Start()가 카메라를
+        // 재할당할 때 정리되지 않은 이전 Camera가 파괴되며 크래시로 이어질 수 있다.
+        m_running = false;
+
+        if (!m_windowThread.joinable())
         {
             return;
         }
 
-        m_running = false;
-
-        if (m_windowThread.joinable())
-        {
-            m_windowThread.join();
-        }
+        m_windowThread.join();
 
         try
         {
