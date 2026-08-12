@@ -23,12 +23,18 @@
 #define IDC_BUTTON_START                1015
 #define IDC_BUTTON_STOP                 1016
 #define IDC_STATIC_FPS                  1017
+#define IDC_STATIC_READY_SEC            1018
+#define IDC_STATIC_CAPTURE_SEC          1019
+#define IDC_STATIC_STABLE_PX            1020
+#define IDC_STATIC_SHOT_SPEED           1021
+#define IDC_STATIC_MISS_TOLERANCE_MS    1022
+#define IDC_STATIC_WINDOW_US            1023
 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        129
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1018
+#define _APS_NEXT_CONTROL_VALUE         1024
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

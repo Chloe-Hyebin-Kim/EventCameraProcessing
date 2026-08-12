@@ -28,17 +28,17 @@ BEGIN
     PUSHBUTTON      "Browse...",IDC_BUTTON_BROWSE_OUTPUT,172,78,50,14
 
     GROUPBOX        "Trigger settings",IDC_STATIC,7,98,223,150
-    LTEXT           "Ready hold time (sec)",IDC_STATIC,14,114,130,10
+    LTEXT           "Ready hold time (sec)",IDC_STATIC_READY_SEC,14,114,130,10
     EDITTEXT        IDC_EDIT_READY_SEC,150,111,70,14,ES_AUTOHSCROLL
-    LTEXT           "Capture duration (sec)",IDC_STATIC,14,132,130,10
+    LTEXT           "Capture duration (sec)",IDC_STATIC_CAPTURE_SEC,14,132,130,10
     EDITTEXT        IDC_EDIT_CAPTURE_SEC,150,129,70,14,ES_AUTOHSCROLL
-    LTEXT           "Stable jitter (px)",IDC_STATIC,14,150,130,10
+    LTEXT           "Stable jitter (px)",IDC_STATIC_STABLE_PX,14,150,130,10
     EDITTEXT        IDC_EDIT_STABLE_PX,150,147,70,14,ES_AUTOHSCROLL
-    LTEXT           "Shot speed threshold (px/s)",IDC_STATIC,14,168,130,10
+    LTEXT           "Shot speed threshold (px/s)",IDC_STATIC_SHOT_SPEED,14,168,130,10
     EDITTEXT        IDC_EDIT_SHOT_SPEED,150,165,70,14,ES_AUTOHSCROLL
-    LTEXT           "Miss tolerance (ms)",IDC_STATIC,14,186,130,10
+    LTEXT           "Miss tolerance (ms)",IDC_STATIC_MISS_TOLERANCE_MS,14,186,130,10
     EDITTEXT        IDC_EDIT_MISS_TOLERANCE_MS,150,183,70,14,ES_AUTOHSCROLL
-    LTEXT           "Accumulation window (us)",IDC_STATIC,14,204,130,10
+    LTEXT           "Accumulation window (us)",IDC_STATIC_WINDOW_US,14,204,130,10
     EDITTEXT        IDC_EDIT_WINDOW_US,150,201,70,14,ES_AUTOHSCROLL
 
     PUSHBUTTON      "Start",IDC_BUTTON_START,14,224,90,20

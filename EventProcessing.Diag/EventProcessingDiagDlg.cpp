@@ -72,7 +72,60 @@ BOOL CEventProcessingDiagDlg::OnInitDialog()
     GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
     SetDlgItemText(IDC_STATIC_STATE, _T("IDLE"));
 
+    InitTriggerSettingsTooltips();
+
     return TRUE;
+}
+
+BOOL CEventProcessingDiagDlg::PreTranslateMessage(MSG* pMsg)
+{
+    if (m_toolTip.GetSafeHwnd() != nullptr)
+    {
+        m_toolTip.RelayEvent(pMsg);
+    }
+
+    return CDialogEx::PreTranslateMessage(pMsg);
+}
+
+void CEventProcessingDiagDlg::InitTriggerSettingsTooltips()
+{
+    m_toolTip.Create(this, TTS_ALWAYSTIP);
+    m_toolTip.SetMaxTipWidth(280);
+    m_toolTip.Activate(TRUE);
+
+    struct TooltipEntry
+    {
+        UINT labelId;
+        UINT editId;
+        LPCTSTR text;
+    };
+
+    static const TooltipEntry entries[] = {
+        { IDC_STATIC_READY_SEC, IDC_EDIT_READY_SEC,
+          _T("공 중심점이 Stable jitter 이내로 이만큼(초) 정지해 있으면 READY 상태로 인정합니다.") },
+        { IDC_STATIC_CAPTURE_SEC, IDC_EDIT_CAPTURE_SEC,
+          _T("샷이 트리거된 후 이 시간(초) 동안 촬영을 유지한 뒤 자동으로 Searching으로 복귀합니다.") },
+        { IDC_STATIC_STABLE_PX, IDC_EDIT_STABLE_PX,
+          _T("READY 판정 중 허용하는 공 중심점의 흔들림 범위(px). 이보다 더 움직이면 정지 타이머가 리셋됩니다.") },
+        { IDC_STATIC_SHOT_SPEED, IDC_EDIT_SHOT_SPEED,
+          _T("READY 상태에서 공 중심점이 이 속도(px/s) 이상으로 움직이면 샷으로 판단해 촬영을 트리거합니다.") },
+        { IDC_STATIC_MISS_TOLERANCE_MS, IDC_EDIT_MISS_TOLERANCE_MS,
+          _T("공 검출이 이 시간(ms) 이내로 잠깐 끊겨도 상태를 리셋하지 않고 유지합니다.") },
+        { IDC_STATIC_WINDOW_US, IDC_EDIT_WINDOW_US,
+          _T("이벤트를 한 프레임으로 누적하는 시간 간격(us). 이 주기마다 공 검출/분석을 수행합니다.") },
+    };
+
+    for (const TooltipEntry& entry : entries)
+    {
+        if (CWnd* label = GetDlgItem(entry.labelId))
+        {
+            m_toolTip.AddTool(label, entry.text);
+        }
+        if (CWnd* edit = GetDlgItem(entry.editId))
+        {
+            m_toolTip.AddTool(edit, entry.text);
+        }
+    }
 }
 
 void CEventProcessingDiagDlg::OnPaint()

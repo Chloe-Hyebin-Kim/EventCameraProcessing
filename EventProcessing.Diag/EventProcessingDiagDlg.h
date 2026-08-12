@@ -28,6 +28,7 @@ public:
 protected:
     virtual void DoDataExchange(CDataExchange* pDX);
     virtual BOOL OnInitDialog();
+    virtual BOOL PreTranslateMessage(MSG* pMsg);
 
     afx_msg void OnPaint();
     afx_msg HCURSOR OnQueryDragIcon();
@@ -48,8 +49,10 @@ private:
     void StartCaptureSave();
     void SaveCaptureFrame(const cv::Mat& bgrFrame);
     void FinishCaptureSave();
+    void InitTriggerSettingsTooltips();
 
     HICON m_hIcon;
+    CToolTipCtrl m_toolTip;
 
     eventcore::LiveEventStream m_stream;
     eventcore::ShotTrigger m_trigger;
