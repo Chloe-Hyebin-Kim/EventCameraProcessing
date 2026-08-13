@@ -323,6 +323,14 @@ cmake --build build --config Release
 ./build/EventProcessing.DiagQt/EventProcessing.DiagQt   # Metavision SDK가 감지된 경우에만 빌드됨
 ```
 
+#### Visual Studio에서 EventProcessing.DiagQt 열기
+
+`EventProcessing.DiagQt`는 CMake 프로젝트라 `EventCameraProcessing.sln`(MSBuild)에는 없음. `.sln`을 더블클릭하는 대신, Visual Studio에서 **파일 > 폴더 열기(Open Folder)** 로 리포 루트 폴더 자체를 열면 VS가 `CMakeLists.txt`/`CMakePresets.json`을 자동 인식해서 `Core`/`Console`/`DiagQt`를 모두 Solution Explorer에 CMake Target으로 보여줌(빌드/디버그 시작 항목으로 `EventProcessing.DiagQt.exe` 선택 가능).
+
+리포에 포함된 `CMakePresets.json`의 `windows-qt` 프리셋을 쓰려면, Windows 환경 변수에 `QT_DIR`을 Qt 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`)하고 Visual Studio를 재시작함. OpenCV는 리포의 `ocv440\`을 자동으로 사용하도록 프리셋에 이미 설정되어 있음.
+
+Visual Studio C++용 CMake Tools 컴포넌트(Visual Studio Installer에서 "C++를 사용한 Linux 및 임베디드 개발" 또는 "C++ CMake 도구" 워크로드)가 설치되어 있어야 함. `ninja`도 함께 설치됨.
+
 ### Debug / Release
 
 Metavision/OpenEB Library의 Debug / Release Binary를 분리하여 사용함.
