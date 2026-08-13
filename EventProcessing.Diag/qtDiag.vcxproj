@@ -35,11 +35,10 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <BuildDirectory>$(SolutionDir)build\vs-$(Configuration)</BuildDirectory>
-    <!-- SolutionDir always ends in a backslash. Appending a dot prevents that
-         backslash from escaping the closing quote in cmd.exe. -->
-    <NMakeBuildCommandLine>cmake -S "$(SolutionDir)." -B "$(BuildDirectory)" -A x64 &amp;&amp; cmake --build "$(BuildDirectory)" --config $(Configuration) --target CEventProcessingDiagDlg</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>cmake -S "$(SolutionDir)." -B "$(BuildDirectory)" -A x64 &amp;&amp; cmake --build "$(BuildDirectory)" --config $(Configuration) --target CEventProcessingDiagDlg --clean-first</NMakeReBuildCommandLine>
-    <NMakeCleanCommandLine>cmake --build "$(BuildDirectory)" --config $(Configuration) --target clean</NMakeCleanCommandLine>
+    <QtRoot Condition="'$(QtRoot)'==''">$(QTDIR)</QtRoot>
+    <NMakeBuildCommandLine>call "$(ProjectDir)build_qtdiag.cmd" $(Configuration) build "$(QtRoot)"</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>call "$(ProjectDir)build_qtdiag.cmd" $(Configuration) rebuild "$(QtRoot)"</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>call "$(ProjectDir)build_qtdiag.cmd" $(Configuration) clean "$(QtRoot)"</NMakeCleanCommandLine>
     <NMakeOutput>$(BuildDirectory)\$(Configuration)\CEventProcessingDiagDlg.exe</NMakeOutput>
     <NMakePreprocessorDefinitions>_WINDOWS;UNICODE;_UNICODE;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
     <NMakeIncludeSearchPath>$(SolutionDir)EventProcessing.Core;$(SolutionDir)ocv440\include;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
@@ -53,6 +52,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\CMakeLists.txt" />
+    <None Include="build_qtdiag.cmd" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

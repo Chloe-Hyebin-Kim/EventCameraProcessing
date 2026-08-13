@@ -147,13 +147,13 @@ Windows에서는 Visual Studio의 **CMake 프로젝트 열기**를 사용하거�
 기존 `EventCameraProcessing.sln`을 사용하는 경우에는 Solution Explorer에서 `qtDiag` 프로젝트를 바로 로드할 수 있다. `qtDiag`는 CMake를 호출하는 Visual Studio Makefile 프로젝트이므로 다음 순서로 사용한다.
 
 1. Qt 5의 MSVC x64 패키지를 설치한다(예: `msvc2019_64`).
-2. Visual Studio를 시작하기 전에 `CMAKE_PREFIX_PATH`를 설정한다. 예: `set CMAKE_PREFIX_PATH=C:\Qt\5.15.2\msvc2019_64`을 실행한 같은 명령 프롬프트에서 `EventCameraProcessing.sln`을 연다.
+2. Visual Studio를 시작하기 전에 `QTDIR`을 설정한다. 예: `set QTDIR=C:\Qt\5.15.2\msvc2019_64`을 실행한 같은 명령 프롬프트에서 `EventCameraProcessing.sln`을 연다. Qt가 기본 `C:\Qt\5.x\msvc2019_64` 위치에 설치되어 있으면 빌드 스크립트가 자동 검색한다.
 3. `EventCameraProcessing.sln`을 열고 Solution Platform을 `x64`로 선택한다.
 4. `qtDiag`를 우클릭하여 **Set as Startup Project**로 지정한 뒤 Build/Run한다.
 
 빌드 결과는 `build\vs-Debug\Debug\CEventProcessingDiagDlg.exe` 또는 `build\vs-Release\Release\CEventProcessingDiagDlg.exe`에 생성된다. 저장소의 Windows용 OpenCV 패키지는 CMake가 자동으로 찾는다.
 
-이전에 `cmake -S "...EventCameraProcessing\"`처럼 소스 경로의 마지막 따옴표가 인식되지 않는 오류가 발생했다면 최신 `qtDiag.vcxproj`를 받은 뒤 Visual Studio에서 Solution을 다시 로드한다. 프로젝트는 `$(SolutionDir).`을 CMake 소스 경로로 전달하여 Windows 명령행에서 끝의 역슬래시가 닫는 따옴표를 방해하지 않도록 구성되어 있다.
+`MSB3073`은 실제 원인이 아니라 외부 빌드 명령이 실패했다는 Visual Studio의 요약 코드다. 최신 프로젝트는 `build_qtdiag.cmd`를 사용하며 Output 창에 Source/Build/Qt 경로와 실제 CMake 오류를 출력한다. 오류 목록의 `MSB3073`만 보지 말고 **보기 → 출력 → 출력 보기: 빌드**에서 그보다 앞에 표시된 `[qtDiag] ERROR` 또는 CMake 오류를 확인한다.
 
 Metavision SDK 없이 UI와 CSV 기반 Core만 빌드할 수도 있다. 이 경우 Diagnostic 앱은 실행되지만 RAW/Live 시작 시 SDK 미지원 메시지를 표시한다.
 
