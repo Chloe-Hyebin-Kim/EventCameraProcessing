@@ -1,8 +1,8 @@
 ﻿#include "pch.h"
 
-#ifdef EVENTCORE_HAVE_METAVISION
-
 #include "LiveEventStream.h"
+
+#ifdef EVENTCORE_HAVE_METAVISION
 
 #include <cstring>
 
@@ -95,11 +95,6 @@ namespace eventcore
 
     void LiveEventStream::Stop()
     {
-        if (!m_running)
-        {
-            return;
-        }
-
         m_running = false;
 
         if (m_windowThread.joinable())
@@ -152,4 +147,22 @@ namespace eventcore
     }
 }
 
-#endif // EVENTCORE_HAVE_METAVISION
+#else
+
+namespace eventcore
+{
+    LiveEventStream::LiveEventStream() = default;
+    LiveEventStream::~LiveEventStream() = default;
+
+    bool LiveEventStream::Start(const char*, lli, FrameCallback)
+    {
+        m_lastError = "Metavision SDK support is not available in this build";
+        return false;
+    }
+
+    void LiveEventStream::Stop() { m_running = false; }
+    bool LiveEventStream::IsRunning() const { return false; }
+    void LiveEventStream::WindowLoop(lli, FrameCallback) {}
+}
+
+#endif

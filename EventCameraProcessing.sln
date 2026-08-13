@@ -7,7 +7,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EventProcessing.Console", "
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EventProcessing.Core", "EventProcessing.Core\EventProcessing.Core.vcxproj", "{7B72B8BD-F038-4E5A-86C9-3922BFBDBFC7}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EventProcessing.Diag", "EventProcessing.Diag\EventProcessing.Diag.vcxproj", "{9F1D4C6A-3E2B-4A7F-8D5C-1A2B3C4D5E6F}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "qtDiag", "EventProcessing.Diag\qtDiag.vcxproj", "{9F1D4C6A-3E2B-4A7F-8D5C-1A2B3C4D5E6F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

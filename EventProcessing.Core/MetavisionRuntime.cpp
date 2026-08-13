@@ -1,52 +1,55 @@
 #include "pch.h"
-
-#ifdef EVENTCORE_HAVE_METAVISION
-
 #include "MetavisionRuntime.h"
 
 #include <cstdlib>
 #include <filesystem>
 
+#if defined(_WIN32)
 #include <windows.h>
+#elif defined(__linux__)
+#include <limits.h>
+#include <unistd.h>
+#endif
 
 namespace eventcore
 {
     void EnsureBundledHalPluginPath()
     {
-        char exePath[MAX_PATH] = {};
-        const DWORD n = ::GetModuleFileNameA(nullptr, exePath, MAX_PATH);
-        if (n == 0 || n == MAX_PATH)
-        {
-            return;
+#ifdef EVENTCORE_HAVE_METAVISION
+        std::filesystem::path executable;
+#if defined(_WIN32)
+        wchar_t path[MAX_PATH] = {};
+        const DWORD size = ::GetModuleFileNameW(nullptr, path, MAX_PATH);
+        if (size == 0 || size == MAX_PATH) return;
+        executable = path;
+#elif defined(__linux__)
+        char path[PATH_MAX] = {};
+        const ssize_t size = ::readlink("/proc/self/exe", path, sizeof(path) - 1);
+        if (size <= 0) return;
+        path[size] = '\0';
+        executable = path;
+#else
+        return;
+#endif
+        const std::filesystem::path pluginDirectory = executable.parent_path() / "hal_plugins";
+        std::error_code error;
+        if (!std::filesystem::is_directory(pluginDirectory, error)) return;
+
+        bool foundPlugin = false;
+        for (const auto& entry : std::filesystem::directory_iterator(pluginDirectory, error)) {
+#if defined(_WIN32)
+            foundPlugin = entry.path().extension() == ".dll";
+#else
+            foundPlugin = entry.path().extension() == ".so";
+#endif
+            if (foundPlugin) break;
         }
-
-        const std::filesystem::path pluginDir = std::filesystem::path(exePath).parent_path() / "hal_plugins";
-
-        // 실행 파일 옆에 번들된 hal_plugins\ (post-build에서 Prophesee\lib\metavision\hal\plugins를
-        // 복사해둔 것)가 있으면, 시스템에 이미 설정된 MV_HAL_PLUGIN_PATH가 있더라도 이 리포에 맞는
-        // 플러그인을 확실히 쓰도록 우선시킨다. (오래되었거나 다른 SDK 설치를 가리키는 시스템 값이
-        // 남아있으면 "No plugin available" 같은 혼란스러운 에러로 이어질 수 있다.)
-        std::error_code ec;
-        bool hasBundledPlugin = false;
-        if (std::filesystem::exists(pluginDir, ec) && std::filesystem::is_directory(pluginDir, ec))
-        {
-            for (const auto& entry : std::filesystem::directory_iterator(pluginDir, ec))
-            {
-                if (entry.path().extension() == ".dll")
-                {
-                    hasBundledPlugin = true;
-                    break;
-                }
-            }
-        }
-
-        if (hasBundledPlugin)
-        {
-            _putenv_s("MV_HAL_PLUGIN_PATH", pluginDir.string().c_str());
-        }
-
-        // 번들된 플러그인이 없으면 손대지 않는다 - 시스템에 설정된 값(있다면)이 그대로 쓰인다.
+        if (!foundPlugin) return;
+#if defined(_WIN32)
+        _wputenv_s(L"MV_HAL_PLUGIN_PATH", pluginDirectory.c_str());
+#else
+        ::setenv("MV_HAL_PLUGIN_PATH", pluginDirectory.c_str(), 1);
+#endif
+#endif
     }
 }
-
-#endif // EVENTCORE_HAVE_METAVISION
