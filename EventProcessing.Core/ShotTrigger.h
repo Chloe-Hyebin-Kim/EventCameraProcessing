@@ -22,8 +22,8 @@ namespace eventcore
 
     struct ShotTriggerConfig
     {
-        double readySeconds = 1.0;          // N1: 레디로 인정하기까지 정지 유지 시간(초)
-        double captureSeconds = 1.0;        // N3: 트리거 이후 촬영 유지 시간(초)
+        double readySeconds = 0.4;          // N1: 레디로 인정하기까지 정지 유지 시간(초)
+        double captureSeconds = 2.5;        // N3: 트리거 이후 촬영 유지 시간(초)
         float stableMovePx = 6.0f;          // 레디 판정 중 허용하는 중심점 흔들림(px)
         float shotSpeedPxPerSec = 400.0f;   // 이 이상의 중심점 이동속도(px/s)를 샷으로 판정
         lli missToleranceUs = 150000;       // 공 검출이 잠깐(이 시간 이내) 끊겨도 상태를 리셋하지 않음
