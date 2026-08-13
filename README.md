@@ -1,6 +1,6 @@
 ## Project Structure
 
-프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 MFC Diagnostic Application으로 구성함.
+프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt5 Diagnostic Application으로 구성함. GUI와 빌드 시스템은 Windows와 Linux에서 동일한 소스를 사용함.
 <img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
 
 ```text
@@ -17,7 +17,7 @@ EventCameraProcessing/
 │  └─ RAW / CSV / Live 입력 기반 Batch Processing
 │
 ├─ EventProcessing.Diag/
-│  └─ MFC 기반 Live / RAW Diagnostic Viewer
+│  └─ Qt5 기반 Live / RAW Diagnostic Viewer
 │
 ├─ Prophesee/
 │  ├─ include/
@@ -88,7 +88,7 @@ Image / Video Output
 
 ### EventProcessing.Diag
 
-MFC 기반 Diagnostic Application.
+Qt5 Widgets 기반 크로스 플랫폼 Diagnostic Application.
 
 EVK4 HD Live Camera 또는 RAW Recording의 Event Stream을 실시간으로 확인하고, Ball Detection 결과를 기반으로 Shot Capture 상태를 관리하는 용도로 구성함.
 
@@ -121,11 +121,34 @@ Ready 상태에서 설정한 이동 속도 이상의 변화가 발생하면 Shot
 ### Development Environment
 
 ```text
-Language        : C++
-IDE             : Visual Studio 2022
-Platform        : Windows x64
-GUI             : MFC
-Build           : MSBuild / Visual Studio Solution
+Language        : C++17
+Platform        : Windows x64 / Linux x86_64
+GUI             : Qt 5 Widgets
+Build           : CMake 3.16+
+```
+
+### Windows / Linux 빌드
+
+OpenCV 4, Qt 5 Widgets와 (RAW/Live 입력이 필요하면) 플랫폼에 맞는 Metavision SDK 5.x를 설치한다. 저장소에 포함된 `Prophesee` 바이너리는 Windows용이므로 Linux에서는 Prophesee가 제공하는 Linux SDK를 설치하고 `METAVISION_SDK_PATH`를 지정해야 한다.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+Linux에서 실행:
+
+```bash
+./build/CEventProcessingDiagDlg
+```
+
+Windows에서는 Visual Studio의 **CMake 프로젝트 열기**를 사용하거나 같은 명령을 Developer PowerShell에서 실행한 뒤 `build/Release/CEventProcessingDiagDlg.exe`를 실행한다. Qt/OpenCV가 기본 검색 경로에 없다면 `CMAKE_PREFIX_PATH`를 설치 경로로 지정한다.
+
+Metavision SDK 없이 UI와 CSV 기반 Core만 빌드할 수도 있다. 이 경우 Diagnostic 앱은 실행되지만 RAW/Live 시작 시 SDK 미지원 메시지를 표시한다.
+
+```bash
+cmake -S . -B build -DEVENTPROCESSING_WITH_METAVISION=OFF
+cmake --build build --parallel
 ```
 
 ### OpenCV
@@ -384,7 +407,7 @@ Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 
 - [x] PNG Output
 - [x] MP4 Visualization
 - [x] Console Batch Processing
-- [x] MFC Diagnostic Viewer
+- [x] Qt5 Cross-platform Diagnostic Viewer
 - [x] Searching / Ready / Trigger / Capturing State Machine
 - [x] Repository-local Metavision SDK Path 구성
 - [x] Metavision Runtime DLL Post-Build Copy

@@ -1,64 +1,62 @@
-﻿#pragma once
+#pragma once
 
-// 이 프로젝트는 실시간 라이브 카메라 프리뷰가 목적이므로 Metavision SDK가 반드시 필요하다.
-// (오프라인 RAW -> 이미지/영상 변환만 필요하면 Metavision SDK 없이도 빌드되는
-//  EventProcessing.Console을 대신 사용할 수 있다.)
 #include "LiveEventStream.h"
 #include "ShotTrigger.h"
 
-#define WM_APP_FRAME_READY (WM_APP + 100)
+#include <QDialog>
+#include <QImage>
 
-struct FrameMessage
-{
-    cv::Mat frame;
-    eventcore::BallDetectionResult ball;
-    eventcore::lli windowStartUs = 0;
-    eventcore::lli windowEndUs = 0;
-};
+class QLabel;
+class QLineEdit;
+class QListWidget;
+class QPushButton;
+class QRadioButton;
+class QCloseEvent;
 
-class CEventProcessingDiagDlg : public CDialogEx
+class EventProcessingDiagDialog final : public QDialog
 {
 public:
-    explicit CEventProcessingDiagDlg(CWnd* pParent = nullptr);
-
-#ifdef AFX_DESIGN_TIME
-    enum { IDD = IDD_EVENTPROCESSING_DIAG_DIALOG };
-#endif
+    explicit EventProcessingDiagDialog(QWidget* parent = nullptr);
+    ~EventProcessingDiagDialog() override;
 
 protected:
-    virtual void DoDataExchange(CDataExchange* pDX);
-    virtual BOOL OnInitDialog();
-
-    afx_msg void OnPaint();
-    afx_msg HCURSOR OnQueryDragIcon();
-    afx_msg void OnDestroy();
-    afx_msg void OnBnClickedButtonStart();
-    afx_msg void OnBnClickedButtonStop();
-    afx_msg void OnBnClickedButtonBrowseRaw();
-    afx_msg void OnBnClickedButtonBrowseOutput();
-    afx_msg LRESULT OnFrameReady(WPARAM wParam, LPARAM lParam);
-
-    DECLARE_MESSAGE_MAP()
+    void closeEvent(QCloseEvent* event) override;
 
 private:
-    eventcore::ShotTriggerConfig ReadConfigFromUI() const;
-    void AppendLog(const CString& msg);
-    void UpdateStateLabel(eventcore::ShotState state);
-    void DrawFrame(const cv::Mat& bgrFrame);
-    void StartCaptureSave();
-    void SaveCaptureFrame(const cv::Mat& bgrFrame);
-    void FinishCaptureSave();
+    void buildUi();
+    eventcore::ShotTriggerConfig readConfig() const;
+    void appendLog(const QString& message);
+    void updateState(eventcore::ShotState state);
+    void displayFrame(const cv::Mat& bgrFrame);
+    void start();
+    void stop();
+    void browseRaw();
+    void browseOutput();
+    void handleFrame(const cv::Mat& frame, const eventcore::BallDetectionResult& ball,
+                     eventcore::lli windowStartUs);
+    void startCaptureSave();
+    void saveCaptureFrame(const cv::Mat& frame);
 
-    HICON m_hIcon;
+    eventcore::LiveEventStream stream_;
+    eventcore::ShotTrigger trigger_;
+    bool running_ = false;
+    bool capturing_ = false;
+    int captureFrameIndex_ = 0;
+    QString captureDirectory_;
 
-    eventcore::LiveEventStream m_stream;
-    eventcore::ShotTrigger m_trigger;
-    bool m_running = false;
-
-    CString m_outputDir;
-    CString m_currentCaptureDir;
-    int m_captureFrameIndex = 0;
-    bool m_capturingNow = false;
-
-    CListBox m_listLog;
+    QRadioButton* liveRadio_ = nullptr;
+    QRadioButton* rawRadio_ = nullptr;
+    QLineEdit* rawPath_ = nullptr;
+    QLineEdit* outputDirectory_ = nullptr;
+    QLineEdit* readySeconds_ = nullptr;
+    QLineEdit* captureSeconds_ = nullptr;
+    QLineEdit* stablePixels_ = nullptr;
+    QLineEdit* shotSpeed_ = nullptr;
+    QLineEdit* missToleranceMs_ = nullptr;
+    QLineEdit* windowUs_ = nullptr;
+    QLabel* preview_ = nullptr;
+    QLabel* state_ = nullptr;
+    QListWidget* log_ = nullptr;
+    QPushButton* startButton_ = nullptr;
+    QPushButton* stopButton_ = nullptr;
 };
