@@ -153,6 +153,8 @@ Windows에서는 Visual Studio의 **CMake 프로젝트 열기**를 사용하거�
 
 빌드 결과는 `build\vs-Debug\Debug\CEventProcessingDiagDlg.exe` 또는 `build\vs-Release\Release\CEventProcessingDiagDlg.exe`에 생성된다. 저장소의 Windows용 OpenCV 패키지는 CMake가 자동으로 찾는다.
 
+이전에 `cmake -S "...EventCameraProcessing\"`처럼 소스 경로의 마지막 따옴표가 인식되지 않는 오류가 발생했다면 최신 `qtDiag.vcxproj`를 받은 뒤 Visual Studio에서 Solution을 다시 로드한다. 프로젝트는 `$(SolutionDir).`을 CMake 소스 경로로 전달하여 Windows 명령행에서 끝의 역슬래시가 닫는 따옴표를 방해하지 않도록 구성되어 있다.
+
 Metavision SDK 없이 UI와 CSV 기반 Core만 빌드할 수도 있다. 이 경우 Diagnostic 앱은 실행되지만 RAW/Live 시작 시 SDK 미지원 메시지를 표시한다.
 
 ```bash

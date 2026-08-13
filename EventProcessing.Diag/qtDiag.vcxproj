@@ -35,8 +35,10 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <BuildDirectory>$(SolutionDir)build\vs-$(Configuration)</BuildDirectory>
-    <NMakeBuildCommandLine>cmake -S "$(SolutionDir)" -B "$(BuildDirectory)" -A x64 &amp;&amp; cmake --build "$(BuildDirectory)" --config $(Configuration) --target CEventProcessingDiagDlg</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>cmake -S "$(SolutionDir)" -B "$(BuildDirectory)" -A x64 &amp;&amp; cmake --build "$(BuildDirectory)" --config $(Configuration) --target CEventProcessingDiagDlg --clean-first</NMakeReBuildCommandLine>
+    <!-- SolutionDir always ends in a backslash. Appending a dot prevents that
+         backslash from escaping the closing quote in cmd.exe. -->
+    <NMakeBuildCommandLine>cmake -S "$(SolutionDir)." -B "$(BuildDirectory)" -A x64 &amp;&amp; cmake --build "$(BuildDirectory)" --config $(Configuration) --target CEventProcessingDiagDlg</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>cmake -S "$(SolutionDir)." -B "$(BuildDirectory)" -A x64 &amp;&amp; cmake --build "$(BuildDirectory)" --config $(Configuration) --target CEventProcessingDiagDlg --clean-first</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>cmake --build "$(BuildDirectory)" --config $(Configuration) --target clean</NMakeCleanCommandLine>
     <NMakeOutput>$(BuildDirectory)\$(Configuration)\CEventProcessingDiagDlg.exe</NMakeOutput>
     <NMakePreprocessorDefinitions>_WINDOWS;UNICODE;_UNICODE;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
