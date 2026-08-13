@@ -62,8 +62,8 @@ BOOL CEventProcessingDiagDlg::OnInitDialog()
     CheckRadioButton(IDC_RADIO_LIVE, IDC_RADIO_RAW, IDC_RADIO_RAW);
 
     SetDlgItemText(IDC_EDIT_OUTPUTDIR, _T(".\\output"));
-    SetDlgItemText(IDC_EDIT_READY_SEC, _T("1.0"));
-    SetDlgItemText(IDC_EDIT_CAPTURE_SEC, _T("1.0"));
+    SetDlgItemText(IDC_EDIT_READY_SEC, _T("0.4"));
+    SetDlgItemText(IDC_EDIT_CAPTURE_SEC, _T("2.5"));
     SetDlgItemText(IDC_EDIT_STABLE_PX, _T("15"));
     SetDlgItemText(IDC_EDIT_SHOT_SPEED, _T("1000"));
     SetDlgItemText(IDC_EDIT_MISS_TOLERANCE_MS, _T("150"));
