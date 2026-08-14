@@ -157,6 +157,38 @@ Windows에서는 Visual Studio의 **CMake 프로젝트 열기**를 사용하거�
 
 Qt 5.3.1만 설치된 PC에서는 Qt Online Installer 또는 Qt Archive를 이용해 `Qt 5.15.2 → MSVC 2019 64-bit` 컴포넌트를 추가한다. MinGW kit(`mingw*_64`)는 Visual Studio의 MSVC 오브젝트/라이브러리와 호환되지 않으므로 선택하지 않는다.
 
+#### `qt-everywhere-src-5.15.19`를 받은 경우
+
+`qt-everywhere-src-5.15.19`는 설치된 Qt SDK가 아니라 **전체 소스 코드**다. 압축 해제만 한 경로를 `QTDIR`로 지정하면 안 된다. 가장 간단한 방법은 사전 빌드된 `Qt 5.15.2 MSVC 2019 64-bit` kit를 설치하는 것이다. 5.15.19를 반드시 사용해야 한다면 아래처럼 직접 빌드하고 설치해야 한다.
+
+1. Visual Studio Installer에서 **Desktop development with C++**, MSVC v142 x64 도구 및 Windows 10 SDK를 설치한다.
+2. `x64 Native Tools Command Prompt for VS 2019`를 열고, 소스 트리와 다른 빈 빌드 디렉터리에서 명령을 실행한다.
+
+```bat
+set QT_SRC=C:\src\qt-everywhere-src-5.15.19
+set QT_INSTALL=C:\Qt\5.15.19\msvc2019_64
+mkdir C:\build\qt-5.15.19-msvc2019
+cd /d C:\build\qt-5.15.19-msvc2019
+
+call "%QT_SRC%\configure.bat" -prefix "%QT_INSTALL%" -opensource -confirm-license -release -platform win32-msvc -nomake examples -nomake tests -skip qtwebengine
+nmake
+nmake install
+```
+
+Qt 전체 소스 빌드는 오래 걸리고 디스크 공간을 많이 사용한다. 이 프로젝트는 Core/Gui/Widgets만 필요하므로 예제·테스트와 Qt WebEngine을 제외한다. `configure.bat`가 Perl 또는 Python 누락을 보고하면 해당 도구를 설치하고 새 명령 프롬프트에서 다시 시작한다.
+
+설치가 완료된 뒤에만 다음 파일을 확인하고 `QTDIR`을 지정한다.
+
+```bat
+if exist C:\Qt\5.15.19\msvc2019_64\lib\cmake\Qt5\Qt5Config.cmake echo Qt install OK
+set QTDIR=C:\Qt\5.15.19\msvc2019_64
+cd /d D:\git\EventCameraProcessing
+rmdir /s /q build\vs-Release
+start EventCameraProcessing.sln
+```
+
+소스 디렉터리(`C:\src\qt-everywhere-src-5.15.19`)가 아니라 `nmake install` 결과 디렉터리(`C:\Qt\5.15.19\msvc2019_64`)가 `QTDIR`이다.
+
 Metavision SDK 없이 UI와 CSV 기반 Core만 빌드할 수도 있다. 이 경우 Diagnostic 앱은 실행되지만 RAW/Live 시작 시 SDK 미지원 메시지를 표시한다.
 
 ```bash
