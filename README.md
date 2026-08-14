@@ -153,6 +153,13 @@ Windows에서는 Visual Studio의 **CMake 프로젝트 열기**를 사용하거�
 
 빌드 결과는 `build\vs-Debug\Debug\CEventProcessingDiagDlg.exe` 또는 `build\vs-Release\Release\CEventProcessingDiagDlg.exe`에 생성된다. 저장소의 Windows용 OpenCV 패키지는 CMake가 자동으로 찾는다.
 
+Windows 빌드가 끝나면 CMake가 선택한 Qt kit의 `windeployqt`를 자동 실행하여 `Qt6Widgets.dll`, `Qt6Gui.dll`, `Qt6Core.dll` 및 `platforms\qwindows.dll`을 실행 파일 옆에 배포한다. 따라서 `.exe` 하나만 다른 폴더로 복사하지 말고 생성된 Release 또는 Debug **폴더 전체**를 함께 복사해야 한다. 예전에 빌드한 폴더에는 DLL이 없을 수 있으므로 아래처럼 CMake 빌드 폴더를 지우고 Rebuild한다.
+
+```bat
+rmdir /s /q build\vs-Release
+set QTDIR=C:\Qt\6.5.3\msvc2019_64
+```
+
 `MSB3073`은 실제 원인이 아니라 외부 빌드 명령이 실패했다는 Visual Studio의 요약 코드다. 최신 프로젝트는 `build_qtdiag.cmd`를 사용하며 Output 창에 Source/Build/Qt 경로와 실제 CMake 오류를 출력한다. 오류 목록의 `MSB3073`만 보지 말고 **보기 → 출력 → 출력 보기: 빌드**에서 그보다 앞에 표시된 `[qtDiag] ERROR` 또는 CMake 오류를 확인한다.
 
 Qt 5.3.1만 설치된 PC에서는 Qt Online Installer 또는 Qt Archive를 이용해 `Qt 5.15.2 → MSVC 2019 64-bit` 컴포넌트를 추가한다. MinGW kit(`mingw*_64`)는 Visual Studio의 MSVC 오브젝트/라이브러리와 호환되지 않으므로 선택하지 않는다.

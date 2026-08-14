@@ -80,6 +80,25 @@ if(WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:opencv_world>" "$<TARGET_FILE_DIR:CEventProcessingDiagDlg>")
     endif()
+
+    # A Qt executable is not portable by itself: Qt6Widgets/Gui/Core and the
+    # qwindows platform plugin must be deployed beside it. Resolve the deploy
+    # tool from the same Qt kit selected by find_package, avoiding PATH and
+    # preventing accidental mixing of Qt installations.
+    get_target_property(QT_QMAKE_EXECUTABLE Qt${QT_VERSION_MAJOR}::qmake IMPORTED_LOCATION)
+    get_filename_component(QT_BIN_DIRECTORY "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
+    find_program(QT_WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${QT_BIN_DIRECTORY}" NO_DEFAULT_PATH)
+    if(NOT QT_WINDEPLOYQT_EXECUTABLE)
+        message(FATAL_ERROR "windeployqt was not found in the selected Qt kit: ${QT_BIN_DIRECTORY}")
+    endif()
+    add_custom_command(TARGET CEventProcessingDiagDlg POST_BUILD
+        COMMAND "${QT_WINDEPLOYQT_EXECUTABLE}"
+            --no-translations
+            "$<IF:$<CONFIG:Debug>,--debug,--release>"
+            --dir "$<TARGET_FILE_DIR:CEventProcessingDiagDlg>"
+            "$<TARGET_FILE:CEventProcessingDiagDlg>"
+        COMMAND_EXPAND_LISTS
+        COMMENT "Deploying the Qt runtime and qwindows platform plugin")
 endif()
 
 if(EVENTPROCESSING_BUILD_CONSOLE)
