@@ -1,6 +1,6 @@
 ## Project Structure
 
-프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt5 Diagnostic Application으로 구성함. GUI와 빌드 시스템은 Windows와 Linux에서 동일한 소스를 사용함.
+프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt Widgets Diagnostic Application으로 구성함. GUI와 빌드 시스템은 Windows와 Linux에서 동일한 소스를 사용함.
 <img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
 
 ```text
@@ -17,7 +17,7 @@ EventCameraProcessing/
 │  └─ RAW / CSV / Live 입력 기반 Batch Processing
 │
 ├─ EventProcessing.Diag/
-│  └─ Qt5 기반 Live / RAW Diagnostic Viewer
+│  └─ Qt 5/6 기반 Live / RAW Diagnostic Viewer
 │
 ├─ Prophesee/
 │  ├─ include/
@@ -88,7 +88,7 @@ Image / Video Output
 
 ### EventProcessing.Diag
 
-Qt5 Widgets 기반 크로스 플랫폼 Diagnostic Application.
+Qt Widgets 기반 크로스 플랫폼 Diagnostic Application(Qt 5.12+ 또는 Qt 6).
 
 EVK4 HD Live Camera 또는 RAW Recording의 Event Stream을 실시간으로 확인하고, Ball Detection 결과를 기반으로 Shot Capture 상태를 관리하는 용도로 구성함.
 
@@ -123,13 +123,13 @@ Ready 상태에서 설정한 이동 속도 이상의 변화가 발생하면 Shot
 ```text
 Language        : C++17
 Platform        : Windows x64 / Linux x86_64
-GUI             : Qt 5 Widgets
+GUI             : Qt 5/6 Widgets
 Build           : CMake 3.16+
 ```
 
 ### Windows / Linux 빌드
 
-OpenCV 4, Qt 5 Widgets와 (RAW/Live 입력이 필요하면) 플랫폼에 맞는 Metavision SDK 5.x를 설치한다. 저장소에 포함된 `Prophesee` 바이너리는 Windows용이므로 Linux에서는 Prophesee가 제공하는 Linux SDK를 설치하고 `METAVISION_SDK_PATH`를 지정해야 한다.
+OpenCV 4, Qt 5/6 Widgets와 (RAW/Live 입력이 필요하면) 플랫폼에 맞는 Metavision SDK 5.x를 설치한다. 저장소에 포함된 `Prophesee` 바이너리는 Windows용이므로 Linux에서는 Prophesee가 제공하는 Linux SDK를 설치하고 `METAVISION_SDK_PATH`를 지정해야 한다.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -146,8 +146,8 @@ Windows에서는 Visual Studio의 **CMake 프로젝트 열기**를 사용하거�
 
 기존 `EventCameraProcessing.sln`을 사용하는 경우에는 Solution Explorer에서 `qtDiag` 프로젝트를 바로 로드할 수 있다. `qtDiag`는 CMake를 호출하는 Visual Studio Makefile 프로젝트이므로 다음 순서로 사용한다.
 
-1. Qt 5.12 이상 MSVC x64 패키지를 설치한다. Visual Studio 2019에는 `Qt 5.15.2 msvc2019_64`을 권장한다. **Qt 5.3.1은 Visual Studio 2019보다 오래된 버전이며 이 프로젝트에서 지원하지 않는다.** 기존 Qt 5.3.1을 제거할 필요는 없고 Qt 5.15.2를 나란히 추가 설치하면 된다.
-2. Visual Studio를 시작하기 전에 `QTDIR`을 설정한다. 예: `set QTDIR=C:\Qt\5.15.2\msvc2019_64`을 실행한 같은 명령 프롬프트에서 `EventCameraProcessing.sln`을 연다. Qt가 기본 `C:\Qt\5.x\msvc2019_64` 위치에 설치되어 있으면 빌드 스크립트가 자동 검색한다.
+1. Qt 5.12 이상 또는 Qt 6 MSVC x64 패키지를 설치한다. Visual Studio 2019에서는 `Qt 6.5.3 msvc2019_64`도 지원한다.
+2. Visual Studio를 시작하기 전에 `QTDIR`을 설정한다. 예: `set QTDIR=C:\Qt\6.5.3\msvc2019_64`을 실행한 같은 명령 프롬프트에서 `EventCameraProcessing.sln`을 연다. `C:\Qt` 기본 위치의 호환 kit는 빌드 스크립트가 자동 검색한다.
 3. `EventCameraProcessing.sln`을 열고 Solution Platform을 `x64`로 선택한다.
 4. `qtDiag`를 우클릭하여 **Set as Startup Project**로 지정한 뒤 Build/Run한다.
 
@@ -452,7 +452,7 @@ Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 
 - [x] PNG Output
 - [x] MP4 Visualization
 - [x] Console Batch Processing
-- [x] Qt5 Cross-platform Diagnostic Viewer
+- [x] Qt 5/6 Cross-platform Diagnostic Viewer
 - [x] Searching / Ready / Trigger / Capturing State Machine
 - [x] Repository-local Metavision SDK Path 구성
 - [x] Metavision Runtime DLL Post-Build Copy

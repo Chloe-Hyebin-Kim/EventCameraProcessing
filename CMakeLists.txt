@@ -26,7 +26,8 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440.lib")
 else()
     find_package(OpenCV 4 REQUIRED COMPONENTS core imgproc imgcodecs videoio)
 endif()
-find_package(Qt5 5.12 REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
 set(CORE_SOURCES
     EventProcessing.Core/BallDetector.cpp
@@ -71,7 +72,7 @@ add_executable(CEventProcessingDiagDlg
     EventProcessing.Diag/EventProcessing.Diag.cpp
     EventProcessing.Diag/EventProcessingDiagDlg.cpp
     EventProcessing.Diag/EventProcessingDiagDlg.h)
-target_link_libraries(CEventProcessingDiagDlg PRIVATE EventProcessingCore Qt5::Widgets)
+target_link_libraries(CEventProcessingDiagDlg PRIVATE EventProcessingCore Qt${QT_VERSION_MAJOR}::Widgets)
 if(WIN32)
     set_target_properties(CEventProcessingDiagDlg PROPERTIES WIN32_EXECUTABLE TRUE)
     if(EVENTPROCESSING_BUNDLED_OPENCV)
