@@ -1,0 +1,60 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "hidden": false,
+      "name": "Qt-Debug",
+      "inherits": "Qt-Default",
+      "binaryDir": "${sourceDir}/out/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS": "-DQT_QML_DEBUG"
+      },
+      "environment": {
+        "QML_DEBUG_ARGS": "-qmljsdebugger=file:{2136637c-a1a4-4249-9647-9ff7a15974f1},block"
+      }
+    },
+    {
+      "hidden": false,
+      "name": "Qt-Release",
+      "inherits": "Qt-Default",
+      "binaryDir": "${sourceDir}/out/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "hidden": true,
+      "name": "Qt-Default",
+      "inherits": "5.3.1",
+      "vendor": {
+        "qt-project.org/Default": {
+          "checksum": "3hYpudhkGXRX7yTJJvrBNwUuNXw="
+        }
+      }
+    },
+    {
+      "hidden": true,
+      "name": "5.3.1",
+      "inherits": "Qt",
+      "environment": {
+        "QTDIR": "C:/Qt/Qt5.3.1/5.3/msvc2010_opengl"
+      },
+      "architecture": {
+        "strategy": "external",
+        "value": "x86"
+      },
+      "generator": "Ninja",
+      "vendor": {
+        "qt-project.org/Version": {
+          "checksum": "s+dZyqxIR3JUACNCr7YGkffXDHQ="
+        }
+      }
+    }
+  ],
+  "vendor": {
+    "qt-project.org/Presets": {
+      "checksum": "kyhX+Y2uBl7p8tfuul+Vh1+DVUU="
+    }
+  }
+}
