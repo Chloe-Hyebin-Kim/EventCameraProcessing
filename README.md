@@ -1,7 +1,10 @@
 ## Project Structure
 
 프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt Widgets Diagnostic Application으로 구성함. GUI와 빌드 시스템은 Windows와 Linux에서 동일한 소스를 사용함.
-<img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
+
+[MFC] <img width="523" height="364" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
+
+[Qt] <img width="548" height="394" alt="image" src="https://github.com/user-attachments/assets/7af5f2d2-df7d-4d07-91e4-b12bf0f974bd" />
 
 ```text
 EventCameraProcessing/
