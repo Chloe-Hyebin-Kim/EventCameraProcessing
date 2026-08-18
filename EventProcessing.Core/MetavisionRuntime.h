@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef EVENTCORE_HAVE_METAVISION
-
 namespace eventcore
 {
     // 실행 파일과 같은 폴더의 hal_plugins\ 하위 폴더(post-build 이벤트가 Prophesee\lib\metavision\hal\plugins에서
@@ -12,5 +10,3 @@ namespace eventcore
     // Metavision::Camera를 처음 사용하기 전에 한 번 호출한다.
     void EnsureBundledHalPluginPath();
 }
-
-#endif // EVENTCORE_HAVE_METAVISION

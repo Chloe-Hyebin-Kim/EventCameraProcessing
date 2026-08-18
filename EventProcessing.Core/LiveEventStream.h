@@ -2,9 +2,6 @@
 
 #include "EventProcessor.h"
 
-// 실시간 라이브 카메라 / RAW 실시간 재생 지원은 Metavision SDK가 있을 때만 컴파일된다.
-#ifdef EVENTCORE_HAVE_METAVISION
-
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -12,7 +9,9 @@
 #include <thread>
 #include <vector>
 
+#ifdef EVENTCORE_HAVE_METAVISION
 #include <metavision/sdk/stream/camera.h>
+#endif
 
 namespace eventcore
 {
@@ -20,8 +19,8 @@ namespace eventcore
     // windowUs 간격(대략적인 화면 갱신 주기)마다 그 사이 수신된 이벤트를 EventProcessor::Process로
     // 누적/분석해 콜백으로 전달한다.
     //
-    // 콜백은 내부 워커 스레드에서 호출된다. UI(MFC 등)를 갱신할 때는 콜백 안에서 직접 컨트롤을
-    // 만지지 말고, PostMessage 등으로 UI 스레드에 마샬링해야 한다.
+    // 콜백은 내부 워커 스레드에서 호출된다. GUI를 갱신할 때는 콜백 안에서 직접 컨트롤을
+    // 만지지 말고 각 GUI 프레임워크의 queued-call 방식으로 UI 스레드에 전달해야 한다.
     class LiveEventStream
     {
     public:
@@ -53,7 +52,9 @@ namespace eventcore
     private:
         void WindowLoop(lli windowUs, FrameCallback callback);
 
+#ifdef EVENTCORE_HAVE_METAVISION
         Metavision::Camera m_camera;
+#endif
         std::thread m_windowThread;
         std::atomic<bool> m_running{ false };
 
@@ -65,5 +66,3 @@ namespace eventcore
         std::string m_lastError;
     };
 }
-
-#endif // EVENTCORE_HAVE_METAVISION
