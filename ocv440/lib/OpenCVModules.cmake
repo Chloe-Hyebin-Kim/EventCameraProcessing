@@ -42,8 +42,13 @@ unset(_expectedTargets)
 
 
 # Compute the installation prefix relative to this file.
+# NOTE (EventCameraProcessing): this file was extracted from a standard OpenCV Windows
+# package (originally at <pkg>/build/x64/vc16/lib/OpenCVModules.cmake, 4 levels below the
+# package root) but only include/ and lib/ were flattened directly under ocv440/ (1 level).
+# The walk-up count below is trimmed from 4 to 3 so _IMPORT_PREFIX resolves to this repo's
+# root (where opencv_world440(d).dll actually lives) instead of one directory above it.
+# See OpenCVModules-debug.cmake / OpenCVModules-release.cmake for the matching path fixup.
 get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_FILE}" PATH)
-get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
 get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
 get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
 if(_IMPORT_PREFIX STREQUAL "/")

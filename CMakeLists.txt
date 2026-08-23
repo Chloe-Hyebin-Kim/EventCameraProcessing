@@ -41,38 +41,21 @@ if(WIN32)
     endif()
 endif()
 
-# 리포에 번들된 ocv440\은 표준 OpenCV Windows 배포판(원래 <pkg>\build\x64\vc16\lib\ 아래에 있던
-# OpenCVConfig.cmake)에서 include\, lib\만 평평하게(flatten) 복사해온 것이다. 그 안의
-# _IMPORT_PREFIX 계산이 "3단계 상위 디렉터리"를 가정하고 있어서(원래 구조 기준),
-# find_package(OpenCV CONFIG)로 이 파일을 그대로 쓰면 리포 폴더 밖(부모 디렉터리)의 존재하지
-# 않는 경로를 가리키게 되어 깨진다 (기존 vcxproj는 이 .cmake 파일들을 쓰지 않고 include/lib
-# 경로를 직접 지정해서 지금까지 문제없이 빌드되어 왔다). 그래서 CMake에서는 이 vendored
-# OpenCVConfig.cmake를 거치지 않고, 실제 파일 위치(ocv440\include, ocv440\lib\*.lib,
-# 리포 루트의 opencv_world440(d).dll)를 그대로 가리키는 IMPORTED 타깃을 직접 만든다.
-if(WIN32
-        AND EXISTS "${CMAKE_SOURCE_DIR}/ocv440/include"
-        AND EXISTS "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440.lib"
-        AND EXISTS "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440d.lib"
-        AND EXISTS "${CMAKE_SOURCE_DIR}/opencv_world440.dll"
-        AND EXISTS "${CMAKE_SOURCE_DIR}/opencv_world440d.dll")
-    add_library(EventProcessing::BundledOpenCV SHARED IMPORTED)
-    set_target_properties(EventProcessing::BundledOpenCV PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/ocv440/include"
-        IMPORTED_CONFIGURATIONS "DEBUG;RELEASE"
-        IMPORTED_IMPLIB_DEBUG     "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440d.lib"
-        IMPORTED_LOCATION_DEBUG   "${CMAKE_SOURCE_DIR}/opencv_world440d.dll"
-        IMPORTED_IMPLIB_RELEASE   "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440.lib"
-        IMPORTED_LOCATION_RELEASE "${CMAKE_SOURCE_DIR}/opencv_world440.dll"
-    )
-    set(OpenCV_FOUND TRUE)
-    set(OpenCV_LIBS EventProcessing::BundledOpenCV)
-    set(OpenCV_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/ocv440/include")
-    message(STATUS "Using bundled OpenCV (ocv440/) via a manually-defined IMPORTED target")
+# 리포에 번들된 ocv440\lib\*.cmake는 표준 OpenCV Windows 배포판(원래 <pkg>\build\x64\vc16\lib\
+# 아래에 있던 OpenCVConfig.cmake 등)에서 include\, lib\만 평평하게(flatten) 복사해온 것이다.
+# 그 파일들 안의 상대 경로 계산이 원래의 4단계 중첩 구조(build\x64\vc16\lib\)를 가정하고 있어서,
+# 이 리포의 평평한 구조(ocv440\lib\)에서는 엉뚱한 경로(리포 폴더 밖)를 가리키는 버그가 있었다.
+# ocv440\lib\OpenCVConfig.cmake / OpenCVModules*.cmake 파일들 자체를 리포 실제 구조에 맞게
+# 고쳐뒀으므로(주석 참고), 여기서는 그 경로를 CMAKE_PREFIX_PATH에 추가하기만 하면 된다.
+# 이렇게 실제 OpenCVConfig.cmake를 거쳐야 opencv_core/opencv_imgproc/... 타깃이 만들어지고,
+# Metavision SDK의 CMake 설정(MetavisionSDK_coreConfig.cmake)이 내부적으로 하는 자체
+# find_package(OpenCV ...) 호출도 (우리가 아니라 그쪽이 직접 호출하는 것이므로) 이 경로를
+# 통해서만 성공할 수 있다.
+if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/ocv440/lib/OpenCVConfig.cmake")
+    list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/ocv440/lib")
 endif()
 
-if(NOT OpenCV_FOUND)
-    find_package(OpenCV REQUIRED)
-endif()
+find_package(OpenCV REQUIRED)
 
 # Windows: 리포에 번들된 Prophesee\ (Metavision.props가 MSBuild 빌드에서 쓰는 것과 동일한 폴더)에
 # CMake package config가 이미 들어있으므로(share\cmake\MetavisionSDK\...), 시스템에 SDK가 따로
