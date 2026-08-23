@@ -74,6 +74,14 @@ if(NOT OpenCV_FOUND)
     find_package(OpenCV REQUIRED)
 endif()
 
+# Windows: 리포에 번들된 Prophesee\ (Metavision.props가 MSBuild 빌드에서 쓰는 것과 동일한 폴더)에
+# CMake package config가 이미 들어있으므로(share\cmake\MetavisionSDK\...), 시스템에 SDK가 따로
+# 설치되어 있지 않아도 이 리포만 clone하면 바로 잡히도록 검색 경로 맨 앞에 추가한다.
+# Metavision.props와 동일하게 리포에 번들된 쪽을 시스템 설치보다 우선시킨다.
+if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
+    list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Prophesee")
+endif()
+
 option(EVENTCORE_NO_METAVISION "Force-disable Metavision SDK support even if found" OFF)
 
 set(EVENTCORE_HAVE_METAVISION OFF)
