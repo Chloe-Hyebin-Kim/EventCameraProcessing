@@ -28,6 +28,24 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+# Visual Studio의 CMakePresets.json 구성 선택(툴바 드롭다운)은 VS 버전에 따라 신뢰할 수 없어서
+# (예: VS2019가 CMAKE_PREFIX_PATH가 없는 다른 구성으로 조용히 configure해버리는 경우),
+# 어떤 구성이 선택되든 Windows에서 Qt/OpenCV를 최대한 자동으로 찾도록 여기서 보강한다.
+if(WIN32)
+    # 리포에 번들된 ocv440\ (OpenCVConfig.cmake 포함)을 폴백 검색 경로로 추가.
+    # 이미 OpenCV_DIR/CMAKE_PREFIX_PATH가 다른 OpenCV를 가리키고 있으면 그쪽이 우선 사용됨.
+    if(EXISTS "${CMAKE_SOURCE_DIR}/ocv440/lib/OpenCVConfig.cmake")
+        list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/ocv440/lib")
+    endif()
+
+    # Qt 설치 경로: QT_DIR(권장) 또는 Qt 설치 관례상의 QTDIR 환경 변수를 검색 경로에 추가.
+    if(DEFINED ENV{QT_DIR} AND NOT "$ENV{QT_DIR}" STREQUAL "")
+        list(APPEND CMAKE_PREFIX_PATH "$ENV{QT_DIR}")
+    elseif(DEFINED ENV{QTDIR} AND NOT "$ENV{QTDIR}" STREQUAL "")
+        list(APPEND CMAKE_PREFIX_PATH "$ENV{QTDIR}")
+    endif()
+endif()
+
 find_package(OpenCV REQUIRED)
 
 option(EVENTCORE_NO_METAVISION "Force-disable Metavision SDK support even if found" OFF)
