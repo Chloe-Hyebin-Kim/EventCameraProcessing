@@ -12,8 +12,9 @@ project(EventCameraProcessing CXX)
 # Windows에서 EventProcessing.Core / EventProcessing.Console만 필요하면 기존처럼
 # EventCameraProcessing.sln(MSBuild)을 그대로 써도 된다. EventProcessing.DiagQt(GUI)는
 # Windows에서도 이 CMake 빌드로만 만들 수 있다 (Qt 설치 필요, 예: Qt Online Installer로
-# MSVC 2022 64bit 키트 설치 후 -DCMAKE_PREFIX_PATH=<Qt 설치 경로> 지정. OpenCV는
-# 리포에 번들된 ocv440\에 CMake config가 포함되어 있어 -DOpenCV_DIR=ocv440\lib 로 바로 사용 가능).
+# MSVC 2022 64bit 키트 설치 후 -DCMAKE_PREFIX_PATH=<Qt 설치 경로> 지정, 또는 QT_DIR/QTDIR
+# 환경 변수만 설정해두면 아래에서 자동으로 잡음. OpenCV는 리포에 번들된 ocv440\ + 루트의
+# opencv_world440(d).dll을 아래에서 자동으로 찾아 쓰므로 별도 옵션 지정 불필요).
 #
 # 필요 패키지 (Ubuntu/Debian 예):
 #   sudo apt install cmake build-essential libopencv-dev qt6-base-dev
@@ -30,14 +31,8 @@ endif()
 
 # Visual Studio의 CMakePresets.json 구성 선택(툴바 드롭다운)은 VS 버전에 따라 신뢰할 수 없어서
 # (예: VS2019가 CMAKE_PREFIX_PATH가 없는 다른 구성으로 조용히 configure해버리는 경우),
-# 어떤 구성이 선택되든 Windows에서 Qt/OpenCV를 최대한 자동으로 찾도록 여기서 보강한다.
+# 어떤 구성이 선택되든 Windows에서 Qt를 최대한 자동으로 찾도록 여기서 보강한다.
 if(WIN32)
-    # 리포에 번들된 ocv440\ (OpenCVConfig.cmake 포함)을 폴백 검색 경로로 추가.
-    # 이미 OpenCV_DIR/CMAKE_PREFIX_PATH가 다른 OpenCV를 가리키고 있으면 그쪽이 우선 사용됨.
-    if(EXISTS "${CMAKE_SOURCE_DIR}/ocv440/lib/OpenCVConfig.cmake")
-        list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/ocv440/lib")
-    endif()
-
     # Qt 설치 경로: QT_DIR(권장) 또는 Qt 설치 관례상의 QTDIR 환경 변수를 검색 경로에 추가.
     if(DEFINED ENV{QT_DIR} AND NOT "$ENV{QT_DIR}" STREQUAL "")
         list(APPEND CMAKE_PREFIX_PATH "$ENV{QT_DIR}")
@@ -46,7 +41,38 @@ if(WIN32)
     endif()
 endif()
 
-find_package(OpenCV REQUIRED)
+# 리포에 번들된 ocv440\은 표준 OpenCV Windows 배포판(원래 <pkg>\build\x64\vc16\lib\ 아래에 있던
+# OpenCVConfig.cmake)에서 include\, lib\만 평평하게(flatten) 복사해온 것이다. 그 안의
+# _IMPORT_PREFIX 계산이 "3단계 상위 디렉터리"를 가정하고 있어서(원래 구조 기준),
+# find_package(OpenCV CONFIG)로 이 파일을 그대로 쓰면 리포 폴더 밖(부모 디렉터리)의 존재하지
+# 않는 경로를 가리키게 되어 깨진다 (기존 vcxproj는 이 .cmake 파일들을 쓰지 않고 include/lib
+# 경로를 직접 지정해서 지금까지 문제없이 빌드되어 왔다). 그래서 CMake에서는 이 vendored
+# OpenCVConfig.cmake를 거치지 않고, 실제 파일 위치(ocv440\include, ocv440\lib\*.lib,
+# 리포 루트의 opencv_world440(d).dll)를 그대로 가리키는 IMPORTED 타깃을 직접 만든다.
+if(WIN32
+        AND EXISTS "${CMAKE_SOURCE_DIR}/ocv440/include"
+        AND EXISTS "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440.lib"
+        AND EXISTS "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440d.lib"
+        AND EXISTS "${CMAKE_SOURCE_DIR}/opencv_world440.dll"
+        AND EXISTS "${CMAKE_SOURCE_DIR}/opencv_world440d.dll")
+    add_library(EventProcessing::BundledOpenCV SHARED IMPORTED)
+    set_target_properties(EventProcessing::BundledOpenCV PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/ocv440/include"
+        IMPORTED_CONFIGURATIONS "DEBUG;RELEASE"
+        IMPORTED_IMPLIB_DEBUG     "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440d.lib"
+        IMPORTED_LOCATION_DEBUG   "${CMAKE_SOURCE_DIR}/opencv_world440d.dll"
+        IMPORTED_IMPLIB_RELEASE   "${CMAKE_SOURCE_DIR}/ocv440/lib/opencv_world440.lib"
+        IMPORTED_LOCATION_RELEASE "${CMAKE_SOURCE_DIR}/opencv_world440.dll"
+    )
+    set(OpenCV_FOUND TRUE)
+    set(OpenCV_LIBS EventProcessing::BundledOpenCV)
+    set(OpenCV_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/ocv440/include")
+    message(STATUS "Using bundled OpenCV (ocv440/) via a manually-defined IMPORTED target")
+endif()
+
+if(NOT OpenCV_FOUND)
+    find_package(OpenCV REQUIRED)
+endif()
 
 option(EVENTCORE_NO_METAVISION "Force-disable Metavision SDK support even if found" OFF)
 

@@ -5,13 +5,12 @@
     {
       "name": "windows-qt",
       "displayName": "Windows (Qt + bundled OpenCV)",
-      "description": "Open this repo folder in Visual Studio ('File > Open > Folder') to use this preset. Requires the QT_DIR environment variable to point at your Qt kit (e.g. C:\\Qt\\6.7.0\\msvc2022_64) - set it as a Windows environment variable and restart Visual Studio.",
+      "description": "Open this repo folder in Visual Studio ('File > Open > Folder') to use this preset. Requires the QT_DIR environment variable to point at your Qt kit (e.g. C:\\Qt\\6.7.0\\msvc2022_64) - set it as a Windows environment variable and restart Visual Studio. OpenCV is picked up automatically from the bundled ocv440/ by CMakeLists.txt, no variable needed here.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_PREFIX_PATH": "$env{QT_DIR}",
-        "OpenCV_DIR": "${sourceDir}/ocv440/lib"
+        "CMAKE_PREFIX_PATH": "$env{QT_DIR}"
       },
       "condition": {
         "type": "equals",

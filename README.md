@@ -283,8 +283,8 @@ sudo apt install cmake build-essential libopencv-dev qt6-base-dev
 # Windows
 - CMake, Visual Studio 2022(C++ 워크로드)
 - Qt Online Installer로 Qt 설치 (예: Qt 6.x, MSVC 2022 64bit 키트)
-- OpenCV: 리포에 번들된 ocv440\ 에 CMake config가 이미 포함되어 있어 별도 설치 불필요
-          (-DOpenCV_DIR=ocv440\lib 로 지정), 또는 vcpkg/시스템 설치본 사용 가능
+- OpenCV: 리포에 번들된 ocv440\ + 루트의 opencv_world440(d).dll을 CMakeLists.txt가
+          자동으로 찾아 쓰므로 별도 설치/옵션 지정 불필요 (원하면 다른 OpenCV로 덮어쓰기 가능)
 ```
 
 Metavision SDK(Prophesee)는 [공식 설치 안내](https://docs.prophesee.ai)를 따라 플랫폼별로 별도 설치함(Windows는 기존처럼 리포의 `Prophesee\` 폴더 또는 시스템 설치를 그대로 사용). `find_package(MetavisionSDK)`로 자동 감지되며,
@@ -311,8 +311,7 @@ cmake --build build -j
 
 ```bat
 cmake -B build -G "Visual Studio 17 2022" -A x64 ^
-  -DCMAKE_PREFIX_PATH="C:\Qt\6.x\msvc2022_64" ^
-  -DOpenCV_DIR="%cd%\ocv440\lib"
+  -DCMAKE_PREFIX_PATH="C:\Qt\6.x\msvc2022_64"
 cmake --build build --config Release
 ```
 
