@@ -1,9 +1,8 @@
 # EventCameraProcessing
 
-프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 GUI로 구성함.
-
-
+프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt 기반 Diagnostic Application(Windows / Linux 공용)으로 구성함.
 <img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
+
 
 </br>
 </br>
@@ -39,16 +38,53 @@
 
 ### Linux (Ubuntu/Debian 기준)
 
-```bash
-sudo apt install cmake build-essential libopencv-dev qt6-base-dev
-# Qt6 안 될 경우 대체: qtbase5-dev
-```
+- **Qt6**
+  ```bash
+  sudo apt install cmake build-essential libopencv-dev qt6-base-dev
+  # Qt6 안 될 경우 대체: qtbase5-dev
+  ```
+- **Metavision SDK**: 번들 안 되어 있음(리포 `Prophesee/`는 Windows 바이너리만 포함). [Prophesee 공식 Linux 설치 안내](https://docs.prophesee.ai) 따라 별도 설치.
+- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요)
+
+
+### 환경 변수
+
+| 변수 | 필수 여부 | 설명 |
+|---|---|---|
+| `QT_DIR` | Windows에서 Qt 자동 감지용 (권장) | Qt 키트 경로, 예: `C:\Qt\6.5.3\msvc2019_64`. CMake가 `CMAKE_PREFIX_PATH`에 자동 추가함. |
+| `QTDIR` | `QT_DIR` 없을 때 폴백으로 사용됨 | Qt 설치 관례상의 변수명. </br>이미 다른 용도로 설정되어 있을 수 있으니 가능하면 `QT_DIR`을 새로 쓰는 걸 권장. |
+| `BOOST_ROOT` | 보통 불필요 | Boost를 기본 경로(`C:\local\boost_*`)가 아닌 곳에 설치했을 때만 필요. |
+| `MV_HAL_PLUGIN_PATH` | 설정 불필요 | 앱이 실행 시점에 자동으로 설정함 </br> (`EnsureBundledHalPluginPath()`, 실행 파일 옆 `hal_plugins\` 탐색). 수동 설정 시 그 값이 우선됨. |
+| `OpenCV_DIR` | 설정 불필요 | 번들 OpenCV를 CMake가 IMPORTED 타깃으로 직접 구성하므로 불필요 </br>(다른 OpenCV로 덮어쓰고 싶을 때만 지정). |
+
+
+
+### CMake 옵션
+
+| 옵션 | 기본값 | 설명 |
+|---|---|---|
+| `EVENTCORE_NO_METAVISION` | `OFF` | `ON`으로 주면 Metavision SDK가 있어도 강제로 안 씀 </br>(CSV 입력만 지원, `EventProcessing.DiagQt` 제외). |
+| `CMAKE_BUILD_TYPE` | `Release`(미지정 시 기본값으로 설정됨) | `Debug`/`Release` |
+| `CMAKE_PREFIX_PATH` | - | Qt 등 추가 검색 경로. `windows-qt` CMake preset이 `QT_DIR`로 자동 설정함. |
+
+
+### 알려진 이슈
+
+- **VS2019에서 CMakePresets의 OS별 자동 필터링이 불안정함**
+  - 증상: `windows-qt` preset을 만들어놔도, VS2019(16.11)가 `CMAKE_PREFIX_PATH`가 비어 있는 `linux` preset으로 조용히 configure해버리는 경우가 있었음(`condition` 필드가 기대대로 평가되지 않음).
+  - 해결/완화:
+    1. VS 상단 툴바의 구성 드롭다운에서 `windows-qt`를 직접 선택
+    2. 그와 별개로, `CMakeLists.txt`가 **Windows에서는 어떤 구성이 선택되든** 다음을 자동으로 검색하도록 이미 보강되어 있음:
+       - `QT_DIR` → 없으면 `QTDIR` 순으로 Qt 경로 자동 추가
+       - 번들 OpenCV(`ocv440/`)를 IMPORTED 타깃으로 직접 구성(별도 옵션 불필요)
+       - 번들 Metavision SDK(`Prophesee/`)를 `CMAKE_PREFIX_PATH` 최우선으로 추가
+      
+       
+</br>
 
 
 ## Project Structure
 
-프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt 기반 Diagnostic Application(Windows / Linux 공용)으로 구성함.
-<img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
 
 ```text
 EventCameraProcessing/
