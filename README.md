@@ -1,3 +1,50 @@
+# EventCameraProcessing
+
+프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 GUI로 구성함.
+
+
+<img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
+
+</br>
+</br>
+</br>
+
+
+## Requirements
+
+### Common
+
+| 항목 | 최소 버전 | 비고 |
+|---|---|---|
+| CMake | 3.16 (일반 빌드) / **3.21+ 권장** | `CMakePresets.json`(schema version 3)은 3.21 이상 필요.</br> VS2019 16.11 번들 CMake는 약 3.20대라 preset 일부 기능이 불안정할 수 있음(아래 "알려진 이슈" 참고). |
+| C++ 표준 | C++17 | `CMAKE_CXX_STANDARD 17` |
+| OpenCV | 4.4.0 | Windows는 리포에 번들(`ocv440/` + 루트 `opencv_world440(d).dll`)되어 있어 별도 설치 불필요, CMake가 자동 감지.</br> Linux는 시스템 패키지 사용(아래 참고), 4.x대면 대체로 호환. |
+| Qt | Qt5 ≥ 5.14 또는 Qt6 (Widgets 모듈) | `QImage::Format_BGR888` 사용 때문에 5.14 미만은 안 됨. |
+| Metavision SDK (Prophesee) | **5.2.0** (리포 `Prophesee/`에 번들된 버전) | Live 카메라 / RAW 재생(`EventProcessing.DiagQt`)에 필수.</br> 없어도 `EventProcessing.Core`/`EventProcessing.Console`은 CSV 입력만으로 빌드됨.</br> 필요 컴포넌트: `base`, `core`, `stream` (+ 내부적으로 `MetavisionHAL`, `MetavisionPSEEHWLayer`, `hdf5_ecf` 사용 — 전부 `Prophesee/`에 같이 번들됨). |
+| Boost | `timer` 컴포넌트만 | `Prophesee/`에 번들 안 되어 있음, 별도 설치 필요 (Metavision SDK의 `core` 모듈이 요구).</br> MSVC 툴셋 버전과 맞는 사전빌드 바이너리 권장(빌드 안 해도 됨). |
+
+### Windows
+
+- **Visual Studio**: 2019(16.11+) 또는 2022, **"C++를 사용한 CMake 도구"** 컴포넌트 + "C++를 사용한 데스크톱 개발" 워크로드
+- **Qt**: Qt Online Installer로 설치. VS 버전에 맞는 키트 필요
+  - VS2019 → `MSVC 2019 64-bit` 키트 (Qt 6.5 LTS까지 제공, 또는 Qt 5.15.2)
+  - VS2022 → `MSVC 2022 64-bit` 키트 (Qt 6.6+ 포함 최신)
+- **OpenCV**: 별도 설치 불필요 (리포 번들 자동 감지)
+- **Metavision SDK**: 별도 설치 불필요 (리포 `Prophesee/` 자동 감지, 시스템 설치본이 있으면 그건 대신 무시하고 리포 번들본을 우선 사용함)
+- **Boost**: [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치
+  - VS2019(MSVC 14.2) → `boost_1_8x_0-msvc-14.2-64.exe`
+  - VS2022(MSVC 14.3) → `boost_1_8x_0-msvc-14.3-64.exe`
+  - 기본 설치 경로(`C:\local\boost_1_8x_0\`) 그대로 두면 CMake가 자동 감지
+- **vcpkg**: 필수 아님(OpenCV/Metavision SDK가 리포에 번들되어 있어서). Boost나 Qt를 vcpkg로 관리하고 싶으면 대신 사용 가능(리포에 `vcpkg.json`/`vcpkg-configuration.json` 있지만 현재 실제로 소비되는 패키지는 없음).
+
+### Linux (Ubuntu/Debian 기준)
+
+```bash
+sudo apt install cmake build-essential libopencv-dev qt6-base-dev
+# Qt6 안 될 경우 대체: qtbase5-dev
+```
+
+
 ## Project Structure
 
 프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt 기반 Diagnostic Application(Windows / Linux 공용)으로 구성함.
