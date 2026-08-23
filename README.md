@@ -289,6 +289,8 @@ sudo apt install cmake build-essential libopencv-dev qt6-base-dev
 
 Metavision SDK(Prophesee)는 [공식 설치 안내](https://docs.prophesee.ai)를 따라 플랫폼별로 별도 설치함(Windows는 기존처럼 리포의 `Prophesee\` 폴더 또는 시스템 설치를 그대로 사용). `find_package(MetavisionSDK)`로 자동 감지되며,
 
+> **Windows에서 Boost 필요**: Metavision SDK의 `core` 모듈 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 Boost `timer` 컴포넌트를 요구함(리포에 번들되어 있지 않음). Live 카메라를 안 쓰고 RAW 파일만 보더라도 RAW 디코딩 자체가 Metavision SDK를 거치므로 Boost가 필요함. [Boost 사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/)를 설치(예: `boost_1_8x_0-msvc-14.2-64.exe`, 기본 경로 `C:\local\boost_1_8x_0\`에 설치하면 CMake가 자동으로 찾음, 안 잡히면 `BOOST_ROOT` 환경 변수로 지정).
+
 ```text
 설치되어 있으면
     → Live 카메라 / RAW 실시간 재생 지원 활성화
