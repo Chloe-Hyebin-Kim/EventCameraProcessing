@@ -1,6 +1,6 @@
 ## Project Structure
 
-프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 MFC Diagnostic Application으로 구성함.
+프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt Widgets Diagnostic Application으로 구성함. GUI와 빌드 시스템은 Windows와 Linux에서 동일한 소스를 사용함.
 <img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
 
 ```text
@@ -17,7 +17,7 @@ EventCameraProcessing/
 │  └─ RAW / CSV / Live 입력 기반 Batch Processing
 │
 ├─ EventProcessing.Diag/
-│  └─ MFC 기반 Live / RAW Diagnostic Viewer
+│  └─ Qt 5/6 기반 Live / RAW Diagnostic Viewer
 │
 ├─ Prophesee/
 │  ├─ include/
@@ -88,9 +88,11 @@ Image / Video Output
 
 ### EventProcessing.Diag
 
-MFC 기반 Diagnostic Application.
+Qt Widgets 기반 크로스 플랫폼 Diagnostic Application(Qt 5.12+ 또는 Qt 6).
 
 EVK4 HD Live Camera 또는 RAW Recording의 Event Stream을 실시간으로 확인하고, Ball Detection 결과를 기반으로 Shot Capture 상태를 관리하는 용도로 구성함.
+
+RAW 재생 중에는 화면 아래 타임라인 슬라이더로 원하는 시점으로 이동할 수 있고, 키보드 `←`/`→` 키로 각각 1초씩 되감기/빨리 감기가 가능하다. RAW seek index가 준비되면 컨트롤이 자동 활성화되며 Live camera 모드에서는 비활성화된다.
 
 ```text
 Searching
@@ -121,11 +123,96 @@ Ready 상태에서 설정한 이동 속도 이상의 변화가 발생하면 Shot
 ### Development Environment
 
 ```text
-Language        : C++
-IDE             : Visual Studio 2022
-Platform        : Windows x64
-GUI             : MFC
-Build           : MSBuild / Visual Studio Solution
+Language        : C++17
+Platform        : Windows x64 / Linux x86_64
+GUI             : Qt 5/6 Widgets
+Build           : CMake 3.16+
+```
+
+### Windows / Linux 빌드
+
+OpenCV 4, Qt 5/6 Widgets와 (RAW/Live 입력이 필요하면) 플랫폼에 맞는 Metavision SDK 5.x를 설치한다. 저장소에 포함된 `Prophesee` 바이너리는 Windows용이므로 Linux에서는 Prophesee가 제공하는 Linux SDK를 설치하고 `METAVISION_SDK_PATH`를 지정해야 한다.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+Linux에서 실행:
+
+```bash
+./build/CEventProcessingDiagDlg
+```
+
+Windows에서는 Visual Studio의 **CMake 프로젝트 열기**를 사용하거나 같은 명령을 Developer PowerShell에서 실행한 뒤 `build/Release/CEventProcessingDiagDlg.exe`를 실행한다. Qt/OpenCV가 기본 검색 경로에 없다면 `CMAKE_PREFIX_PATH`를 설치 경로로 지정한다.
+
+기존 `EventCameraProcessing.sln`을 사용하는 경우에는 Solution Explorer에서 `qtDiag` 프로젝트를 바로 로드할 수 있다. `qtDiag`는 CMake를 호출하는 Visual Studio Makefile 프로젝트이므로 다음 순서로 사용한다.
+
+1. Qt 5.12 이상 또는 Qt 6 MSVC x64 패키지를 설치한다. Visual Studio 2019에서는 `Qt 6.5.3 msvc2019_64`도 지원한다.
+2. Visual Studio를 시작하기 전에 `QTDIR`을 설정한다. 예: `set QTDIR=C:\Qt\6.5.3\msvc2019_64`을 실행한 같은 명령 프롬프트에서 `EventCameraProcessing.sln`을 연다. `C:\Qt` 기본 위치의 호환 kit는 빌드 스크립트가 자동 검색한다.
+3. `EventCameraProcessing.sln`을 열고 Solution Platform을 `x64`로 선택한다.
+4. `qtDiag`를 우클릭하여 **Set as Startup Project**로 지정한 뒤 Build/Run한다.
+
+빌드 결과는 `build\vs-Debug\Debug\CEventProcessingDiagDlg.exe` 또는 `build\vs-Release\Release\CEventProcessingDiagDlg.exe`에 생성된다. 저장소의 Windows용 OpenCV 패키지는 CMake가 자동으로 찾는다.
+
+Visual Studio의 F5 실행 경로도 `qtDiag.vcxproj`에 위 CMake 출력 경로로 명시되어 있다. `x64\Debug\qtDiag.exe`를 찾는 메시지가 계속 나오면 이전 MFC 프로젝트의 사용자별 디버거 설정이 `.vs` 또는 `EventProcessing.Diag\qtDiag.vcxproj.user`에 남은 것이다. Visual Studio를 닫은 뒤 다음 캐시를 삭제하고 Solution을 다시 연다.
+
+```bat
+cd /d D:\git\EventCameraProcessing
+rmdir /s /q .vs
+del /q EventProcessing.Diag\qtDiag.vcxproj.user 2>nul
+```
+
+Windows 빌드가 끝나면 CMake가 선택한 Qt kit의 `windeployqt`를 자동 실행하여 `Qt6Widgets.dll`, `Qt6Gui.dll`, `Qt6Core.dll` 및 `platforms\qwindows.dll`을 실행 파일 옆에 배포한다. 따라서 `.exe` 하나만 다른 폴더로 복사하지 말고 생성된 Release 또는 Debug **폴더 전체**를 함께 복사해야 한다. 예전에 빌드한 폴더에는 DLL이 없을 수 있으므로 아래처럼 CMake 빌드 폴더를 지우고 Rebuild한다.
+
+```bat
+rmdir /s /q build\vs-Release
+set QTDIR=C:\Qt\6.5.3\msvc2019_64
+```
+
+빌드 마지막의 `다시 빌드: 1개 성공, 0개 실패` 또는 `빌드: 1개 성공, 0개 실패`는 정상 성공이다. Qt가 출력하는 `Could NOT find WrapVulkanHeaders`는 이 Widgets 앱에서 Vulkan을 사용하지 않으므로 무시할 수 있다. 프로젝트는 `windeployqt --no-compiler-runtime`을 사용하므로 배포 대상 PC에는 `Microsoft Visual C++ 2015-2022 Redistributable (x64)`가 설치되어 있어야 한다. 모든 MSVC 소스는 `/utf-8`로 컴파일하여 한국어 Windows의 `C4819` 코드 페이지 경고를 방지한다.
+
+`MSB3073`은 실제 원인이 아니라 외부 빌드 명령이 실패했다는 Visual Studio의 요약 코드다. 최신 프로젝트는 `build_qtdiag.cmd`를 사용하며 Output 창에 Source/Build/Qt 경로와 실제 CMake 오류를 출력한다. 오류 목록의 `MSB3073`만 보지 말고 **보기 → 출력 → 출력 보기: 빌드**에서 그보다 앞에 표시된 `[qtDiag] ERROR` 또는 CMake 오류를 확인한다.
+
+Qt 5.3.1만 설치된 PC에서는 Qt Online Installer 또는 Qt Archive를 이용해 `Qt 5.15.2 → MSVC 2019 64-bit` 컴포넌트를 추가한다. MinGW kit(`mingw*_64`)는 Visual Studio의 MSVC 오브젝트/라이브러리와 호환되지 않으므로 선택하지 않는다.
+
+#### `qt-everywhere-src-5.15.19`를 받은 경우
+
+`qt-everywhere-src-5.15.19`는 설치된 Qt SDK가 아니라 **전체 소스 코드**다. 압축 해제만 한 경로를 `QTDIR`로 지정하면 안 된다. 가장 간단한 방법은 사전 빌드된 `Qt 5.15.2 MSVC 2019 64-bit` kit를 설치하는 것이다. 5.15.19를 반드시 사용해야 한다면 아래처럼 직접 빌드하고 설치해야 한다.
+
+1. Visual Studio Installer에서 **Desktop development with C++**, MSVC v142 x64 도구 및 Windows 10 SDK를 설치한다.
+2. `x64 Native Tools Command Prompt for VS 2019`를 열고, 소스 트리와 다른 빈 빌드 디렉터리에서 명령을 실행한다.
+
+```bat
+set QT_SRC=C:\src\qt-everywhere-src-5.15.19
+set QT_INSTALL=C:\Qt\5.15.19\msvc2019_64
+mkdir C:\build\qt-5.15.19-msvc2019
+cd /d C:\build\qt-5.15.19-msvc2019
+
+call "%QT_SRC%\configure.bat" -prefix "%QT_INSTALL%" -opensource -confirm-license -release -platform win32-msvc -nomake examples -nomake tests -skip qtwebengine
+nmake
+nmake install
+```
+
+Qt 전체 소스 빌드는 오래 걸리고 디스크 공간을 많이 사용한다. 이 프로젝트는 Core/Gui/Widgets만 필요하므로 예제·테스트와 Qt WebEngine을 제외한다. `configure.bat`가 Perl 또는 Python 누락을 보고하면 해당 도구를 설치하고 새 명령 프롬프트에서 다시 시작한다.
+
+설치가 완료된 뒤에만 다음 파일을 확인하고 `QTDIR`을 지정한다.
+
+```bat
+if exist C:\Qt\5.15.19\msvc2019_64\lib\cmake\Qt5\Qt5Config.cmake echo Qt install OK
+set QTDIR=C:\Qt\5.15.19\msvc2019_64
+cd /d D:\git\EventCameraProcessing
+rmdir /s /q build\vs-Release
+start EventCameraProcessing.sln
+```
+
+소스 디렉터리(`C:\src\qt-everywhere-src-5.15.19`)가 아니라 `nmake install` 결과 디렉터리(`C:\Qt\5.15.19\msvc2019_64`)가 `QTDIR`이다.
+
+Metavision SDK 없이 UI와 CSV 기반 Core만 빌드할 수도 있다. 이 경우 Diagnostic 앱은 실행되지만 RAW/Live 시작 시 SDK 미지원 메시지를 표시한다.
+
+```bash
+cmake -S . -B build -DEVENTPROCESSING_WITH_METAVISION=OFF
+cmake --build build --parallel
 ```
 
 ### OpenCV
@@ -384,7 +471,7 @@ Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 
 - [x] PNG Output
 - [x] MP4 Visualization
 - [x] Console Batch Processing
-- [x] MFC Diagnostic Viewer
+- [x] Qt 5/6 Cross-platform Diagnostic Viewer
 - [x] Searching / Ready / Trigger / Capturing State Machine
 - [x] Repository-local Metavision SDK Path 구성
 - [x] Metavision Runtime DLL Post-Build Copy

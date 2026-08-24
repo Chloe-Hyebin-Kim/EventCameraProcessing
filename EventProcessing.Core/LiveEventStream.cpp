@@ -1,8 +1,8 @@
 ﻿#include "pch.h"
 
-#ifdef EVENTCORE_HAVE_METAVISION
-
 #include "LiveEventStream.h"
+
+#ifdef EVENTCORE_HAVE_METAVISION
 
 #include <cstring>
 
@@ -95,11 +95,6 @@ namespace eventcore
 
     void LiveEventStream::Stop()
     {
-        if (!m_running)
-        {
-            return;
-        }
-
         m_running = false;
 
         if (m_windowThread.joinable())
@@ -121,6 +116,44 @@ namespace eventcore
         return m_running;
     }
 
+    bool LiveEventStream::GetSeekRange(lli& startUs, lli& endUs)
+    {
+        try
+        {
+            auto& control = m_camera.offline_streaming_control();
+            if (!control.is_ready()) return false;
+            startUs = control.get_seek_start_time();
+            endUs = control.get_seek_end_time();
+            return endUs > startUs;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    bool LiveEventStream::Seek(lli timestampUs)
+    {
+        try
+        {
+            auto& control = m_camera.offline_streaming_control();
+            if (!control.is_ready()) return false;
+            const lli target = std::clamp<lli>(timestampUs, control.get_seek_start_time(),
+                                                control.get_seek_end_time());
+            if (!control.seek(target)) return false;
+            {
+                std::lock_guard<std::mutex> lock(m_bufferMutex);
+                m_buffer.clear();
+            }
+            m_seekPositionUs = target;
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
     void LiveEventStream::WindowLoop(lli windowUs, FrameCallback callback)
     {
         lli runningClockUs = 0;
@@ -135,6 +168,8 @@ namespace eventcore
                 batch.swap(m_buffer);
             }
 
+            const lli seekPosition = m_seekPositionUs.exchange(-1);
+            if (seekPosition >= 0) runningClockUs = seekPosition;
             const lli batchStart = batch.empty() ? runningClockUs : batch.front().t_us;
             const lli batchEnd = batch.empty() ? (runningClockUs + windowUs) : (batch.back().t_us + 1);
             runningClockUs = batchEnd;
@@ -152,4 +187,24 @@ namespace eventcore
     }
 }
 
-#endif // EVENTCORE_HAVE_METAVISION
+#else
+
+namespace eventcore
+{
+    LiveEventStream::LiveEventStream() = default;
+    LiveEventStream::~LiveEventStream() = default;
+
+    bool LiveEventStream::Start(const char*, lli, FrameCallback)
+    {
+        m_lastError = "Metavision SDK support is not available in this build";
+        return false;
+    }
+
+    void LiveEventStream::Stop() { m_running = false; }
+    bool LiveEventStream::IsRunning() const { return false; }
+    bool LiveEventStream::GetSeekRange(lli&, lli&) { return false; }
+    bool LiveEventStream::Seek(lli) { return false; }
+    void LiveEventStream::WindowLoop(lli, FrameCallback) {}
+}
+
+#endif

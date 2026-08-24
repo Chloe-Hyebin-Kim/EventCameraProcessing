@@ -1,406 +1,334 @@
-﻿#include "pch.h"
-#include "framework.h"
-#include "EventProcessing.Diag.h"
 #include "EventProcessingDiagDlg.h"
 
-#include <atlconv.h>
-#include <atltime.h>
-#include <shlobj.h>
+#include <QCloseEvent>
+#include <QDateTime>
+#include <QDir>
+#include <QDoubleValidator>
+#include <QFile>
+#include <QFileDialog>
+#include <QFormLayout>
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QKeyEvent>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMetaObject>
+#include <QPushButton>
+#include <QPixmap>
+#include <QRadioButton>
+#include <QSignalBlocker>
+#include <QSlider>
+#include <QShortcut>
+#include <QVBoxLayout>
 
-#ifdef _DEBUG
-#define new DEBUG_NEW
-#endif
+#include <algorithm>
+
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 
 using namespace eventcore;
 
-namespace
+namespace {
+QString stateName(ShotState state)
 {
-    CString FormatShotState(ShotState state)
-    {
-        switch (state)
-        {
-        case ShotState::Searching: return _T("SEARCHING");
-        case ShotState::Ready:     return _T("READY");
-        case ShotState::Capturing: return _T("CAPTURING");
-        }
-        return _T("?");
+    switch (state) {
+    case ShotState::Searching: return QStringLiteral("SEARCHING");
+    case ShotState::Ready: return QStringLiteral("READY");
+    case ShotState::Capturing: return QStringLiteral("CAPTURING");
     }
+    return QStringLiteral("?");
 }
 
-CEventProcessingDiagDlg::CEventProcessingDiagDlg(CWnd* pParent)
-    : CDialogEx(IDD_EVENTPROCESSING_DIAG_DIALOG, pParent)
-    , m_hIcon(nullptr)
+QLineEdit* numericEdit(const QString& value, QWidget* parent)
 {
+    auto* edit = new QLineEdit(value, parent);
+    edit->setValidator(new QDoubleValidator(0.0, 1000000000.0, 6, edit));
+    return edit;
+}
 }
 
-void CEventProcessingDiagDlg::DoDataExchange(CDataExchange* pDX)
+EventProcessingDiagDialog::EventProcessingDiagDialog(QWidget* parent) : QDialog(parent)
 {
-    CDialogEx::DoDataExchange(pDX);
-    DDX_Control(pDX, IDC_LIST_LOG, m_listLog);
+    buildUi();
 }
 
-BEGIN_MESSAGE_MAP(CEventProcessingDiagDlg, CDialogEx)
-    ON_WM_PAINT()
-    ON_WM_QUERYDRAGICON()
-    ON_WM_DESTROY()
-    ON_BN_CLICKED(IDC_BUTTON_START, &CEventProcessingDiagDlg::OnBnClickedButtonStart)
-    ON_BN_CLICKED(IDC_BUTTON_STOP, &CEventProcessingDiagDlg::OnBnClickedButtonStop)
-    ON_BN_CLICKED(IDC_BUTTON_BROWSE_RAW, &CEventProcessingDiagDlg::OnBnClickedButtonBrowseRaw)
-    ON_BN_CLICKED(IDC_BUTTON_BROWSE_OUTPUT, &CEventProcessingDiagDlg::OnBnClickedButtonBrowseOutput)
-    ON_MESSAGE(WM_APP_FRAME_READY, &CEventProcessingDiagDlg::OnFrameReady)
-END_MESSAGE_MAP()
-
-BOOL CEventProcessingDiagDlg::OnInitDialog()
+EventProcessingDiagDialog::~EventProcessingDiagDialog()
 {
-    CDialogEx::OnInitDialog();
-
-    // 외부 .ico 파일 없이도 빌드되도록 시스템 기본 아이콘 사용
-    m_hIcon = ::LoadIcon(nullptr, IDI_APPLICATION);
-    SetIcon(m_hIcon, TRUE);
-    SetIcon(m_hIcon, FALSE);
-
-    CheckRadioButton(IDC_RADIO_LIVE, IDC_RADIO_RAW, IDC_RADIO_RAW);
-
-    SetDlgItemText(IDC_EDIT_OUTPUTDIR, _T(".\\output"));
-    SetDlgItemText(IDC_EDIT_READY_SEC, _T("1.0"));
-    SetDlgItemText(IDC_EDIT_CAPTURE_SEC, _T("1.0"));
-    SetDlgItemText(IDC_EDIT_STABLE_PX, _T("15"));
-    SetDlgItemText(IDC_EDIT_SHOT_SPEED, _T("1000"));
-    SetDlgItemText(IDC_EDIT_MISS_TOLERANCE_MS, _T("150"));
-    SetDlgItemText(IDC_EDIT_WINDOW_US, _T("10000"));
-
-    GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
-    SetDlgItemText(IDC_STATIC_STATE, _T("IDLE"));
-
-    return TRUE;
+    stream_.Stop();
 }
 
-void CEventProcessingDiagDlg::OnPaint()
+void EventProcessingDiagDialog::buildUi()
 {
-    if (IsIconic())
-    {
-        CPaintDC dc(this);
-        SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
+    setWindowTitle(tr("Event Camera Processing Diagnostic"));
+    resize(1100, 760);
 
-        int cxIcon = GetSystemMetrics(SM_CXICON);
-        int cyIcon = GetSystemMetrics(SM_CYICON);
-        CRect rect;
-        GetClientRect(&rect);
-        int x = (rect.Width() - cxIcon + 1) / 2;
-        int y = (rect.Height() - cyIcon + 1) / 2;
-        dc.DrawIcon(x, y, m_hIcon);
-    }
-    else
-    {
-        CDialogEx::OnPaint();
-    }
+    liveRadio_ = new QRadioButton(tr("Live camera"), this);
+    rawRadio_ = new QRadioButton(tr("RAW playback"), this);
+    rawRadio_->setChecked(true);
+    rawPath_ = new QLineEdit(this);
+    auto* rawBrowse = new QPushButton(tr("Browse…"), this);
+    auto* sourceRow = new QHBoxLayout;
+    sourceRow->addWidget(liveRadio_);
+    sourceRow->addWidget(rawRadio_);
+    sourceRow->addWidget(rawPath_, 1);
+    sourceRow->addWidget(rawBrowse);
+
+    outputDirectory_ = new QLineEdit(QDir::current().filePath(QStringLiteral("output")), this);
+    auto* outputBrowse = new QPushButton(tr("Browse…"), this);
+    auto* outputRow = new QHBoxLayout;
+    outputRow->addWidget(outputDirectory_, 1);
+    outputRow->addWidget(outputBrowse);
+
+    readySeconds_ = numericEdit(QStringLiteral("1.0"), this);
+    captureSeconds_ = numericEdit(QStringLiteral("1.0"), this);
+    stablePixels_ = numericEdit(QStringLiteral("15"), this);
+    shotSpeed_ = numericEdit(QStringLiteral("1000"), this);
+    missToleranceMs_ = numericEdit(QStringLiteral("150"), this);
+    windowUs_ = numericEdit(QStringLiteral("10000"), this);
+    auto* settings = new QGroupBox(tr("Trigger settings"), this);
+    auto* form = new QFormLayout(settings);
+    form->addRow(tr("Ready time (s)"), readySeconds_);
+    form->addRow(tr("Capture time (s)"), captureSeconds_);
+    form->addRow(tr("Stable movement (px)"), stablePixels_);
+    form->addRow(tr("Shot speed (px/s)"), shotSpeed_);
+    form->addRow(tr("Miss tolerance (ms)"), missToleranceMs_);
+    form->addRow(tr("Event window (µs)"), windowUs_);
+
+    state_ = new QLabel(QStringLiteral("IDLE"), this);
+    state_->setAlignment(Qt::AlignCenter);
+    state_->setStyleSheet(QStringLiteral("font-size: 22px; font-weight: bold; padding: 8px;"));
+    startButton_ = new QPushButton(tr("Start"), this);
+    stopButton_ = new QPushButton(tr("Stop"), this);
+    stopButton_->setEnabled(false);
+    auto* controls = new QHBoxLayout;
+    controls->addWidget(startButton_);
+    controls->addWidget(stopButton_);
+
+    preview_ = new QLabel(tr("No frame"), this);
+    preview_->setAlignment(Qt::AlignCenter);
+    preview_->setMinimumSize(640, 360);
+    preview_->setStyleSheet(QStringLiteral("background: black; color: #aaa;"));
+    timeline_ = new QSlider(Qt::Horizontal, this);
+    timeline_->setRange(0, 10000);
+    timeline_->setEnabled(false);
+    timelineLabel_ = new QLabel(QStringLiteral("--:--.--- / --:--.---"), this);
+    timelineLabel_->setMinimumWidth(150);
+    auto* timelineRow = new QHBoxLayout;
+    timelineRow->addWidget(timeline_, 1);
+    timelineRow->addWidget(timelineLabel_);
+    log_ = new QListWidget(this);
+    log_->setMinimumHeight(140);
+
+    auto* side = new QVBoxLayout;
+    side->addWidget(settings);
+    side->addWidget(state_);
+    side->addLayout(controls);
+    side->addStretch();
+    auto* content = new QHBoxLayout;
+    content->addWidget(preview_, 1);
+    content->addLayout(side);
+    auto* root = new QVBoxLayout(this);
+    root->addLayout(sourceRow);
+    root->addLayout(outputRow);
+    root->addLayout(content, 1);
+    root->addLayout(timelineRow);
+    root->addWidget(log_);
+
+    connect(rawBrowse, &QPushButton::clicked, this, [this] { browseRaw(); });
+    connect(outputBrowse, &QPushButton::clicked, this, [this] { browseOutput(); });
+    connect(startButton_, &QPushButton::clicked, this, [this] { start(); });
+    connect(stopButton_, &QPushButton::clicked, this, [this] { stop(); });
+    connect(timeline_, &QSlider::sliderReleased, this, [this] { seekToSlider(); });
+    auto* seekBackward = new QShortcut(QKeySequence(Qt::Key_Left), this);
+    auto* seekForward = new QShortcut(QKeySequence(Qt::Key_Right), this);
+    connect(seekBackward, &QShortcut::activated, this, [this] { seekRelative(-1000000); });
+    connect(seekForward, &QShortcut::activated, this, [this] { seekRelative(1000000); });
 }
 
-HCURSOR CEventProcessingDiagDlg::OnQueryDragIcon()
+ShotTriggerConfig EventProcessingDiagDialog::readConfig() const
 {
-    return static_cast<HCURSOR>(m_hIcon);
+    ShotTriggerConfig config;
+    config.readySeconds = readySeconds_->text().toDouble();
+    config.captureSeconds = captureSeconds_->text().toDouble();
+    config.stableMovePx = stablePixels_->text().toFloat();
+    config.shotSpeedPxPerSec = shotSpeed_->text().toFloat();
+    config.missToleranceUs = static_cast<lli>(missToleranceMs_->text().toDouble() * 1000.0);
+    return config;
 }
 
-void CEventProcessingDiagDlg::OnDestroy()
+void EventProcessingDiagDialog::appendLog(const QString& message)
 {
-    m_stream.Stop();
-    CDialogEx::OnDestroy();
+    log_->addItem(QDateTime::currentDateTime().toString(QStringLiteral("[HH:mm:ss] ")) + message);
+    log_->scrollToBottom();
 }
 
-ShotTriggerConfig CEventProcessingDiagDlg::ReadConfigFromUI() const
+void EventProcessingDiagDialog::updateState(ShotState state) { state_->setText(stateName(state)); }
+
+void EventProcessingDiagDialog::displayFrame(const cv::Mat& bgrFrame)
 {
-    ShotTriggerConfig cfg;
-    CString s;
-
-    GetDlgItemText(IDC_EDIT_READY_SEC, s);
-    cfg.readySeconds = _ttof(s);
-
-    GetDlgItemText(IDC_EDIT_CAPTURE_SEC, s);
-    cfg.captureSeconds = _ttof(s);
-
-    GetDlgItemText(IDC_EDIT_STABLE_PX, s);
-    cfg.stableMovePx = static_cast<float>(_ttof(s));
-
-    GetDlgItemText(IDC_EDIT_SHOT_SPEED, s);
-    cfg.shotSpeedPxPerSec = static_cast<float>(_ttof(s));
-
-    GetDlgItemText(IDC_EDIT_MISS_TOLERANCE_MS, s);
-    cfg.missToleranceUs = static_cast<lli>(_ttof(s) * 1000.0);
-
-    return cfg;
+    if (bgrFrame.empty() || bgrFrame.type() != CV_8UC3) return;
+    cv::Mat rgb;
+    cv::cvtColor(bgrFrame, rgb, cv::COLOR_BGR2RGB);
+    const QImage image(rgb.data, rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
+    preview_->setPixmap(QPixmap::fromImage(image.copy()).scaled(preview_->size(), Qt::KeepAspectRatio,
+                                                               Qt::SmoothTransformation));
 }
 
-void CEventProcessingDiagDlg::AppendLog(const CString& msg)
+void EventProcessingDiagDialog::start()
 {
-    CTime now = CTime::GetCurrentTime();
-    CString line;
-    line.Format(_T("[%02d:%02d:%02d] %s"), now.GetHour(), now.GetMinute(), now.GetSecond(), (LPCTSTR)msg);
-
-    m_listLog.AddString(line);
-    m_listLog.SetTopIndex(m_listLog.GetCount() - 1);
-}
-
-void CEventProcessingDiagDlg::UpdateStateLabel(ShotState state)
-{
-    SetDlgItemText(IDC_STATIC_STATE, FormatShotState(state));
-}
-
-void CEventProcessingDiagDlg::DrawFrame(const cv::Mat& bgrFrame)
-{
-    if (bgrFrame.empty() || bgrFrame.type() != CV_8UC3)
-    {
+    if (running_) return;
+    const QString raw = rawPath_->text().trimmed();
+    if (rawRadio_->isChecked() && raw.isEmpty()) {
+        appendLog(tr("Please choose a RAW file, or select Live camera."));
         return;
     }
-
-    CWnd* preview = GetDlgItem(IDC_STATIC_PREVIEW);
-    if (preview == nullptr)
-    {
+    if (!QDir().mkpath(outputDirectory_->text())) {
+        appendLog(tr("Could not create the output directory."));
         return;
     }
-
-    CRect rc;
-    preview->GetClientRect(&rc);
-    if (rc.Width() <= 0 || rc.Height() <= 0)
-    {
-        return;
-    }
-
-    CDC* pDC = preview->GetDC();
-    if (pDC == nullptr)
-    {
-        return;
-    }
-
-    const cv::Mat safe = bgrFrame.isContinuous() ? bgrFrame : bgrFrame.clone();
-
-    const double scale = std::min(
-        static_cast<double>(rc.Width()) / safe.cols,
-        static_cast<double>(rc.Height()) / safe.rows);
-    const int dw = std::max(1, static_cast<int>(safe.cols * scale));
-    const int dh = std::max(1, static_cast<int>(safe.rows * scale));
-    const int dx = (rc.Width() - dw) / 2;
-    const int dy = (rc.Height() - dh) / 2;
-
-    pDC->FillSolidRect(&rc, RGB(0, 0, 0));
-
-    BITMAPINFOHEADER bih = {};
-    bih.biSize = sizeof(BITMAPINFOHEADER);
-    bih.biWidth = safe.cols;
-    bih.biHeight = -safe.rows; // top-down DIB (cv::Mat row 0 is the top row)
-    bih.biPlanes = 1;
-    bih.biBitCount = 24;
-    bih.biCompression = BI_RGB;
-
-    ::StretchDIBits(
-        pDC->GetSafeHdc(),
-        dx, dy, dw, dh,
-        0, 0, safe.cols, safe.rows,
-        safe.data,
-        reinterpret_cast<BITMAPINFO*>(&bih),
-        DIB_RGB_COLORS,
-        SRCCOPY);
-
-    preview->ReleaseDC(pDC);
-}
-
-void CEventProcessingDiagDlg::StartCaptureSave()
-{
-    CTime now = CTime::GetCurrentTime();
-    CString folder;
-    folder.Format(_T("%s\\shot_%04d%02d%02d_%02d%02d%02d"),
-        (LPCTSTR)m_outputDir,
-        now.GetYear(), now.GetMonth(), now.GetDay(),
-        now.GetHour(), now.GetMinute(), now.GetSecond());
-
-    ::CreateDirectory(m_outputDir, nullptr);
-    ::CreateDirectory(folder, nullptr);
-
-    m_currentCaptureDir = folder;
-    m_captureFrameIndex = 0;
-    m_capturingNow = true;
-}
-
-void CEventProcessingDiagDlg::SaveCaptureFrame(const cv::Mat& bgrFrame)
-{
-    if (!m_capturingNow || bgrFrame.empty())
-    {
-        return;
-    }
-
-    CString filename;
-    filename.Format(_T("%s\\frame_%04d.png"), (LPCTSTR)m_currentCaptureDir, m_captureFrameIndex);
-
-    // cv::imwrite expects an ANSI(system codepage)-encoded path on Windows, so convert
-    // with the default codepage rather than forcing UTF-8 (output folder may contain
-    // non-ASCII characters, e.g. a Korean Windows user profile path).
-    CT2A ansiPath(filename);
-    cv::imwrite(std::string(ansiPath), bgrFrame);
-
-    ++m_captureFrameIndex;
-}
-
-void CEventProcessingDiagDlg::FinishCaptureSave()
-{
-    m_capturingNow = false;
-}
-
-void CEventProcessingDiagDlg::OnBnClickedButtonStart()
-{
-    if (m_running)
-    {
-        return;
-    }
-
-    CString rawPath, outputDir, windowStr;
-    GetDlgItemText(IDC_EDIT_RAWPATH, rawPath);
-    GetDlgItemText(IDC_EDIT_OUTPUTDIR, outputDir);
-    GetDlgItemText(IDC_EDIT_WINDOW_US, windowStr);
-
-    m_outputDir = outputDir;
-    ::CreateDirectory(m_outputDir, nullptr);
-
-    lli windowUs = _ttoll(windowStr);
-    if (windowUs <= 0)
-    {
-        windowUs = 10000;
-    }
-
-    m_trigger = ShotTrigger(ReadConfigFromUI());
-    m_capturingNow = false;
-    m_captureFrameIndex = 0;
-
-    const bool live = (IsDlgButtonChecked(IDC_RADIO_LIVE) == BST_CHECKED);
-    CT2A rawPathAnsi(rawPath);
-    const std::string rawPathStd(static_cast<LPCSTR>(rawPathAnsi));
-
-    if (!live && rawPathStd.empty())
-    {
-        AppendLog(_T("Please choose a RAW file, or select 'Live camera'."));
-        return;
-    }
-
-    const HWND hWnd = GetSafeHwnd();
-
-    // 콜백은 워커 스레드에서 호출된다. this를 캡처하지 않고(다이얼로그 수명과 무관하게 안전한)
-    // 순수 HWND + 힙 할당 메시지 페이로드만 사용해 PostMessage로 UI 스레드에 마샬링한다.
-    const bool ok = m_stream.Start(
-        live ? "" : rawPathStd.c_str(),
-        windowUs,
-        [hWnd](const EventProcessingResult& result, lli startUs, lli endUs)
-        {
-            FrameMessage* msg = new FrameMessage();
-            msg->frame = result.debugImage.clone();
-            msg->ball = result.ball;
-            msg->windowStartUs = startUs;
-            msg->windowEndUs = endUs;
-            ::PostMessage(hWnd, WM_APP_FRAME_READY, 0, reinterpret_cast<LPARAM>(msg));
+    trigger_ = ShotTrigger(readConfig());
+    capturing_ = false;
+    const QByteArray path = QFile::encodeName(raw);
+    const lli window = std::max<lli>(1, windowUs_->text().toLongLong());
+    const bool live = liveRadio_->isChecked();
+    const bool ok = stream_.Start(live ? "" : path.constData(), window,
+        [this](const EventProcessingResult& result, lli startUs, lli) {
+            const cv::Mat frame = result.debugImage.clone();
+            const BallDetectionResult ball = result.ball;
+            QMetaObject::invokeMethod(this, [this, frame, ball, startUs] {
+                handleFrame(frame, ball, startUs);
+            }, Qt::QueuedConnection);
         });
-
-    if (!ok)
-    {
-        CString msg = _T("Failed to start stream");
-        const std::string& err = m_stream.LastError();
-        if (!err.empty())
-        {
-            CA2T errT(err.c_str());
-            msg.AppendFormat(_T(": %s"), static_cast<LPCTSTR>(errT));
-        }
-        AppendLog(msg);
+    if (!ok) {
+        appendLog(tr("Failed to start stream: %1").arg(QString::fromStdString(stream_.LastError())));
         return;
     }
-
-    m_running = true;
-    GetDlgItem(IDC_BUTTON_START)->EnableWindow(FALSE);
-    GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(TRUE);
-    SetDlgItemText(IDC_STATIC_STATE, _T("SEARCHING"));
-    AppendLog(live ? _T("Started (live camera)") : _T("Started (RAW playback)"));
+    running_ = true;
+    seekStartUs_ = seekEndUs_ = currentTimestampUs_ = 0;
+    timeline_->setEnabled(false);
+    timelineLabel_->setText(QStringLiteral("--:--.--- / --:--.---"));
+    startButton_->setEnabled(false);
+    stopButton_->setEnabled(true);
+    state_->setText(QStringLiteral("SEARCHING"));
+    appendLog(live ? tr("Started (live camera)") : tr("Started (RAW playback)"));
 }
 
-void CEventProcessingDiagDlg::OnBnClickedButtonStop()
+void EventProcessingDiagDialog::stop()
 {
-    if (!m_running)
-    {
-        return;
-    }
-
-    m_stream.Stop();
-    m_running = false;
-
-    GetDlgItem(IDC_BUTTON_START)->EnableWindow(TRUE);
-    GetDlgItem(IDC_BUTTON_STOP)->EnableWindow(FALSE);
-    SetDlgItemText(IDC_STATIC_STATE, _T("IDLE"));
-    AppendLog(_T("Stopped"));
+    if (!running_) return;
+    stream_.Stop();
+    running_ = false;
+    capturing_ = false;
+    startButton_->setEnabled(true);
+    stopButton_->setEnabled(false);
+    state_->setText(QStringLiteral("IDLE"));
+    timeline_->setEnabled(false);
+    appendLog(tr("Stopped"));
 }
 
-void CEventProcessingDiagDlg::OnBnClickedButtonBrowseRaw()
+void EventProcessingDiagDialog::browseRaw()
 {
-    CFileDialog dlg(TRUE, _T("raw"), nullptr,
-        OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST,
-        _T("Metavision RAW (*.raw)|*.raw|All Files (*.*)|*.*||"));
+    const QString path = QFileDialog::getOpenFileName(this, tr("Select RAW recording"), {},
+                                                      tr("Metavision RAW (*.raw);;All files (*)"));
+    if (!path.isEmpty()) { rawPath_->setText(path); rawRadio_->setChecked(true); }
+}
 
-    if (dlg.DoModal() == IDOK)
-    {
-        SetDlgItemText(IDC_EDIT_RAWPATH, dlg.GetPathName());
-        CheckRadioButton(IDC_RADIO_LIVE, IDC_RADIO_RAW, IDC_RADIO_RAW);
+void EventProcessingDiagDialog::browseOutput()
+{
+    const QString path = QFileDialog::getExistingDirectory(this, tr("Select output folder"),
+                                                            outputDirectory_->text());
+    if (!path.isEmpty()) outputDirectory_->setText(path);
+}
+
+void EventProcessingDiagDialog::startCaptureSave()
+{
+    captureDirectory_ = QDir(outputDirectory_->text()).filePath(
+        QDateTime::currentDateTime().toString(QStringLiteral("'shot_'yyyyMMdd_HHmmss")));
+    capturing_ = QDir().mkpath(captureDirectory_);
+    captureFrameIndex_ = 0;
+    if (!capturing_) appendLog(tr("Could not create capture directory: %1").arg(captureDirectory_));
+}
+
+void EventProcessingDiagDialog::saveCaptureFrame(const cv::Mat& frame)
+{
+    if (!capturing_ || frame.empty()) return;
+    const QString name = QDir(captureDirectory_).filePath(
+        QStringLiteral("frame_%1.png").arg(captureFrameIndex_, 4, 10, QLatin1Char('0')));
+    if (!cv::imwrite(QFile::encodeName(name).constData(), frame)) appendLog(tr("Failed to save %1").arg(name));
+    ++captureFrameIndex_;
+}
+
+void EventProcessingDiagDialog::handleFrame(const cv::Mat& frame, const BallDetectionResult& ball, lli startUs)
+{
+    if (!running_) return;
+    displayFrame(frame);
+    updateTimeline(startUs);
+    const ShotUpdateResult update = trigger_.Update(ball, startUs);
+    updateState(update.state);
+    if (update.justEnteredReady) appendLog(QStringLiteral("READY"));
+    if (update.justTriggered) { startCaptureSave(); appendLog(tr("TRIGGERED - capture started")); }
+    if (update.state == ShotState::Capturing) saveCaptureFrame(frame);
+    if (update.justFinishedCapture) {
+        appendLog(tr("Capture finished: %1 frame(s) saved to %2").arg(captureFrameIndex_).arg(captureDirectory_));
+        capturing_ = false;
     }
 }
 
-void CEventProcessingDiagDlg::OnBnClickedButtonBrowseOutput()
+void EventProcessingDiagDialog::updateTimeline(lli timestampUs)
 {
-    TCHAR path[MAX_PATH] = { 0 };
+    currentTimestampUs_ = timestampUs;
+    if (rawRadio_->isChecked() && seekEndUs_ <= seekStartUs_) {
+        if (stream_.GetSeekRange(seekStartUs_, seekEndUs_)) timeline_->setEnabled(true);
+    }
+    if (seekEndUs_ <= seekStartUs_) return;
 
-    BROWSEINFO bi = {};
-    bi.hwndOwner = GetSafeHwnd();
-    bi.lpszTitle = _T("Select output folder");
-    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    const double ratio = std::clamp(static_cast<double>(timestampUs - seekStartUs_) /
+                                    static_cast<double>(seekEndUs_ - seekStartUs_), 0.0, 1.0);
+    if (!timeline_->isSliderDown()) {
+        const QSignalBlocker blocker(timeline_);
+        timeline_->setValue(static_cast<int>(ratio * timeline_->maximum()));
+    }
+    const auto formatTime = [](lli us) {
+        const qint64 ms = std::max<lli>(0, us) / 1000;
+        return QStringLiteral("%1:%2.%3").arg(ms / 60000, 2, 10, QLatin1Char('0'))
+            .arg((ms / 1000) % 60, 2, 10, QLatin1Char('0')).arg(ms % 1000, 3, 10, QLatin1Char('0'));
+    };
+    timelineLabel_->setText(formatTime(timestampUs - seekStartUs_) + QStringLiteral(" / ") +
+                            formatTime(seekEndUs_ - seekStartUs_));
+}
 
-    LPITEMIDLIST pidl = ::SHBrowseForFolder(&bi);
-    if (pidl != nullptr)
-    {
-        if (::SHGetPathFromIDList(pidl, path))
-        {
-            SetDlgItemText(IDC_EDIT_OUTPUTDIR, path);
-        }
-        ::CoTaskMemFree(pidl);
+void EventProcessingDiagDialog::seekToSlider()
+{
+    if (!timeline_->isEnabled() || seekEndUs_ <= seekStartUs_) return;
+    const lli target = seekStartUs_ + static_cast<lli>(
+        static_cast<double>(timeline_->value()) / timeline_->maximum() * (seekEndUs_ - seekStartUs_));
+    if (!stream_.Seek(target)) appendLog(tr("RAW seek failed; the recording index may not be ready."));
+    else { trigger_.Reset(); capturing_ = false; updateState(ShotState::Searching); updateTimeline(target); }
+}
+
+void EventProcessingDiagDialog::seekRelative(lli deltaUs)
+{
+    if (!running_ || !rawRadio_->isChecked() || !timeline_->isEnabled()) return;
+    const lli target = std::clamp(currentTimestampUs_ + deltaUs, seekStartUs_, seekEndUs_);
+    if (stream_.Seek(target)) {
+        trigger_.Reset();
+        capturing_ = false;
+        updateState(ShotState::Searching);
+        updateTimeline(target);
     }
 }
 
-LRESULT CEventProcessingDiagDlg::OnFrameReady(WPARAM, LPARAM lParam)
+void EventProcessingDiagDialog::keyPressEvent(QKeyEvent* event)
 {
-    std::unique_ptr<FrameMessage> msg(reinterpret_cast<FrameMessage*>(lParam));
-    if (!msg || msg->frame.empty())
-    {
-        return 0;
-    }
+    if (event->key() == Qt::Key_Left) { seekRelative(-1000000); event->accept(); return; }
+    if (event->key() == Qt::Key_Right) { seekRelative(1000000); event->accept(); return; }
+    QDialog::keyPressEvent(event);
+}
 
-    DrawFrame(msg->frame);
-
-    const ShotUpdateResult su = m_trigger.Update(msg->ball, msg->windowStartUs);
-    UpdateStateLabel(su.state);
-
-    if (su.justEnteredReady)
-    {
-        AppendLog(_T("READY"));
-    }
-
-    if (su.justTriggered)
-    {
-        StartCaptureSave();
-        AppendLog(_T("TRIGGERED - capture started"));
-    }
-
-    if (su.state == ShotState::Capturing)
-    {
-        SaveCaptureFrame(msg->frame);
-    }
-
-    if (su.justFinishedCapture)
-    {
-        CString line;
-        line.Format(_T("Capture finished: %d frame(s) saved to %s"), m_captureFrameIndex, (LPCTSTR)m_currentCaptureDir);
-        AppendLog(line);
-        FinishCaptureSave();
-    }
-
-    return 0;
+void EventProcessingDiagDialog::closeEvent(QCloseEvent* event)
+{
+    stop();
+    event->accept();
 }
