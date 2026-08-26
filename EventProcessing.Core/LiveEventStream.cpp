@@ -54,6 +54,29 @@ namespace eventcore
             }
         }
 #endif
+
+#if defined(_MSC_VER)
+        // Camera::from_file()/from_first_available()가 손상되었거나 지원되지 않는 RAW 파일 등에서
+        // (문서화된 CameraException을 넘어) 실제 메모리 접근 위반을 던지는 경우가 확인됐다.
+        // 정상적인 C++ 예외(CameraException 등)는 그대로 통과시켜 호출부의 catch(const
+        // std::exception&)가 원래 메시지를 잡게 하고, 그 외의 구조적 예외(액세스 위반 등)만
+        // 여기서 막아서 앱 전체가 죽는 대신 Start()가 실패로 처리되게 한다.
+        constexpr unsigned long kCxxExceptionCode = 0xE06D7363; // MSVC C++ 예외의 SEH 코드("msc")
+
+        template <typename Func>
+        bool SafeOpenCamera(Metavision::Camera& outCamera, Func&& factory)
+        {
+            __try
+            {
+                outCamera = factory();
+                return true;
+            }
+            __except (GetExceptionCode() == kCxxExceptionCode ? EXCEPTION_CONTINUE_SEARCH : EXCEPTION_EXECUTE_HANDLER)
+            {
+                return false;
+            }
+        }
+#endif
     }
 
     LiveEventStream::LiveEventStream() = default;
@@ -70,6 +93,28 @@ namespace eventcore
 
         try
         {
+#if defined(_MSC_VER)
+            bool opened = false;
+
+            if (IsLiveRequest(path))
+            {
+                opened = SafeOpenCamera(m_camera, []() { return Metavision::Camera::from_first_available(); });
+            }
+            else
+            {
+                const std::string pathStd(path);
+                opened = SafeOpenCamera(m_camera, [&pathStd]()
+                {
+                    return Metavision::Camera::from_file(pathStd, Metavision::FileConfigHints().real_time_playback(true));
+                });
+            }
+
+            if (!opened)
+            {
+                m_lastError = "Metavision SDK failed to open the source (possibly a corrupted or unsupported RAW file)";
+                return false;
+            }
+#else
             if (IsLiveRequest(path))
             {
                 m_camera = Metavision::Camera::from_first_available();
@@ -78,6 +123,7 @@ namespace eventcore
             {
                 m_camera = Metavision::Camera::from_file(std::string(path), Metavision::FileConfigHints().real_time_playback(true));
             }
+#endif
         }
         catch (const std::exception& ex)
         {
