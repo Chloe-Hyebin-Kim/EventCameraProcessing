@@ -387,6 +387,7 @@ void MainWindow::onStartClicked()
     m_capturingNow = false;
     m_captureFrameIndex = 0;
 
+    m_gotFirstFrame = false;
     m_seekRangeKnown = false;
     m_seekStartUs = 0;
     m_seekEndUs = 0;
@@ -465,10 +466,11 @@ void MainWindow::onPollStreamState()
         return;
     }
 
-    if (!m_seekRangeKnown)
+    if (!m_seekRangeKnown && m_gotFirstFrame)
     {
-        // RAW 파일을 연 직후에는 SDK가 탐색 범위를 아직 못 정했을 수 있으므로(Live 카메라라면
-        // 계속 실패함), 준비될 때까지 매 폴링마다 다시 시도한다.
+        // 실제 프레임을 받기 전에는 카메라가 아직 완전히 준비되지 않았을 수 있어 여기로 오지
+        // 않는다(위 m_gotFirstFrame 조건). 그 뒤에도 SDK가 탐색 범위를 못 정했을 수 있으므로
+        // (Live 카메라라면 계속 실패함), 준비될 때까지 매 폴링마다 다시 시도한다.
         if (m_stream.GetSeekRange(m_seekStartUs, m_seekEndUs) && m_seekEndUs > m_seekStartUs)
         {
             m_seekRangeKnown = true;
@@ -485,6 +487,7 @@ void MainWindow::StopStream(const QString& logMessage)
     m_btnStart->setEnabled(true);
     m_btnStop->setEnabled(false);
     m_labelState->setText(QStringLiteral("IDLE"));
+    m_gotFirstFrame = false;
     m_seekRangeKnown = false;
     m_sliderPosition->setEnabled(false);
     m_sliderPosition->setValue(0);
@@ -539,6 +542,8 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
     {
         return;
     }
+
+    m_gotFirstFrame = true;
 
     DrawFrame(msg->frame);
 

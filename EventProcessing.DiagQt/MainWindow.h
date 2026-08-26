@@ -79,6 +79,10 @@ private:
     QTimer* m_pollTimer = nullptr;
 
     // RAW 파일 탐색(seek) 관련 상태. Live 카메라 소스에서는 사용하지 않는다.
+    // Start() 직후에는 카메라가 아직 완전히 준비되지 않아 offline_streaming_control() 호출이
+    // (문서화된 CameraException을 넘어) 실제 메모리 접근 위반까지 일으키는 경우가 있었으므로,
+    // 실제 프레임을 한 번이라도 받아 스트림이 정말 살아있는 게 확인되기 전에는 건드리지 않는다.
+    bool m_gotFirstFrame = false;
     bool m_seekRangeKnown = false;
     eventcore::lli m_seekStartUs = 0;
     eventcore::lli m_seekEndUs = 0;

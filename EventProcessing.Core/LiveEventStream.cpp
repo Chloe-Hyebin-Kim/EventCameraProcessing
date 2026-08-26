@@ -9,6 +9,10 @@
 #include <metavision/sdk/base/events/event_cd.h>
 #include <metavision/sdk/stream/offline_streaming_control.h>
 
+#if defined(_MSC_VER)
+#include <excpt.h>
+#endif
+
 namespace eventcore
 {
     namespace
@@ -18,6 +22,38 @@ namespace eventcore
             return path == nullptr || std::strlen(path) == 0 ||
                 std::strcmp(path, "live") == 0 || std::strcmp(path, "camera") == 0;
         }
+
+#if defined(_MSC_VER)
+        // 카메라가 완전히 준비되기 전에 offline_streaming_control() 계열을 호출하면 Metavision
+        // SDK가 문서화된 대로 CameraException을 던지기도 하지만, 실제로는 일반 catch(...)로
+        // 못 잡는 메모리 접근 위반(구조적 예외)이 나는 경우도 확인됐다. MSVC에서는 SEH로 감싸서
+        // 이런 경우에도 프로그램 전체가 죽지 않고 그 호출만 실패 처리되게 한다.
+        template <typename Func>
+        bool SafeCallBool(Func&& func)
+        {
+            __try
+            {
+                return func();
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                return false;
+            }
+        }
+#else
+        template <typename Func>
+        bool SafeCallBool(Func&& func)
+        {
+            try
+            {
+                return func();
+            }
+            catch (...)
+            {
+                return false;
+            }
+        }
+#endif
     }
 
     LiveEventStream::LiveEventStream() = default;
@@ -129,15 +165,11 @@ namespace eventcore
             return false;
         }
 
-        try
+        // Live 카메라 소스 등 offline streaming control이 없는 경우 SafeCallBool이 false를 반환한다.
+        return SafeCallBool([this]()
         {
             return m_camera.offline_streaming_control().is_ready();
-        }
-        catch (...)
-        {
-            // Live 카메라 소스 등 offline streaming control이 없는 경우 여기로 온다.
-            return false;
-        }
+        });
     }
 
     bool LiveEventStream::GetSeekRange(lli& startUs, lli& endUs)
@@ -147,17 +179,24 @@ namespace eventcore
             return false;
         }
 
-        try
+        lli localStartUs = 0;
+        lli localEndUs = 0;
+
+        const bool ok = SafeCallBool([this, &localStartUs, &localEndUs]()
         {
             Metavision::OfflineStreamingControl& osc = m_camera.offline_streaming_control();
-            startUs = osc.get_seek_start_time();
-            endUs = osc.get_seek_end_time();
+            localStartUs = osc.get_seek_start_time();
+            localEndUs = osc.get_seek_end_time();
             return true;
-        }
-        catch (...)
+        });
+
+        if (ok)
         {
-            return false;
+            startUs = localStartUs;
+            endUs = localEndUs;
         }
+
+        return ok;
     }
 
     bool LiveEventStream::Seek(lli timestampUs)
@@ -167,20 +206,16 @@ namespace eventcore
             return false;
         }
 
-        try
+        // 탐색 시점 전후로 섞인 이벤트가 다음 윈도우에 함께 들어가지 않도록 버퍼를 비운다.
         {
-            // 탐색 시점 전후로 섞인 이벤트가 다음 윈도우에 함께 들어가지 않도록 버퍼를 비운다.
-            {
-                std::lock_guard<std::mutex> lock(m_bufferMutex);
-                m_buffer.clear();
-            }
+            std::lock_guard<std::mutex> lock(m_bufferMutex);
+            m_buffer.clear();
+        }
 
-            return m_camera.offline_streaming_control().seek(timestampUs);
-        }
-        catch (...)
+        return SafeCallBool([this, timestampUs]()
         {
-            return false;
-        }
+            return m_camera.offline_streaming_control().seek(timestampUs);
+        });
     }
 
     void LiveEventStream::WindowLoop(lli windowUs, FrameCallback callback)
