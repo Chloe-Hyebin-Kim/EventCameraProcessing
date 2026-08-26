@@ -61,19 +61,45 @@ namespace eventcore
         // 정상적인 C++ 예외(CameraException 등)는 그대로 통과시켜 호출부의 catch(const
         // std::exception&)가 원래 메시지를 잡게 하고, 그 외의 구조적 예외(액세스 위반 등)만
         // 여기서 막아서 앱 전체가 죽는 대신 Start()가 실패로 처리되게 한다.
+        //
+        // MSVC(x64)는 __try가 있는 함수 안에 소멸자가 있는 C++ 지역 변수/임시 객체가 하나라도
+        // 있으면 컴파일을 거부한다(C2712). Metavision::Camera를 값으로 반환/대입하면 바로 그런
+        // 임시 객체가 생기므로, __try 전용 함수는 함수 포인터 + void* context만 다루는 순수
+        // C 스타일로 완전히 분리하고, 실제 Camera를 다루는 코드는 __try가 없는 별도 함수에 둔다.
         constexpr unsigned long kCxxExceptionCode = 0xE06D7363; // MSVC C++ 예외의 SEH 코드("msc")
 
-        template <typename Func>
-        bool SafeOpenCamera(Metavision::Camera& outCamera, Func&& factory)
+        bool CallGuardedBySEH(void (*fn)(void*), void* context)
         {
             __try
             {
-                outCamera = factory();
+                fn(context);
                 return true;
             }
             __except (GetExceptionCode() == kCxxExceptionCode ? EXCEPTION_CONTINUE_SEARCH : EXCEPTION_EXECUTE_HANDLER)
             {
                 return false;
+            }
+        }
+
+        struct OpenCameraContext
+        {
+            Metavision::Camera* target;
+            bool live;
+            const std::string* path;
+        };
+
+        // __try가 없는 평범한 함수라서, Camera의 값 대입/임시 객체가 있어도 문제없다.
+        void DoOpenCamera(void* rawContext)
+        {
+            OpenCameraContext* ctx = static_cast<OpenCameraContext*>(rawContext);
+
+            if (ctx->live)
+            {
+                *ctx->target = Metavision::Camera::from_first_available();
+            }
+            else
+            {
+                *ctx->target = Metavision::Camera::from_file(*ctx->path, Metavision::FileConfigHints().real_time_playback(true));
             }
         }
 #endif
@@ -94,22 +120,10 @@ namespace eventcore
         try
         {
 #if defined(_MSC_VER)
-            bool opened = false;
+            const std::string pathStd = IsLiveRequest(path) ? std::string() : std::string(path);
+            OpenCameraContext ctx{ &m_camera, IsLiveRequest(path), &pathStd };
 
-            if (IsLiveRequest(path))
-            {
-                opened = SafeOpenCamera(m_camera, []() { return Metavision::Camera::from_first_available(); });
-            }
-            else
-            {
-                const std::string pathStd(path);
-                opened = SafeOpenCamera(m_camera, [&pathStd]()
-                {
-                    return Metavision::Camera::from_file(pathStd, Metavision::FileConfigHints().real_time_playback(true));
-                });
-            }
-
-            if (!opened)
+            if (!CallGuardedBySEH(&DoOpenCamera, &ctx))
             {
                 m_lastError = "Metavision SDK failed to open the source (possibly a corrupted or unsupported RAW file)";
                 return false;
