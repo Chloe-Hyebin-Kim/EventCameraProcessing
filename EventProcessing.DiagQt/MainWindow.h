@@ -11,11 +11,13 @@
 #include <memory>
 
 QT_BEGIN_NAMESPACE
+class QKeyEvent;
 class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
 class QRadioButton;
+class QSlider;
 class QTimer;
 QT_END_NAMESPACE
 
@@ -39,6 +41,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
     void onStartClicked();
@@ -46,6 +49,8 @@ private slots:
     void onBrowseRawClicked();
     void onBrowseOutputClicked();
     void onPollStreamState();
+    void onSliderMoved(int value);
+    void onSliderReleased();
 
 private:
     void BuildUi();
@@ -62,10 +67,21 @@ private:
     // QMetaObject::invokeMethod(..., Qt::QueuedConnection)로 UI 스레드에 마샬링해서 처리한다.
     void OnFrameReady(std::shared_ptr<FrameMessage> msg);
 
+    void SeekTo(eventcore::lli timestampUs);
+    eventcore::lli SliderValueToTimestamp(int value) const;
+    int TimestampToSliderValue(eventcore::lli timestampUs) const;
+    void UpdateTimeLabel(eventcore::lli currentUs);
+    static QString FormatTimeUs(eventcore::lli us);
+
     eventcore::LiveEventStream m_stream;
     eventcore::ShotTrigger m_trigger;
     bool m_running = false;
     QTimer* m_pollTimer = nullptr;
+
+    // RAW 파일 탐색(seek) 관련 상태. Live 카메라 소스에서는 사용하지 않는다.
+    bool m_seekRangeKnown = false;
+    eventcore::lli m_seekStartUs = 0;
+    eventcore::lli m_seekEndUs = 0;
 
     QString m_outputDir;
     QString m_currentCaptureDir;
@@ -92,4 +108,6 @@ private:
     QLabel* m_labelState = nullptr;
     QLabel* m_labelPreview = nullptr;
     QListWidget* m_listLog = nullptr;
+    QSlider* m_sliderPosition = nullptr;
+    QLabel* m_labelTime = nullptr;
 };

@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include <metavision/sdk/base/events/event_cd.h>
+#include <metavision/sdk/stream/offline_streaming_control.h>
 
 namespace eventcore
 {
@@ -119,6 +120,67 @@ namespace eventcore
     bool LiveEventStream::IsRunning() const
     {
         return m_running;
+    }
+
+    bool LiveEventStream::IsSeekable()
+    {
+        if (!m_running)
+        {
+            return false;
+        }
+
+        try
+        {
+            return m_camera.offline_streaming_control().is_ready();
+        }
+        catch (...)
+        {
+            // Live 카메라 소스 등 offline streaming control이 없는 경우 여기로 온다.
+            return false;
+        }
+    }
+
+    bool LiveEventStream::GetSeekRange(lli& startUs, lli& endUs)
+    {
+        if (!IsSeekable())
+        {
+            return false;
+        }
+
+        try
+        {
+            Metavision::OfflineStreamingControl& osc = m_camera.offline_streaming_control();
+            startUs = osc.get_seek_start_time();
+            endUs = osc.get_seek_end_time();
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    bool LiveEventStream::Seek(lli timestampUs)
+    {
+        if (!IsSeekable())
+        {
+            return false;
+        }
+
+        try
+        {
+            // 탐색 시점 전후로 섞인 이벤트가 다음 윈도우에 함께 들어가지 않도록 버퍼를 비운다.
+            {
+                std::lock_guard<std::mutex> lock(m_bufferMutex);
+                m_buffer.clear();
+            }
+
+            return m_camera.offline_streaming_control().seek(timestampUs);
+        }
+        catch (...)
+        {
+            return false;
+        }
     }
 
     void LiveEventStream::WindowLoop(lli windowUs, FrameCallback callback)

@@ -44,6 +44,18 @@ namespace eventcore
         // 이 값이 false가 되므로, UI에서 주기적으로 폴링해 재생 종료를 감지할 수 있다.
         bool IsRunning() const;
 
+        // RAW 파일 재생 중에만(Live 카메라 소스에서는 항상 false) 탐색(seek)이 가능하다.
+        // RAW를 연 직후에는 SDK가 탐색 정보를 아직 준비하지 못했을 수 있으므로, true가 될 때까지
+        // 주기적으로 확인해야 한다.
+        bool IsSeekable();
+
+        // [startUs, endUs] 탐색 가능 범위. IsSeekable()이 true일 때만 성공한다.
+        bool GetSeekRange(lli& startUs, lli& endUs);
+
+        // 지정한 시각으로 탐색한다(슬라이더 이동, 좌우 화살표 키를 이용한 되감기/앞으로 감기 등).
+        // IsSeekable()이 true일 때만 성공한다.
+        bool Seek(lli timestampUs);
+
         int Width() const { return m_width; }
         int Height() const { return m_height; }
 
