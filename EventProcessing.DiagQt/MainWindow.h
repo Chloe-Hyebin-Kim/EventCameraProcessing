@@ -39,7 +39,6 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
-    void paintEvent(QPaintEvent* event) override;
 
 private slots:
     void onStartClicked();

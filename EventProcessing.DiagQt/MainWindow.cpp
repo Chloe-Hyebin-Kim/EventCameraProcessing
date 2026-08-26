@@ -9,7 +9,6 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
-#include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QTimer>
@@ -200,7 +199,7 @@ void MainWindow::UpdateStateLabel(ShotState state)
 
 void MainWindow::DrawFrame(const cv::Mat& bgrFrame)
 {
-    if (bgrFrame.empty() || bgrFrame.type() != CV_8UC3)
+    if (bgrFrame.empty() || bgrFrame.type() != CV_8UC3 || m_labelPreview == nullptr)
     {
         return;
     }
@@ -210,27 +209,8 @@ void MainWindow::DrawFrame(const cv::Mat& bgrFrame)
     const QImage image(safe.data, safe.cols, safe.rows, static_cast<int>(safe.step), QImage::Format_BGR888);
 
     m_previewPixmap = QPixmap::fromImage(image);
-    update();
-}
-
-void MainWindow::paintEvent(QPaintEvent* event)
-{
-    QWidget::paintEvent(event);
-
-    if (m_previewPixmap.isNull() || m_labelPreview == nullptr)
-    {
-        return;
-    }
-
-    const QRect rc = m_labelPreview->geometry();
-    const QPixmap scaled = m_previewPixmap.scaled(rc.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-    QPainter painter(this);
-    painter.fillRect(rc, Qt::black);
-
-    const int dx = rc.left() + (rc.width() - scaled.width()) / 2;
-    const int dy = rc.top() + (rc.height() - scaled.height()) / 2;
-    painter.drawPixmap(dx, dy, scaled);
+    m_labelPreview->setPixmap(m_previewPixmap.scaled(
+        m_labelPreview->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
 void MainWindow::StartCaptureSave()
