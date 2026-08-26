@@ -16,6 +16,7 @@ class QLineEdit;
 class QListWidget;
 class QPushButton;
 class QRadioButton;
+class QTimer;
 QT_END_NAMESPACE
 
 struct FrameMessage
@@ -45,6 +46,7 @@ private slots:
     void onStopClicked();
     void onBrowseRawClicked();
     void onBrowseOutputClicked();
+    void onPollStreamState();
 
 private:
     void BuildUi();
@@ -55,6 +57,7 @@ private:
     void StartCaptureSave();
     void SaveCaptureFrame(const cv::Mat& bgrFrame);
     void FinishCaptureSave();
+    void StopStream(const QString& logMessage);
 
     // LiveEventStream의 콜백은 워커 스레드에서 호출된다. 캡처한 프레임은 힙에 올려
     // QMetaObject::invokeMethod(..., Qt::QueuedConnection)로 UI 스레드에 마샬링해서 처리한다.
@@ -63,6 +66,7 @@ private:
     eventcore::LiveEventStream m_stream;
     eventcore::ShotTrigger m_trigger;
     bool m_running = false;
+    QTimer* m_pollTimer = nullptr;
 
     QString m_outputDir;
     QString m_currentCaptureDir;

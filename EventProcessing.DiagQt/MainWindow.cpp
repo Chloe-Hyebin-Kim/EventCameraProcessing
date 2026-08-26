@@ -12,6 +12,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <filesystem>
@@ -52,6 +53,13 @@ MainWindow::MainWindow(QWidget* parent)
 
     setWindowTitle(QStringLiteral("EventProcessing.DiagQt"));
     resize(960, 640);
+
+    // RAW 파일이 끝까지 재생되면 LiveEventStream이 스스로 멈추는데(실시간 재생 스트림이라
+    // 자연 종료를 UI에 알려줄 콜백이 없음), 그걸 놓치면 Start/Stop 버튼 상태가 계속
+    // "재생 중"으로 남아 다음 Start 클릭이 씹히는 것처럼 보인다. 주기적으로 폴링해서 감지한다.
+    m_pollTimer = new QTimer(this);
+    connect(m_pollTimer, &QTimer::timeout, this, &MainWindow::onPollStreamState);
+    m_pollTimer->start(200);
 }
 
 MainWindow::~MainWindow()
@@ -337,13 +345,29 @@ void MainWindow::onStopClicked()
         return;
     }
 
+    StopStream(QStringLiteral("Stopped"));
+}
+
+void MainWindow::onPollStreamState()
+{
+    if (m_running && !m_stream.IsRunning())
+    {
+        // RAW 파일이 끝까지 재생되어 LiveEventStream이 스스로 멈춘 경우. m_stream.Stop()은
+        // 이미 멈춘 스트림에 대해서도 안전하게 호출할 수 있고(워커 스레드 join 보장),
+        // Stop 버튼을 누른 것과 동일하게 UI 상태를 정리한다.
+        StopStream(QStringLiteral("Playback finished (reached end of RAW file)"));
+    }
+}
+
+void MainWindow::StopStream(const QString& logMessage)
+{
     m_stream.Stop();
     m_running = false;
 
     m_btnStart->setEnabled(true);
     m_btnStop->setEnabled(false);
     m_labelState->setText(QStringLiteral("IDLE"));
-    AppendLog(QStringLiteral("Stopped"));
+    AppendLog(logMessage);
 }
 
 void MainWindow::onBrowseRawClicked()
