@@ -41,6 +41,16 @@ namespace
 
     // 좌우 화살표 키 1회 입력당 이동하는 시간(1초).
     constexpr lli kArrowSeekStepUs = 1000000;
+
+    // QString::toStdString()은 항상 UTF-8로 변환하지만, Windows의 파일 시스템 API와 Metavision
+    // SDK는 시스템 코드페이지(예: 한글 Windows의 CP949)를 기대한다. 경로에 비ASCII 문자(한글
+    // 폴더/파일명 등)가 있으면 UTF-8로 넘겼을 때 깨진 경로가 전달되어 파일을 못 열 수 있다
+    // (MFC 버전에서 CT2A로 동일한 문제를 피했던 것과 같은 이유). toLocal8Bit()으로 시스템
+    // 코드페이지에 맞게 변환한다(Linux 등에서는 보통 로케일이 이미 UTF-8이라 문제없음).
+    std::string ToNativePath(const QString& path)
+    {
+        return path.toLocal8Bit().toStdString();
+    }
 }
 
 MainWindow::MainWindow(QWidget* parent)
@@ -335,8 +345,8 @@ void MainWindow::StartCaptureSave()
         .arg(now.toString(QStringLiteral("yyyyMMdd_HHmmss")));
 
     std::error_code ec;
-    fs::create_directories(m_outputDir.toStdString(), ec);
-    fs::create_directories(folder.toStdString(), ec);
+    fs::create_directories(ToNativePath(m_outputDir), ec);
+    fs::create_directories(ToNativePath(folder), ec);
 
     m_currentCaptureDir = folder;
     m_captureFrameIndex = 0;
@@ -354,7 +364,7 @@ void MainWindow::SaveCaptureFrame(const cv::Mat& bgrFrame)
         .arg(m_currentCaptureDir)
         .arg(m_captureFrameIndex, 4, 10, QChar('0'));
 
-    cv::imwrite(filename.toStdString(), bgrFrame);
+    cv::imwrite(ToNativePath(filename), bgrFrame);
 
     ++m_captureFrameIndex;
 }
@@ -375,7 +385,7 @@ void MainWindow::onStartClicked()
     m_outputDir = m_editOutputDir->text();
 
     std::error_code ec;
-    fs::create_directories(m_outputDir.toStdString(), ec);
+    fs::create_directories(ToNativePath(m_outputDir), ec);
 
     lli windowUs = m_editWindowUs->text().toLongLong();
     if (windowUs <= 0)
@@ -396,7 +406,7 @@ void MainWindow::onStartClicked()
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
 
     const bool live = m_radioLive->isChecked();
-    const std::string rawPathStd = rawPath.toStdString();
+    const std::string rawPathStd = ToNativePath(rawPath);
 
     if (!live && rawPathStd.empty())
     {
