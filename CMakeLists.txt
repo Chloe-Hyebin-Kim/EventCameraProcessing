@@ -120,6 +120,21 @@ function(eventcore_copy_windows_runtime_deps target)
                 "$<TARGET_FILE_DIR:${target}>"
             COMMENT "Copying bundled OpenCV DLL next to ${target}")
     endif()
+
+    # 위의 opencv_world440(d).dll 하드코딩 복사는 우리 번들 OpenCV를 실제로 링크했을 때만 맞다.
+    # 이 머신에 vcpkg가 전역 통합되어 있는 등의 이유로 find_package(OpenCV)가 다른(예: 모듈형)
+    # OpenCV를 대신 찾아 링크하면, opencv_imgcodecs4d.dll 같은 낯선 이름의 DLL이 필요해지는데
+    # 위 로직은 그 이름을 몰라서 복사를 못 한다("...dll이(가) 없어 코드 실행을 진행할 수 없습니다"
+    # 오류로 나타남). 어떤 OpenCV/Qt/기타 라이브러리가 실제로 링크됐든 상관없이, 그 타깃이
+    # 필요로 하는 런타임 DLL을 CMake가 스스로 알아내 복사하게 한다(CMake 3.21+).
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_RUNTIME_DLLS:${target}>"
+                "$<TARGET_FILE_DIR:${target}>"
+            COMMAND_EXPAND_LISTS
+            COMMENT "Copying ${target}'s runtime DLL dependencies (whatever OpenCV/Qt/etc. it actually linked)")
+    endif()
 endfunction()
 
 add_subdirectory(EventProcessing.Core)
