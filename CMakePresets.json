@@ -10,7 +10,8 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_PREFIX_PATH": "$env{QT_DIR}"
+        "CMAKE_PREFIX_PATH": "$env{QT_DIR}",
+        "CMAKE_TOOLCHAIN_FILE": ""
       },
       "condition": {
         "type": "equals",

@@ -61,7 +61,13 @@ find_package(OpenCV REQUIRED)
 # CMake package config가 이미 들어있으므로(share\cmake\MetavisionSDK\...), 시스템에 SDK가 따로
 # 설치되어 있지 않아도 이 리포만 clone하면 바로 잡히도록 검색 경로 맨 앞에 추가한다.
 # Metavision.props와 동일하게 리포에 번들된 쪽을 시스템 설치보다 우선시킨다.
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
+#
+# 다만 컴퓨터마다 시스템에 설치된 Metavision SDK/OpenEB 버전이 다르고, 실제 카메라로 녹화한
+# RAW 파일은 그 컴퓨터의 SDK 버전에 맞게 만들어졌을 수 있다. 번들된 버전(현재 5.2.0)이 그 RAW
+# 파일을 못 열면(오래된/새로운 포맷 등), 아래 옵션으로 시스템 설치본을 대신 쓰도록 전환할 수 있다.
+option(EVENTCORE_USE_SYSTEM_METAVISION "Prefer a system-installed Metavision SDK over the bundled Prophesee/ copy" OFF)
+
+if(WIN32 AND NOT EVENTCORE_USE_SYSTEM_METAVISION AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
     list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Prophesee")
 endif()
 
@@ -91,26 +97,31 @@ function(eventcore_copy_windows_runtime_deps target)
         return()
     endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/bin")
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/Prophesee/bin" "$<TARGET_FILE_DIR:${target}>"
-            COMMENT "Copying bundled Metavision runtime DLLs next to ${target}")
-    endif()
+    # EVENTCORE_USE_SYSTEM_METAVISION일 때는 이 번들 DLL/HAL 플러그인을 복사하면 안 된다.
+    # 실행 파일 옆(로컬 디렉터리)의 DLL이 PATH보다 먼저 검색되므로, 링크는 시스템 SDK로 했는데
+    # 실행 시에는 여기서 복사한 번들(다른 버전) DLL이 로드되어 버전이 어긋나 버린다.
+    if(NOT EVENTCORE_USE_SYSTEM_METAVISION)
+        if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/bin")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/Prophesee/bin" "$<TARGET_FILE_DIR:${target}>"
+                COMMENT "Copying bundled Metavision runtime DLLs next to ${target}")
+        endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/lib/metavision/hal/plugins")
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/hal_plugins"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/Prophesee/lib/metavision/hal/plugins" "$<TARGET_FILE_DIR:${target}>/hal_plugins"
-            COMMENT "Copying bundled Metavision HAL plugins next to ${target}")
-    endif()
+        if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/lib/metavision/hal/plugins")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/hal_plugins"
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/Prophesee/lib/metavision/hal/plugins" "$<TARGET_FILE_DIR:${target}>/hal_plugins"
+                COMMENT "Copying bundled Metavision HAL plugins next to ${target}")
+        endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/bin/libusb-1.0.dll")
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/Prophesee/bin/libusb-1.0.dll" "$<TARGET_FILE_DIR:${target}>/hal_plugins/"
-            COMMENT "Copying libusb-1.0.dll next to ${target}'s hal_plugins")
+        if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/bin/libusb-1.0.dll")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_SOURCE_DIR}/Prophesee/bin/libusb-1.0.dll" "$<TARGET_FILE_DIR:${target}>/hal_plugins/"
+                COMMENT "Copying libusb-1.0.dll next to ${target}'s hal_plugins")
+        endif()
     endif()
 
     if(EXISTS "${CMAKE_SOURCE_DIR}/opencv_world440.dll" OR EXISTS "${CMAKE_SOURCE_DIR}/opencv_world440d.dll")
