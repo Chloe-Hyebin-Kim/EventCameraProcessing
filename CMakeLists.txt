@@ -38,6 +38,19 @@ if(WIN32)
         list(APPEND CMAKE_PREFIX_PATH "$ENV{QT_DIR}")
     elseif(DEFINED ENV{QTDIR} AND NOT "$ENV{QTDIR}" STREQUAL "")
         list(APPEND CMAKE_PREFIX_PATH "$ENV{QTDIR}")
+    else()
+        # 새로 clone한 다른 컴퓨터에는 QT_DIR/QTDIR 환경 변수가 아예 안 잡혀있을 수 있다.
+        # Qt 자체는 설치돼 있다는 전제 하에(Qt는 용량 때문에 이 리포에 번들하지 않음, ocv440/
+        # Prophesee\와 다름), Qt Online Installer의 기본 설치 위치(C:\Qt\<버전>\<킷>)를 훑어서
+        # 후보를 모두 검색 경로에 넣어둔다. 여러 개 잡혀도 find_package(Qt6)이 그 중 맞는 것을
+        # 알아서 골라 쓰므로 문제 없다.
+        file(GLOB _qt_kit_candidates LIST_DIRECTORIES true
+            "C:/Qt/*/msvc*_64"
+            "C:/Qt/*/mingw*_64")
+        if(_qt_kit_candidates)
+            list(APPEND CMAKE_PREFIX_PATH ${_qt_kit_candidates})
+            message(STATUS "QT_DIR/QTDIR not set - auto-detected Qt kit candidate(s): ${_qt_kit_candidates}")
+        endif()
     endif()
 endif()
 
