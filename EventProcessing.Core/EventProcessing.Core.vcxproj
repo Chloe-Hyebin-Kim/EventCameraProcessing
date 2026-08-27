@@ -187,6 +187,7 @@
     <ClInclude Include="MetavisionRuntime.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ShotTrigger.h" />
+    <ClInclude Include="Utf8Path.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BallDetector.cpp" />
