@@ -33,9 +33,11 @@ eventcore_copy_windows_runtime_deps(EventProcessing.DiagQt)
 # Qt DLL(및 platform 플러그인 등)은 windeployqt로 배포한다. 개발 중 실행 파일을 바로
 # 실행해보고 싶다면 Qt bin\ 디렉터리를 PATH에 추가하거나 아래를 수동 실행한다:
 #   windeployqt.exe <output_dir>\EventProcessing.DiagQt.exe
+# --compiler-runtime을 붙여 vcruntime140.dll 등 MSVC 재배포 DLL까지 같이 챙기면, 출력 폴더
+# 전체를 그대로 다른 PC(Qt도 Visual C++ 재배포 패키지도 안 깔려 있는)에 복사해도 바로 실행된다.
 find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${Qt6_DIR}/../../../bin" "${Qt5_DIR}/../../../bin")
 if(WIN32 AND WINDEPLOYQT_EXECUTABLE)
     add_custom_command(TARGET EventProcessing.DiagQt POST_BUILD
-        COMMAND "${WINDEPLOYQT_EXECUTABLE}" --no-translations "$<TARGET_FILE:EventProcessing.DiagQt>"
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}" --no-translations --compiler-runtime "$<TARGET_FILE:EventProcessing.DiagQt>"
         COMMENT "Running windeployqt for EventProcessing.DiagQt")
 endif()
