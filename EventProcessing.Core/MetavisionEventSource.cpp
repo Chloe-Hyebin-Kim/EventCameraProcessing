@@ -11,6 +11,8 @@
 #include <metavision/sdk/base/events/event_cd.h>
 #include <metavision/sdk/stream/camera.h>
 
+#include "Utf8Path.h"
+
 namespace eventcore
 {
     namespace
@@ -47,7 +49,7 @@ namespace eventcore
             }
             else
             {
-                camera = Metavision::Camera::from_file(std::string(path), Metavision::FileConfigHints().real_time_playback(false));
+                camera = Metavision::Camera::from_file(Utf8ToPath(path), Metavision::FileConfigHints().real_time_playback(false));
             }
 
             camera.cd().add_callback([this](const Metavision::EventCD* begin, const Metavision::EventCD* end)

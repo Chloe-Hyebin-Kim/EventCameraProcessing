@@ -1,7 +1,90 @@
+# EventCameraProcessing
+
+프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt 기반 Diagnostic Application(Windows / Linux 공용)으로 구성함.
+<img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
+
+
+</br>
+</br>
+</br>
+
+
+## Requirements
+
+### Common
+
+| 항목 | 최소 버전 | 비고 |
+|---|---|---|
+| CMake | 3.16 (일반 빌드) / **3.21+ 권장** | `CMakePresets.json`(schema version 3)은 3.21 이상 필요.</br> VS2019 16.11 번들 CMake는 약 3.20대라 preset 일부 기능이 불안정할 수 있음(아래 "알려진 이슈" 참고). |
+| C++ 표준 | C++17 | `CMAKE_CXX_STANDARD 17` |
+| OpenCV | 4.4.0 | Windows는 리포에 번들(`ocv440/` + 루트 `opencv_world440(d).dll`)되어 있어 별도 설치 불필요, CMake가 자동 감지.</br> Linux는 시스템 패키지 사용(아래 참고), 4.x대면 대체로 호환. |
+| Qt | Qt5 ≥ 5.14 또는 Qt6 (Widgets 모듈) | `QImage::Format_BGR888` 사용 때문에 5.14 미만은 안 됨. |
+| Metavision SDK (Prophesee) | **5.2.0** (리포 `Prophesee/`에 번들된 버전) | Live 카메라 / RAW 재생(`EventProcessing.DiagQt`)에 필수.</br> 없어도 `EventProcessing.Core`/`EventProcessing.Console`은 CSV 입력만으로 빌드됨.</br> 필요 컴포넌트: `base`, `core`, `stream` (+ 내부적으로 `MetavisionHAL`, `MetavisionPSEEHWLayer`, `hdf5_ecf` 사용 — 전부 `Prophesee/`에 같이 번들됨). |
+| Boost | `timer` 컴포넌트만 | `Prophesee/`에 번들 안 되어 있음, 별도 설치 필요 (Metavision SDK의 `core` 모듈이 요구).</br> MSVC 툴셋 버전과 맞는 사전빌드 바이너리 권장(빌드 안 해도 됨). |
+
+### Windows
+
+- **Visual Studio**: 2019(16.11+) 또는 2022, **"C++를 사용한 CMake 도구"** 컴포넌트 + "C++를 사용한 데스크톱 개발" 워크로드
+- **Qt**: Qt Online Installer로 설치. VS 버전에 맞는 키트 필요
+  - VS2019 → `MSVC 2019 64-bit` 키트 (Qt 6.5 LTS까지 제공, 또는 Qt 5.15.2)
+  - VS2022 → `MSVC 2022 64-bit` 키트 (Qt 6.6+ 포함 최신)
+- **OpenCV**: 별도 설치 불필요 (리포 번들 자동 감지)
+- **Metavision SDK**: 별도 설치 불필요 (리포 `Prophesee/` 자동 감지, 시스템 설치본이 있으면 그건 대신 무시하고 리포 번들본을 우선 사용함)
+- **Boost**: [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치
+  - VS2019(MSVC 14.2) → `boost_1_8x_0-msvc-14.2-64.exe`
+  - VS2022(MSVC 14.3) → `boost_1_8x_0-msvc-14.3-64.exe`
+  - 기본 설치 경로(`C:\local\boost_1_8x_0\`) 그대로 두면 CMake가 자동 감지
+- **vcpkg**: 필수 아님(OpenCV/Metavision SDK가 리포에 번들되어 있어서). Boost나 Qt를 vcpkg로 관리하고 싶으면 대신 사용 가능(리포에 `vcpkg.json`/`vcpkg-configuration.json` 있지만 현재 실제로 소비되는 패키지는 없음).
+
+### Linux (Ubuntu/Debian 기준)
+
+- **Qt6**
+  ```bash
+  sudo apt install cmake build-essential libopencv-dev qt6-base-dev
+  # Qt6 안 될 경우 대체: qtbase5-dev
+  ```
+- **Metavision SDK**: 번들 안 되어 있음(리포 `Prophesee/`는 Windows 바이너리만 포함). [Prophesee 공식 Linux 설치 안내](https://docs.prophesee.ai) 따라 별도 설치.
+- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요)
+
+
+### 환경 변수
+
+| 변수 | 필수 여부 | 설명 |
+|---|---|---|
+| `QT_DIR` | Windows에서 Qt 자동 감지용 (권장) | Qt 키트 경로, 예: `C:\Qt\6.5.3\msvc2019_64`. CMake가 `CMAKE_PREFIX_PATH`에 자동 추가함. |
+| `QTDIR` | `QT_DIR` 없을 때 폴백으로 사용됨 | Qt 설치 관례상의 변수명. </br>이미 다른 용도로 설정되어 있을 수 있으니 가능하면 `QT_DIR`을 새로 쓰는 걸 권장. |
+| `BOOST_ROOT` | 보통 불필요 | Boost를 기본 경로(`C:\local\boost_*`)가 아닌 곳에 설치했을 때만 필요. |
+| `MV_HAL_PLUGIN_PATH` | 설정 불필요 | 앱이 실행 시점에 자동으로 설정함 </br> (`EnsureBundledHalPluginPath()`, 실행 파일 옆 `hal_plugins\` 탐색). 수동 설정 시 그 값이 우선됨. |
+| `OpenCV_DIR` | 설정 불필요 | 번들 OpenCV를 CMake가 IMPORTED 타깃으로 직접 구성하므로 불필요 </br>(다른 OpenCV로 덮어쓰고 싶을 때만 지정). |
+
+
+
+### CMake 옵션
+
+| 옵션 | 기본값 | 설명 |
+|---|---|---|
+| `EVENTCORE_NO_METAVISION` | `OFF` | `ON`으로 주면 Metavision SDK가 있어도 강제로 안 씀 </br>(CSV 입력만 지원, `EventProcessing.DiagQt` 제외). |
+| `CMAKE_BUILD_TYPE` | `Release`(미지정 시 기본값으로 설정됨) | `Debug`/`Release` |
+| `CMAKE_PREFIX_PATH` | - | Qt 등 추가 검색 경로. `windows-qt` CMake preset이 `QT_DIR`로 자동 설정함. |
+
+
+### 알려진 이슈
+
+- **VS2019에서 CMakePresets의 OS별 자동 필터링이 불안정함**
+  - 증상: `windows-qt` preset을 만들어놔도, VS2019(16.11)가 `CMAKE_PREFIX_PATH`가 비어 있는 `linux` preset으로 조용히 configure해버리는 경우가 있었음(`condition` 필드가 기대대로 평가되지 않음).
+  - 해결/완화:
+    1. VS 상단 툴바의 구성 드롭다운에서 `windows-qt`를 직접 선택
+    2. 그와 별개로, `CMakeLists.txt`가 **Windows에서는 어떤 구성이 선택되든** 다음을 자동으로 검색하도록 이미 보강되어 있음:
+       - `QT_DIR` → 없으면 `QTDIR` 순으로 Qt 경로 자동 추가
+       - 번들 OpenCV(`ocv440/`)를 IMPORTED 타깃으로 직접 구성(별도 옵션 불필요)
+       - 번들 Metavision SDK(`Prophesee/`)를 `CMAKE_PREFIX_PATH` 최우선으로 추가
+      
+       
+</br>
+
+
 ## Project Structure
 
-프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 MFC Diagnostic Application으로 구성함.
-<img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
 
 ```text
 EventCameraProcessing/
@@ -16,8 +99,8 @@ EventCameraProcessing/
 ├─ EventProcessing.Console/
 │  └─ RAW / CSV / Live 입력 기반 Batch Processing
 │
-├─ EventProcessing.Diag/
-│  └─ MFC 기반 Live / RAW Diagnostic Viewer
+├─ EventProcessing.DiagQt/
+│  └─ Qt Widgets 기반 Live / RAW Diagnostic Viewer (Windows / Linux 공용)
 │
 ├─ Prophesee/
 │  ├─ include/
@@ -28,9 +111,14 @@ EventCameraProcessing/
 │  └─ OpenCV 4.4.0
 │
 ├─ Metavision.props
-├─ EventCameraProcessing.sln
+├─ EventCameraProcessing.sln    (Windows / MSBuild, Core·Console 전용)
+├─ CMakeLists.txt               (Windows / Linux 공용, DiagQt(GUI)는 이 빌드로만 생성 가능)
 └─ README.md
 ```
+
+> GUI는 Qt Widgets(`EventProcessing.DiagQt`) 하나로 통일되어 있음. Windows 전용이었던 MFC 버전(`EventProcessing.Diag`)은 제거됨 - 이제 Windows와 Linux가 동일한 GUI 소스와 동일한 `CMakeLists.txt` 빌드를 공유함.
+>
+> `EventCameraProcessing.sln`(MSBuild)은 `EventProcessing.Core` / `EventProcessing.Console`만 포함하며, Windows에서 기존 Visual Studio 워크플로를 유지하고 싶을 때 계속 사용할 수 있음. GUI(`EventProcessing.DiagQt`)는 Windows에서도 CMake 빌드로만 만들 수 있음 (아래 Build 섹션 참고).
 
 ### EventProcessing.Core
 
@@ -48,7 +136,7 @@ EventCameraProcessing/
 - Ball Candidate Detection
 - Ready / Trigger / Capture State Management
 
-`EventProcessing.Console`, `EventProcessing.Diag`에서 공통으로 `EventProcessing.Core`를 사용함.
+`EventProcessing.Console`, `EventProcessing.DiagQt`에서 공통으로 `EventProcessing.Core`를 사용함.
 
 ### EventProcessing.Console
 
@@ -86,9 +174,9 @@ Ball Detection
 Image / Video Output
 ```
 
-### EventProcessing.Diag
+### EventProcessing.DiagQt
 
-MFC 기반 Diagnostic Application.
+Qt Widgets 기반 Diagnostic Application (Windows / Linux 공용).
 
 EVK4 HD Live Camera 또는 RAW Recording의 Event Stream을 실시간으로 확인하고, Ball Detection 결과를 기반으로 Shot Capture 상태를 관리하는 용도로 구성함.
 
@@ -121,11 +209,12 @@ Ready 상태에서 설정한 이동 속도 이상의 변화가 발생하면 Shot
 ### Development Environment
 
 ```text
-Language        : C++
-IDE             : Visual Studio 2022
-Platform        : Windows x64
-GUI             : MFC
-Build           : MSBuild / Visual Studio Solution
+Language        : C++17
+IDE             : Visual Studio 2022 (Windows) / 임의 IDE 또는 CLI (Linux)
+Platform        : Windows x64, Linux
+GUI             : Qt Widgets (EventProcessing.DiagQt, Windows·Linux 공용)
+Build           : CMake (Windows·Linux, 전체 프로젝트 / GUI 포함)
+                  MSBuild / Visual Studio Solution (Windows, Core·Console만)
 ```
 
 ### OpenCV
@@ -208,7 +297,7 @@ Repository 내부에 `Prophesee/`가 존재하면 해당 경로를 우선 사용
 
 ### Runtime DLL Deployment
 
-`EventProcessing.Console`, `EventProcessing.Diag`에 Post-Build Copy Step 적용.
+`EventProcessing.Console`(MSBuild), 그리고 CMake로 빌드하는 모든 Windows Target(`EventProcessing.Console`, `EventProcessing.DiagQt`)에 동일한 Post-Build Copy Step 적용(`CMakeLists.txt`의 `eventcore_copy_windows_runtime_deps`).
 
 Build 완료 후
 
@@ -243,7 +332,7 @@ MV_HAL_PLUGIN_PATH
 프로그램 시작 시 실행 파일 위치를 기준으로 Bundled HAL Plugin Directory를 검색하고 `MV_HAL_PLUGIN_PATH`를 설정하도록 구성함.
 
 ```text
-EventProcessing.Diag.exe
+EventProcessing.DiagQt.exe
 │
 ├─ Metavision Runtime DLLs
 │
@@ -254,6 +343,77 @@ EventProcessing.Diag.exe
 ```
 
 별도의 System-wide HAL Plugin Path 설정 없이 실행할 수 있도록 구성함.
+
+### CMake Build (Windows / Linux, GUI 포함)
+
+`CMakeLists.txt`를 이용해 `EventProcessing.Core` / `EventProcessing.Console` / `EventProcessing.DiagQt`를 Windows와 Linux에서 동일한 방식으로 빌드함. GUI(`EventProcessing.DiagQt`)가 필요하면 두 플랫폼 모두 이 빌드를 사용해야 함(`EventCameraProcessing.sln`에는 GUI가 포함되어 있지 않음).
+
+```text
+Language        : C++17
+Build           : CMake
+GUI             : Qt Widgets (Qt6, Qt5로 fallback)
+Platform        : Windows, Linux (Ubuntu 기준, 다른 배포판도 가능)
+```
+
+필요 패키지 설치:
+
+```bash
+# Ubuntu/Debian
+sudo apt install cmake build-essential libopencv-dev qt6-base-dev
+```
+
+```text
+# Windows
+- CMake, Visual Studio 2022(C++ 워크로드)
+- Qt Online Installer로 Qt 설치 (예: Qt 6.x, MSVC 2022 64bit 키트)
+- OpenCV: 리포에 번들된 ocv440\ + 루트의 opencv_world440(d).dll을 CMakeLists.txt가
+          자동으로 찾아 쓰므로 별도 설치/옵션 지정 불필요 (원하면 다른 OpenCV로 덮어쓰기 가능)
+```
+
+Metavision SDK(Prophesee)는 [공식 설치 안내](https://docs.prophesee.ai)를 따라 플랫폼별로 별도 설치함(Windows는 기존처럼 리포의 `Prophesee\` 폴더 또는 시스템 설치를 그대로 사용). `find_package(MetavisionSDK)`로 자동 감지되며,
+
+> **Windows에서 Boost 필요**: Metavision SDK의 `core` 모듈 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 Boost `timer` 컴포넌트를 요구함(리포에 번들되어 있지 않음). Live 카메라를 안 쓰고 RAW 파일만 보더라도 RAW 디코딩 자체가 Metavision SDK를 거치므로 Boost가 필요함. [Boost 사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/)를 설치(예: `boost_1_8x_0-msvc-14.2-64.exe`, 기본 경로 `C:\local\boost_1_8x_0\`에 설치하면 CMake가 자동으로 찾음, 안 잡히면 `BOOST_ROOT` 환경 변수로 지정).
+
+```text
+설치되어 있으면
+    → Live 카메라 / RAW 실시간 재생 지원 활성화
+    → EventProcessing.DiagQt 포함 전체 빌드
+
+설치되어 있지 않으면
+    → CSV 입력만 지원
+    → EventProcessing.Core / EventProcessing.Console만 빌드
+      (EventProcessing.DiagQt는 실시간 Live/RAW 재생이 목적이라 제외됨)
+```
+
+빌드 (Linux):
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+빌드 (Windows):
+
+```bat
+cmake -B build -G "Visual Studio 17 2022" -A x64 ^
+  -DCMAKE_PREFIX_PATH="C:\Qt\6.x\msvc2022_64"
+cmake --build build --config Release
+```
+
+실행:
+
+```bash
+./build/EventProcessing.Console/EventProcessing.Console input.csv output 10000 30
+./build/EventProcessing.DiagQt/EventProcessing.DiagQt   # Metavision SDK가 감지된 경우에만 빌드됨
+```
+
+#### Visual Studio에서 EventProcessing.DiagQt 열기
+
+`EventProcessing.DiagQt`는 CMake 프로젝트라 `EventCameraProcessing.sln`(MSBuild)에는 없음. `.sln`을 더블클릭하는 대신, Visual Studio에서 **파일 > 폴더 열기(Open Folder)** 로 리포 루트 폴더 자체를 열면 VS가 `CMakeLists.txt`/`CMakePresets.json`을 자동 인식해서 `Core`/`Console`/`DiagQt`를 모두 Solution Explorer에 CMake Target으로 보여줌(빌드/디버그 시작 항목으로 `EventProcessing.DiagQt.exe` 선택 가능).
+
+리포에 포함된 `CMakePresets.json`의 `windows-qt` 프리셋을 쓰려면, Windows 환경 변수에 `QT_DIR`을 Qt 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`)하고 Visual Studio를 재시작함. OpenCV는 리포의 `ocv440\`을 자동으로 사용하도록 프리셋에 이미 설정되어 있음.
+
+Visual Studio C++용 CMake Tools 컴포넌트(Visual Studio Installer에서 "C++를 사용한 Linux 및 임베디드 개발" 또는 "C++ CMake 도구" 워크로드)가 설치되어 있어야 함. `ninja`도 함께 설치됨.
 
 ### Debug / Release
 
@@ -384,7 +544,8 @@ Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 
 - [x] PNG Output
 - [x] MP4 Visualization
 - [x] Console Batch Processing
-- [x] MFC Diagnostic Viewer
+- [x] Qt Diagnostic Viewer (Windows / Linux)
+- [x] CMake Build (Windows / Linux)
 - [x] Searching / Ready / Trigger / Capturing State Machine
 - [x] Repository-local Metavision SDK Path 구성
 - [x] Metavision Runtime DLL Post-Build Copy

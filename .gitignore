@@ -35,6 +35,15 @@ bld/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
+
+# CMake (Linux/Qt build)
+/build/
+/out/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+*_autogen/
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 

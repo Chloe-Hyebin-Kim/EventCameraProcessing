@@ -8,6 +8,8 @@
 
 #include <metavision/sdk/base/events/event_cd.h>
 
+#include "Utf8Path.h"
+
 namespace eventcore
 {
     namespace
@@ -39,7 +41,7 @@ namespace eventcore
             }
             else
             {
-                m_camera = Metavision::Camera::from_file(std::string(path), Metavision::FileConfigHints().real_time_playback(true));
+                m_camera = Metavision::Camera::from_file(Utf8ToPath(path), Metavision::FileConfigHints().real_time_playback(true));
             }
         }
         catch (const std::exception& ex)
@@ -95,11 +97,11 @@ namespace eventcore
 
     void LiveEventStream::Stop()
     {
-        if (!m_running)
-        {
-            return;
-        }
-
+        // m_running은 RAW 파일이 끝까지 재생되어 WindowLoop() 스스로 false로 바꾸는 경우도 있어서
+        // (Stop()이 따로 호출되지 않은 채로), 이 값만 보고 일찍 return하면 안 된다. 그러면
+        // m_windowThread가 join되지 않은 채로 남고, 다음 Start()에서 std::thread에 새 스레드를
+        // move-assign할 때 여전히 joinable한 스레드가 남아있어 std::terminate()가 호출된다
+        // (재생이 끝난 뒤 다른 RAW로 다시 Start했을 때 크래시하는 원인이었음).
         m_running = false;
 
         if (m_windowThread.joinable())
