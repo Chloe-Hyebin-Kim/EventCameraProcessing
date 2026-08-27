@@ -19,19 +19,6 @@
       }
     },
     {
-      "name": "x64-Debug",
-      "displayName": "x64-Debug (Windows, Release-forced)",
-      "description": "Visual Studio가 'File > Open > Folder'로 열 때 자동으로 제안하는 기본 프리셋 이름과 똑같이 정의해둔 것. Metavision SDK는 Windows용 Release 바이너리만 배포하므로, VS의 진짜 Debug(/MDd) 구성으로 이 프리셋이 뜨는 일이 없도록 windows-qt(Release)를 그대로 상속한다. 이름만 x64-Debug이고 실제로는 Release로 빌드된다 - CMakeLists.txt의 강제 Release 로직과 이중 방어.",
-      "inherits": "windows-qt",
-      "binaryDir": "${sourceDir}/out/build/${presetName}"
-    },
-    {
-      "name": "x64-Release",
-      "displayName": "x64-Release (Windows)",
-      "inherits": "windows-qt",
-      "binaryDir": "${sourceDir}/out/build/${presetName}"
-    },
-    {
       "name": "linux",
       "displayName": "Linux",
       "generator": "Ninja",
