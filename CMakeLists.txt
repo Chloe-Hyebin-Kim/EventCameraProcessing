@@ -82,6 +82,34 @@ else()
                     "(it requires real-time Live/RAW playback). EventProcessing.Console still builds.")
 endif()
 
+# Visual Studio를 "File > Open > Folder"로 열면 이 리포의 CMakePresets.json에 있는 "windows-qt"
+# 프리셋(Release로 고정됨) 대신, VS가 자동으로 제공하는 기본 프리셋인 x64-Debug(단일 구성 Ninja,
+# CMAKE_BUILD_TYPE=Debug)로 조용히 configure되는 경우가 있다(out\build\x64-Debug가 그 흔적).
+# 문제는 Prophesee Metavision SDK가 Windows용으로 Release 바이너리만 배포한다는 점이다
+# (Prophesee\bin\metavision_sdk_stream.dll 등에는 디버그(-d) 변형이 없음). Debug 구성
+# (/MDd, _ITERATOR_DEBUG_LEVEL=2)에서 빌드한 이 프로젝트 코드가 Release로 빌드된(/MD, IDL=0)
+# 그 DLL들과 C++ 예외나 STL 객체를 DLL 경계 너머로 주고받으면 레이아웃이 달라 ABI가 깨진다.
+# 실제로 RAW 파일을 열지 못해 Metavision::CameraException이 던져지는 순간(스택 언와인딩 중)
+# metavision_sdk_stream.dll 안에서 0xFFFFFFFFFFFFFFFF 같은 잘못된 주소를 읽다가 즉시 액세스
+# 위반으로 크래시하는 게 그 증상이다. Metavision SDK가 잡히면 애초에 Debug 구성을 선택지에서
+# 없애거나(다중 구성 제너레이터) 강제로 Release로 바꿔서(단일 구성 제너레이터) 이 실수 자체를
+# 막는다.
+if(WIN32 AND EVENTCORE_HAVE_METAVISION)
+    if(CMAKE_CONFIGURATION_TYPES)
+        set(CMAKE_CONFIGURATION_TYPES "Release" CACHE STRING
+            "Metavision SDK only ships Release binaries on Windows; Debug is ABI-incompatible with it (see comment above) and is removed" FORCE)
+        message(STATUS "Metavision SDK detected on Windows: restricting configuration types to Release only "
+                        "(Prophesee ships Release-only binaries; Debug is ABI-incompatible and will crash on any "
+                        "exception thrown across the DLL boundary, e.g. a RAW file failing to open)")
+    elseif(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+        message(WARNING "Metavision SDK detected on Windows: forcing CMAKE_BUILD_TYPE from "
+                         "'${CMAKE_BUILD_TYPE}' to 'Release'. Prophesee ships Release-only binaries; any other "
+                         "build type is ABI-incompatible with them and will crash (access violation) the moment "
+                         "a C++ exception crosses the DLL boundary, e.g. when a RAW file fails to open.")
+        set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
+    endif()
+endif()
+
 # Windows에서 리포에 번들된 Prophesee\, opencv_world440(d).dll을 그대로 쓰는 경우, 기존
 # vcxproj의 Post-Build Copy Step(Metavision.props 문서 참고)과 동일하게 실행 파일 옆에
 # 런타임 DLL/HAL 플러그인을 복사해 System PATH 설정 없이 바로 실행되게 한다.
