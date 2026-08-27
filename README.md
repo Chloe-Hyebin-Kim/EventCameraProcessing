@@ -43,8 +43,14 @@
   sudo apt install cmake build-essential libopencv-dev qt6-base-dev
   # Qt6 안 될 경우 대체: qtbase5-dev
   ```
-- **Metavision SDK**: 번들 안 되어 있음(리포 `Prophesee/`는 Windows 바이너리만 포함). [Prophesee 공식 Linux 설치 안내](https://docs.prophesee.ai) 따라 별도 설치.
-- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요)
+- **Metavision SDK (OpenEB)**: 리포에 번들 안 되어 있음(리포 `Prophesee/`는 Windows 바이너리만 포함) — 연구실 Linux 머신들이 배포판/버전이 제각각이라, Windows처럼 미리 빌드된 바이너리 하나로 커밋해둘 수가 없다. 대신 한 번 소스 빌드해서 설치하는 스크립트를 제공한다:
+  ```bash
+  ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
+  # sudo 권한이 없으면:
+  ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치, CMAKE_PREFIX_PATH 안내가 출력됨
+  ```
+  리포에 번들된 Windows용과 동일하게 **5.2.0** 버전을 빌드하므로(`Prophesee/include/metavision/sdk/version.h` 참고), RAW/HDF5 파일이 Windows/Linux 양쪽에서 동일하게 열린다. 빌드는 OpenEB 자체가 커서 시간이 좀 걸린다. 완료 후 `cmake --preset linux`를 다시 돌리면(이미 configure된 상태였다면 `build/linux/` 삭제 후) `EventProcessing.DiagQt`까지 같이 빌드된다.
+- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요 - 위 스크립트를 쓰면 `libboost-all-dev`로 이미 같이 설치됨)
 
 
 ### 환경 변수
