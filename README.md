@@ -9,6 +9,70 @@
 </br>
 
 
+## Quick Start (소스 받아서 GUI 실행하기)
+
+> **`QtVer` 브랜치 기준.** GUI(`EventProcessing.DiagQt`) 실행에 필요한 인프라(Linux용 OpenEB 빌드 스크립트, Windows Release 강제, DLL 자동 배포 등)가 현재 `QtVer` 브랜치에만 있으므로, 아래 단계는 전부 `QtVer`를 받았다는 전제로 진행함. 더 자세한 배경/트러블슈팅은 아래 [Requirements](#requirements), [알려진 이슈](#알려진-이슈) 섹션 참고.
+
+### Windows
+
+1. **필수 프로그램 설치**
+   - Visual Studio 2019(16.11+) 또는 2022 — 설치 시 **"C++를 사용한 데스크톱 개발"** 워크로드 + **"C++ CMake 도구"** 컴포넌트 체크
+   - Qt — [Qt Online Installer](https://www.qt.io/download-qt-installer)로 설치. VS2022면 `MSVC 2022 64-bit` 키트(Qt 6.x) 선택
+   - Boost — [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치 (VS2022 → `boost_1_8x_0-msvc-14.3-64.exe`, 기본 경로 `C:\local\boost_1_8x_0\` 그대로 두면 자동 감지됨)
+   - OpenCV / Metavision SDK는 리포에 번들되어 있어 별도 설치 불필요
+
+2. **Qt 경로를 환경 변수로 등록**: 시스템 환경 변수에 `QT_DIR`을 Qt 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`). 설정 후 Visual Studio를 껐다 다시 켜야 반영됨.
+
+3. **소스 받기**
+   ```bash
+   git clone --branch QtVer https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing
+   ```
+
+4. **Visual Studio에서 열기**: `EventCameraProcessing` 폴더를 **파일 > 폴더 열기(Open Folder)** 로 연다. (`.sln`을 더블클릭하는 게 아님 — 거기엔 GUI가 안 들어있음.)
+
+5. 상단 구성 드롭다운에서 **`windows-qt`** 를 선택하면 CMake가 자동으로 configure됨(잠시 대기).
+
+6. **빌드**: 상단 메뉴 `빌드 > 모두 빌드`(또는 `Ctrl+Shift+B`).
+
+7. **실행**: 시작 항목을 `EventProcessing.DiagQt.exe`로 선택하고 실행(F5), 또는 빌드된 실행 파일을 직접 실행:
+   ```
+   build\windows-qt\EventProcessing.DiagQt\EventProcessing.DiagQt.exe
+   ```
+
+### Linux (Ubuntu/Debian 기준)
+
+1. **필수 패키지 설치**
+   ```bash
+   sudo apt install cmake build-essential libopencv-dev qt6-base-dev
+   # qt6-base-dev가 안 잡히면 대신: qtbase5-dev
+   ```
+
+2. **소스 받기**
+   ```bash
+   git clone --branch QtVer https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing
+   cd EventCameraProcessing
+   ```
+
+3. **Metavision SDK(OpenEB) 빌드/설치** — 한 번만 하면 됨. OpenEB 자체가 커서 시간이 좀 걸림.
+   ```bash
+   ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
+   # sudo 권한이 없으면:
+   ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치 (완료 후 안내되는 환경변수 추가 필요)
+   ```
+
+4. **Configure + 빌드**
+   ```bash
+   cmake --preset linux
+   cmake --build build/linux -j$(nproc)
+   ```
+   configure 로그에 `Metavision SDK found - Live camera / RAW support enabled` 가 보여야 `EventProcessing.DiagQt`까지 같이 빌드됨. 안 보이면 3번 스크립트를 아직 안 돌렸거나 새 셸을 안 열었을 가능성이 큼.
+
+5. **실행**
+   ```bash
+   ./build/linux/EventProcessing.DiagQt/EventProcessing.DiagQt
+   ```
+   `error while loading shared libraries: libmetavision_sdk_core.so.5` 같은 에러가 뜨면 `sudo ldconfig` 한 번 실행 후 다시 시도.
+
 ## Requirements
 
 ### Common
@@ -18,7 +82,7 @@
 | CMake | 3.16 (일반 빌드) / **3.21+ 권장** | `CMakePresets.json`(schema version 3)은 3.21 이상 필요.</br> VS2019 16.11 번들 CMake는 약 3.20대라 preset 일부 기능이 불안정할 수 있음(아래 "알려진 이슈" 참고). |
 | C++ 표준 | C++17 | `CMAKE_CXX_STANDARD 17` |
 | OpenCV | 4.4.0 | Windows는 리포에 번들(`ocv440/` + 루트 `opencv_world440(d).dll`)되어 있어 별도 설치 불필요, CMake가 자동 감지.</br> Linux는 시스템 패키지 사용(아래 참고), 4.x대면 대체로 호환. |
-| Qt | Qt5 ≥ 5.14 또는 Qt6 (Widgets 모듈) | `QImage::Format_BGR888` 사용 때문에 5.14 미만은 안 됨. |
+| Qt | Qt5(버전 무관) 또는 Qt6 (Widgets 모듈) | 미리보기 프레임 변환에 `Format_RGB888` + `rgbSwapped()`를 쓰므로(Qt4 때부터 있는 API) 특정 최소 버전 제약 없음. |
 | Metavision SDK (Prophesee) | **5.2.0** (리포 `Prophesee/`에 번들된 버전) | Live 카메라 / RAW 재생(`EventProcessing.DiagQt`)에 필수.</br> 없어도 `EventProcessing.Core`/`EventProcessing.Console`은 CSV 입력만으로 빌드됨.</br> 필요 컴포넌트: `base`, `core`, `stream` (+ 내부적으로 `MetavisionHAL`, `MetavisionPSEEHWLayer`, `hdf5_ecf` 사용 — 전부 `Prophesee/`에 같이 번들됨). |
 | Boost | `timer` 컴포넌트만 | `Prophesee/`에 번들 안 되어 있음, 별도 설치 필요 (Metavision SDK의 `core` 모듈이 요구).</br> MSVC 툴셋 버전과 맞는 사전빌드 바이너리 권장(빌드 안 해도 됨). |
 
@@ -43,8 +107,14 @@
   sudo apt install cmake build-essential libopencv-dev qt6-base-dev
   # Qt6 안 될 경우 대체: qtbase5-dev
   ```
-- **Metavision SDK**: 번들 안 되어 있음(리포 `Prophesee/`는 Windows 바이너리만 포함). [Prophesee 공식 Linux 설치 안내](https://docs.prophesee.ai) 따라 별도 설치.
-- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요)
+- **Metavision SDK (OpenEB)**: 리포에 번들 안 되어 있음(리포 `Prophesee/`는 Windows 바이너리만 포함) — 연구실 Linux 머신들이 배포판/버전이 제각각이라, Windows처럼 미리 빌드된 바이너리 하나로 커밋해둘 수가 없다. 대신 한 번 소스 빌드해서 설치하는 스크립트를 제공한다:
+  ```bash
+  ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
+  # sudo 권한이 없으면:
+  ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치, CMAKE_PREFIX_PATH 안내가 출력됨
+  ```
+  리포에 번들된 Windows용과 동일하게 **5.2.0** 버전을 빌드하므로(`Prophesee/include/metavision/sdk/version.h` 참고), RAW/HDF5 파일이 Windows/Linux 양쪽에서 동일하게 열린다. 빌드는 OpenEB 자체가 커서 시간이 좀 걸린다. 완료 후 `cmake --preset linux`를 다시 돌리면(이미 configure된 상태였다면 `build/linux/` 삭제 후) `EventProcessing.DiagQt`까지 같이 빌드된다.
+- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요 - 위 스크립트를 쓰면 `libboost-all-dev`로 이미 같이 설치됨)
 
 
 ### 환경 변수

@@ -93,6 +93,10 @@ if(EVENTCORE_HAVE_METAVISION)
 else()
     message(STATUS "Metavision SDK not found - only CSV input supported; EventProcessing.DiagQt will NOT be built "
                     "(it requires real-time Live/RAW playback). EventProcessing.Console still builds.")
+    if(NOT WIN32)
+        message(STATUS "  -> On Linux, run ./scripts/setup-linux-openeb.sh once to build/install OpenEB "
+                        "(the open-source Metavision SDK edition) from source, then re-run this configure.")
+    endif()
 endif()
 
 # Visual Studio를 "File > Open > Folder"로 열면 이 리포의 CMakePresets.json에 있는 "windows-qt"

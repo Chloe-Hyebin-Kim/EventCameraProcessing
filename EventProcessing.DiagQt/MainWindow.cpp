@@ -206,9 +206,9 @@ void MainWindow::DrawFrame(const cv::Mat& bgrFrame)
 
     const cv::Mat safe = bgrFrame.isContinuous() ? bgrFrame : bgrFrame.clone();
 
-    const QImage image(safe.data, safe.cols, safe.rows, static_cast<int>(safe.step), QImage::Format_BGR888);
+    const QImage image(safe.data, safe.cols, safe.rows, static_cast<int>(safe.step), QImage::Format_RGB888);
 
-    m_previewPixmap = QPixmap::fromImage(image);
+    m_previewPixmap = QPixmap::fromImage(image.rgbSwapped());
     m_labelPreview->setPixmap(m_previewPixmap.scaled(
         m_labelPreview->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
