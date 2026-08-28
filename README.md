@@ -53,19 +53,28 @@
    cd EventCameraProcessing
    ```
 
-3. **Metavision SDK(OpenEB) 빌드/설치** — 한 번만 하면 됨. OpenEB 자체가 커서 시간이 좀 걸림.
+3. **Metavision SDK(OpenEB) 준비** — 두 가지 방법이 있음.
+
+   **방법 A: 번들 그대로 써보기 (`Prophesee-linux/`, 별도 설치/빌드 없음)**
+
+   리포에 Ubuntu 20.04에서 빌드해 번들해둔 OpenEB + 의존 라이브러리(`Prophesee-linux/`)가 들어있어서, 그냥 clone만 하면 3번 단계 없이 바로 4번(Configure + 빌드)으로 넘어가도 됨. 다만 **그 컴퓨터의 시스템 OpenCV 버전이 번들(4.2)과 크게 다르면(예: Ubuntu 22.04/24.04의 기본 OpenCV 4.5+/4.6+) 빌드 시점에 라이브러리 버전 충돌로 링크가 실패할 수 있음** — 실제로 확인된 증상: `EventProcessing.Console`/`EventProcessing.DiagQt` 링크 단계에서 `libgdal`/`libgeos`/`libspatialite` 등에서 `undefined reference` 에러가 무더기로 남. 이 경우 아래 방법 B로 넘어갈 것.
+
+   **방법 B: 소스에서 직접 빌드/설치 (방법 A가 안 될 때, 또는 처음부터 이쪽을 원하면)**
+
+   그 컴퓨터의 실제 시스템 라이브러리 버전에 맞춰 새로 빌드하므로 방법 A의 버전 충돌 문제가 없음. 대신 OpenEB 자체가 커서 시간이 좀 걸림.
    ```bash
    ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
    # sudo 권한이 없으면:
    ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치 (완료 후 안내되는 환경변수 추가 필요)
    ```
+   방법 B로 설치하면 CMake가 시스템 설치본을 우선 쓰므로, 리포의 `Prophesee-linux/`는 무시됨(`CMakeLists.txt`가 `Prophesee-linux/`를 시스템보다 먼저 검색 경로에 넣긴 하지만, `find_package`가 성공하는 쪽이 어차피 먼저 잡힌 그 경로이므로 실질적으로 방법 A가 실패하지 않는 한 방법 B 설치본이 쓰일 일은 없음 — 방법 A가 안 되면 `rm -rf Prophesee-linux`로 아예 지우고 방법 B만 쓸 것).
 
 4. **Configure + 빌드**
    ```bash
    cmake --preset linux
    cmake --build build/linux -j$(nproc)
    ```
-   configure 로그에 `Metavision SDK found - Live camera / RAW support enabled` 가 보여야 `EventProcessing.DiagQt`까지 같이 빌드됨. 안 보이면 3번 스크립트를 아직 안 돌렸거나 새 셸을 안 열었을 가능성이 큼.
+   configure 로그에 `Metavision SDK found - Live camera / RAW support enabled` 가 보여야 `EventProcessing.DiagQt`까지 같이 빌드됨. 안 보이면 3번을 아직 안 했거나(방법 A만 있고 B는 안 했는데 A도 실패한 경우 등) 새 셸을 안 열었을 가능성이 큼. configure는 통과했는데 **빌드(링크) 단계에서 `undefined reference to ...` 에러**가 나면 방법 A의 버전 충돌이니 3번의 방법 B로 넘어갈 것.
 
 5. **실행**
    ```bash
@@ -107,13 +116,16 @@
   sudo apt install cmake build-essential libopencv-dev qt6-base-dev
   # Qt6 안 될 경우 대체: qtbase5-dev
   ```
-- **Metavision SDK (OpenEB)**: 리포에 번들 안 되어 있음(리포 `Prophesee/`는 Windows 바이너리만 포함) — 연구실 Linux 머신들이 배포판/버전이 제각각이라, Windows처럼 미리 빌드된 바이너리 하나로 커밋해둘 수가 없다. 대신 한 번 소스 빌드해서 설치하는 스크립트를 제공한다:
-  ```bash
-  ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
-  # sudo 권한이 없으면:
-  ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치, CMAKE_PREFIX_PATH 안내가 출력됨
-  ```
-  리포에 번들된 Windows용과 동일하게 **5.2.0** 버전을 빌드하므로(`Prophesee/include/metavision/sdk/version.h` 참고), RAW/HDF5 파일이 Windows/Linux 양쪽에서 동일하게 열린다. 빌드는 OpenEB 자체가 커서 시간이 좀 걸린다. 완료 후 `cmake --preset linux`를 다시 돌리면(이미 configure된 상태였다면 `build/linux/` 삭제 후) `EventProcessing.DiagQt`까지 같이 빌드된다.
+- **Metavision SDK (OpenEB)**: 두 가지 경로가 있음.
+  - **번들(`Prophesee-linux/`)**: Ubuntu 20.04에서 빌드한 OpenEB(버전 **5.2.0**, `Prophesee/include/metavision/sdk/version.h`에 명시된 Windows 번들판과 동일)와, 그게 링크하는 OpenCV/Boost/HDF5/Protobuf/ffmpeg 등의 `.so`까지 `ldd`로 수집해 같이 커밋해뒀음(`readelf -d` NEEDED 기준 실제 필요한 것만 - GDAL/PostgreSQL/Kerberos까지 딸려오는데, `libopencv_videoio.so`가 실제로 이것들에 링크되어 있어서 어쩔 수 없음). `CMakeLists.txt`가 자동으로 찾아 쓰므로 clone만 하면 별도 설치 없이 바로 빌드됨.
+    **단, 그 컴퓨터의 시스템 OpenCV 버전이 번들(4.2)과 많이 다르면(Ubuntu 22.04/24.04 등) 빌드 시점에 `libgdal`/`libgeos`/`libspatialite` 등에서 `undefined reference` 링크 에러가 날 수 있음** — 번들이 링크하는 구버전 GEOS/GDAL과 시스템 OpenCV가 링크하는 신버전 GDAL이 같은 실행 파일 안에서 충돌하는 것. 이럴 땐 아래 스크립트로 넘어갈 것.
+  - **소스 빌드 스크립트** (번들이 버전 충돌 날 때, 또는 처음부터 이쪽을 원할 때): 그 컴퓨터의 실제 시스템 라이브러리 버전에 맞춰 새로 빌드하므로 위 버전 충돌이 없음.
+    ```bash
+    ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
+    # sudo 권한이 없으면:
+    ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치, CMAKE_PREFIX_PATH 안내가 출력됨
+    ```
+    OpenEB 자체가 커서 빌드에 시간이 좀 걸림. 번들이 버전 충돌로 실패한 상태였다면 `rm -rf Prophesee-linux`로 지운 뒤 이 스크립트를 쓸 것(그래야 `CMakeLists.txt`가 시스템 설치본을 확실히 사용함). 완료 후 `cmake --preset linux`를 다시 돌리면(이미 configure된 상태였다면 `build/linux/` 삭제 후) `EventProcessing.DiagQt`까지 같이 빌드된다.
 - **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요 - 위 스크립트를 쓰면 `libboost-all-dev`로 이미 같이 설치됨)
 
 
