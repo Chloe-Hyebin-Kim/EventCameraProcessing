@@ -73,9 +73,15 @@ fi
 
 BUILD_DIR="$SRC_DIR/build"
 echo "==> [3/6] Configuring (Release, tests off) into ${BUILD_DIR}..."
+# COMPILE_PYTHON3_BINDINGS=OFF: EventCameraProcessing only uses the C++ SDK (base/core/stream),
+# never the Python bindings. Leaving it ON (OpenEB's default) requires pybind11 >= 2.7, which is
+# newer than what apt ships on some distros (e.g. pybind11 2.4.3 on Ubuntu 20.04/focal) - that
+# version mismatch makes the configure step fail outright. Turning it off sidesteps the pybind11
+# requirement entirely, and we don't lose anything we actually need.
 cmake -S "$SRC_DIR" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_TESTING=OFF \
+    -DCOMPILE_PYTHON3_BINDINGS=OFF \
     -DCMAKE_INSTALL_PREFIX="$PREFIX"
 
 echo "==> [4/6] Building with ${JOBS} parallel jobs (OpenEB is large - this can take a while)..."
