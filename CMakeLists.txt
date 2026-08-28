@@ -41,7 +41,7 @@ if(WIN32)
     else()
         # 새로 clone한 다른 컴퓨터에는 QT_DIR/QTDIR 환경 변수가 아예 안 잡혀있을 수 있다.
         # Qt 자체는 설치돼 있다는 전제 하에(Qt는 용량 때문에 이 리포에 번들하지 않음, ocv440/
-        # Prophesee\와 다름), Qt Online Installer의 기본 설치 위치(C:\Qt\<버전>\<킷>)를 훑어서
+        # Prophesee_window\와 다름), Qt Online Installer의 기본 설치 위치(C:\Qt\<버전>\<킷>)를 훑어서
         # 후보를 모두 검색 경로에 넣어둔다. 여러 개 잡혀도 find_package(Qt6)이 그 중 맞는 것을
         # 알아서 골라 쓰므로 문제 없다.
         file(GLOB _qt_kit_candidates LIST_DIRECTORIES true
@@ -70,12 +70,12 @@ endif()
 
 find_package(OpenCV REQUIRED)
 
-# Windows: 리포에 번들된 Prophesee\ (Metavision.props가 MSBuild 빌드에서 쓰는 것과 동일한 폴더)에
+# Windows: 리포에 번들된 Prophesee_window\ (Metavision.props가 MSBuild 빌드에서 쓰는 것과 동일한 폴더)에
 # CMake package config가 이미 들어있으므로(share\cmake\MetavisionSDK\...), 시스템에 SDK가 따로
 # 설치되어 있지 않아도 이 리포만 clone하면 바로 잡히도록 검색 경로 맨 앞에 추가한다.
 # Metavision.props와 동일하게 리포에 번들된 쪽을 시스템 설치보다 우선시킨다.
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
-    list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Prophesee")
+if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee_window/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
+    list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Prophesee_window")
 endif()
 
 option(EVENTCORE_NO_METAVISION "Force-disable Metavision SDK support even if found" OFF)
@@ -103,7 +103,7 @@ endif()
 # 프리셋(Release로 고정됨) 대신, VS가 자동으로 제공하는 기본 프리셋인 x64-Debug(단일 구성 Ninja,
 # CMAKE_BUILD_TYPE=Debug)로 조용히 configure되는 경우가 있다(out\build\x64-Debug가 그 흔적).
 # 문제는 Prophesee Metavision SDK가 Windows용으로 Release 바이너리만 배포한다는 점이다
-# (Prophesee\bin\metavision_sdk_stream.dll 등에는 디버그(-d) 변형이 없음). Debug 구성
+# (Prophesee_window\bin\metavision_sdk_stream.dll 등에는 디버그(-d) 변형이 없음). Debug 구성
 # (/MDd, _ITERATOR_DEBUG_LEVEL=2)에서 빌드한 이 프로젝트 코드가 Release로 빌드된(/MD, IDL=0)
 # 그 DLL들과 C++ 예외나 STL 객체를 DLL 경계 너머로 주고받으면 레이아웃이 달라 ABI가 깨진다.
 # 실제로 RAW 파일을 열지 못해 Metavision::CameraException이 던져지는 순간(스택 언와인딩 중)
@@ -127,7 +127,7 @@ if(WIN32 AND EVENTCORE_HAVE_METAVISION)
     endif()
 endif()
 
-# Windows에서 리포에 번들된 Prophesee\, opencv_world440(d).dll을 그대로 쓰는 경우, 기존
+# Windows에서 리포에 번들된 Prophesee_window\, opencv_world440(d).dll을 그대로 쓰는 경우, 기존
 # vcxproj의 Post-Build Copy Step(Metavision.props 문서 참고)과 동일하게 실행 파일 옆에
 # 런타임 DLL/HAL 플러그인을 복사해 System PATH 설정 없이 바로 실행되게 한다.
 # (system-wide Metavision SDK/OpenCV를 쓰는 경우는 각자 PATH에 있으므로 없어도 무방.)
@@ -136,25 +136,25 @@ function(eventcore_copy_windows_runtime_deps target)
         return()
     endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/bin")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee_window/bin")
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/Prophesee/bin" "$<TARGET_FILE_DIR:${target}>"
+                "${CMAKE_SOURCE_DIR}/Prophesee_window/bin" "$<TARGET_FILE_DIR:${target}>"
             COMMENT "Copying bundled Metavision runtime DLLs next to ${target}")
     endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/lib/metavision/hal/plugins")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee_window/lib/metavision/hal/plugins")
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/hal_plugins"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/Prophesee/lib/metavision/hal/plugins" "$<TARGET_FILE_DIR:${target}>/hal_plugins"
+                "${CMAKE_SOURCE_DIR}/Prophesee_window/lib/metavision/hal/plugins" "$<TARGET_FILE_DIR:${target}>/hal_plugins"
             COMMENT "Copying bundled Metavision HAL plugins next to ${target}")
     endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/bin/libusb-1.0.dll")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee_window/bin/libusb-1.0.dll")
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/Prophesee/bin/libusb-1.0.dll" "$<TARGET_FILE_DIR:${target}>/hal_plugins/"
+                "${CMAKE_SOURCE_DIR}/Prophesee_window/bin/libusb-1.0.dll" "$<TARGET_FILE_DIR:${target}>/hal_plugins/"
             COMMENT "Copying libusb-1.0.dll next to ${target}'s hal_plugins")
     endif()
 

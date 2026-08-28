@@ -9,7 +9,7 @@
 - Visual Studio 2019(16.11+) 또는 2022 — "C++를 사용한 데스크톱 개발" + "C++ CMake 도구" 워크로드 설치
 - Qt — [Qt Online Installer](https://www.qt.io/download-qt-installer)로 설치(예: Qt 6.7, `MSVC 2022 64-bit` 키트), 환경 변수 `QT_DIR`을 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`) 후 재부팅/재로그인
 - Boost — [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치(예: `boost_1_8x_0-msvc-14.3-64.exe`), 기본 경로(`C:\local\boost_1_8x_0\`)에 두면 자동 인식
-- OpenCV/Metavision SDK는 리포에 번들되어 있어(`ocv440\`, `Prophesee\`) 별도 설치 불필요
+- OpenCV/Metavision SDK는 리포에 번들되어 있어(`ocv440\`, `Prophesee_window\`) 별도 설치 불필요
 
 **빌드 및 실행**
 
