@@ -421,6 +421,36 @@ cmake --build build --config Release
 
 Visual Studio C++용 CMake Tools 컴포넌트(Visual Studio Installer에서 "C++를 사용한 Linux 및 임베디드 개발" 또는 "C++ CMake 도구" 워크로드)가 설치되어 있어야 함. `ninja`도 함께 설치됨.
 
+#### Windows 실행 파일 만들어서 팀원에게 전달하기
+
+빌드를 못(안) 하는 팀원에게 실행 파일만 전달하고 싶을 때의 절차. Windows 바이너리는 반드시 Windows 머신에서 빌드해야 함(Linux에서 크로스 컴파일 불가).
+
+**1) 사전 준비 (빌드 머신에 최초 1회)**
+
+- **Visual Studio 2019(16.11+) 또는 2022** — 설치 시 워크로드에 "C++를 사용한 데스크톱 개발" + "C++ CMake 도구" 컴포넌트 포함
+- **Qt** — [Qt Online Installer](https://www.qt.io/download-qt-installer)로 설치(예: Qt 6.7, `MSVC 2022 64-bit` 키트). 설치 후 환경 변수 `QT_DIR`을 Qt 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`)하고 Visual Studio 재시작
+- **Boost** — [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치(예: `boost_1_8x_0-msvc-14.3-64.exe`). 기본 경로 `C:\local\boost_1_8x_0\`에 두면 CMake가 자동 인식
+- OpenCV/Metavision SDK는 리포에 이미 번들되어 있어서(`ocv440\`, `Prophesee\`) 별도 설치 불필요
+
+**2) 빌드**
+
+옵션 A — Visual Studio GUI: 파일 > 폴더 열기(Open Folder)로 리포 루트를 열면 `CMakePresets.json`의 `windows-qt` 프리셋을 VS가 인식함 → 상단 구성 드롭다운에서 `windows-qt` 선택 → 시작 항목으로 `EventProcessing.DiagQt.exe` 선택 → 빌드.
+
+옵션 B — CLI:
+
+```bat
+cmake --preset windows-qt
+cmake --build build\windows-qt --config Release
+```
+
+**3) 결과물**
+
+`build\windows-qt\EventProcessing.DiagQt\Release\EventProcessing.DiagQt.exe`에 생성됨. `CMakeLists.txt`의 post-build 스텝(`eventcore_copy_windows_runtime_deps`)이 Prophesee 런타임 DLL, OpenCV DLL, HAL 플러그인을 실행 파일 옆에 자동으로 복사해주므로 별도로 라이브러리를 챙길 필요 없음(Linux와 달리 수동 패키징 불필요).
+
+**4) 팀원 배포**
+
+`Release\` 폴더 전체(exe + 자동 복사된 DLL들 + `hal_plugins\`)를 그대로 zip해서 전달하면 됨. Windows는 이 리포에 Prophesee/OpenCV가 이미 번들되어 있어서 Linux 때처럼(`scripts/setup-linux-openeb.sh`) 별도 SDK 소스 빌드 단계가 필요 없음 — 빌드 머신에 Qt/Boost만 준비되어 있으면 바로 결과물이 나옴.
+
 ### Debug / Release
 
 Metavision/OpenEB Library의 Debug / Release Binary를 분리하여 사용함.
