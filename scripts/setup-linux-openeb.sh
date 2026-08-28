@@ -90,6 +90,11 @@ cmake --build "$BUILD_DIR" --config Release -- -j "$JOBS"
 echo "==> [5/6] Installing to ${PREFIX}..."
 if [[ "$INSTALL_MODE" == "system" ]]; then
     sudo cmake --build "$BUILD_DIR" --target install
+    # Installing .so files into /usr/local/lib doesn't make the dynamic linker aware of them by
+    # itself - ldconfig has to re-scan and refresh /etc/ld.so.cache, or every OpenEB-linked binary
+    # fails at startup with "error while loading shared libraries: libmetavision_sdk_core.so.5:
+    # cannot open shared object file" even though the build itself succeeded fine.
+    sudo ldconfig
 else
     mkdir -p "$PREFIX"
     cmake --build "$BUILD_DIR" --target install
@@ -108,10 +113,13 @@ echo ""
 echo "Done - OpenEB ${OPENEB_VERSION} installed to ${PREFIX}."
 if [[ "$INSTALL_MODE" != "system" ]]; then
     echo ""
-    echo "You installed to a non-system prefix, so CMake won't find it automatically."
-    echo "Add this to your shell profile (~/.bashrc or ~/.profile), then open a new shell:"
+    echo "You installed to a non-system prefix, so CMake won't find it automatically at configure"
+    echo "time, and the dynamic linker won't find it at runtime either (no ldconfig for non-system"
+    echo "prefixes). Add both of these to your shell profile (~/.bashrc or ~/.profile), then open a"
+    echo "new shell:"
     echo ""
     echo "  export CMAKE_PREFIX_PATH=\"$PREFIX:\$CMAKE_PREFIX_PATH\""
+    echo "  export LD_LIBRARY_PATH=\"$PREFIX/lib:\$LD_LIBRARY_PATH\""
     echo ""
 fi
 echo "Now (re)configure EventCameraProcessing - if it was already configured without Metavision SDK,"
