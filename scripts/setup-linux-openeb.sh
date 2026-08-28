@@ -2,12 +2,12 @@
 # Prophesee OpenEB(Metavision SDK의 오픈소스 에디션)를 Linux에서 소스로 클론/빌드/설치한다.
 #
 # 왜 바이너리를 리포에 번들하지 않고 스크립트로 빌드하나:
-#   Windows(Prophesee/)는 배포판이 하나(MSVC x64)라 미리 빌드된 바이너리를 그대로 커밋해도 되지만,
+#   Windows(Prophesee-window/)는 배포판이 하나(MSVC x64)라 미리 빌드된 바이너리를 그대로 커밋해도 되지만,
 #   연구실 Linux 머신들은 배포판/버전이 제각각이라 미리 빌드된 바이너리 하나로는 다 커버할 수 없다.
 #   반면 소스 빌드는 (빌드 의존 패키지만 깔려 있으면) 어떤 배포판에서도 동작한다.
 #
 # 왜 5.2.0인가:
-#   Windows에 번들된 Prophesee/의 Metavision SDK도 5.2.0이다(Prophesee/include/metavision/sdk/version.h).
+#   Windows에 번들된 Prophesee-window/의 Metavision SDK도 5.2.0이다(Prophesee-window/include/metavision/sdk/version.h).
 #   버전을 맞춰야 같은 RAW/HDF5 파일을 Windows/Linux 양쪽에서 동일하게 읽고 쓸 수 있다.
 #
 # 사용법:
