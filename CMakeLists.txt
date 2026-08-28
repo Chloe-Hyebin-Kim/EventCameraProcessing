@@ -78,6 +78,13 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee/share/cmake/MetavisionSDK/Met
     list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Prophesee")
 endif()
 
+# Linux: 위와 같은 취지로, 연구실 Linux 머신에서 실제로 빌드된 OpenEB를 install_manifest.txt
+# 기준으로 리포에 번들해둔 Prophesee-linux/(scripts/setup-linux-openeb.sh로 매번 소스 빌드하는
+# 대신 바로 쓸 수 있게)가 있으면 시스템 설치본보다 우선 사용한다.
+if(UNIX AND NOT APPLE AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-linux/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
+    list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Prophesee-linux")
+endif()
+
 option(EVENTCORE_NO_METAVISION "Force-disable Metavision SDK support even if found" OFF)
 
 set(EVENTCORE_HAVE_METAVISION OFF)
@@ -188,6 +195,13 @@ function(eventcore_copy_linux_runtime_deps target)
     if(NOT EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-linux/lib")
         return()
     endif()
+
+    # 링크 시점에도 여기서 라이브러리를 찾게 한다. Metavision SDK의 CMake package config가 자기
+    # 내부 의존성(예: Protobuf)을 완전한 IMPORTED 타깃으로 안 넘겨주는 경우, 그 심볼들이
+    # 최종 실행 파일을 링크하는 시점에 undefined reference로 튀어나올 수 있다(실제로 이 시스템의
+    # protobuf 3.21 위에서 재현됨 - OpenEB는 protobuf 3.6.1로 빌드됨, ABI가 다름). RPATH는
+    # 실행 시점 문제만 해결하므로, 링크 시점 문제는 이 디렉터리를 링커 검색 경로에도 추가해야 한다.
+    target_link_directories(${target} PRIVATE "${CMAKE_SOURCE_DIR}/Prophesee-linux/lib")
 
     target_link_options(${target} PRIVATE "LINKER:--disable-new-dtags")
 
