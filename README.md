@@ -18,7 +18,7 @@
 | CMake | 3.16 (일반 빌드) / **3.21+ 권장** | `CMakePresets.json`(schema version 3)은 3.21 이상 필요.</br> VS2019 16.11 번들 CMake는 약 3.20대라 preset 일부 기능이 불안정할 수 있음(아래 "알려진 이슈" 참고). |
 | C++ 표준 | C++17 | `CMAKE_CXX_STANDARD 17` |
 | OpenCV | 4.4.0 | Windows는 리포에 번들(`ocv440/` + 루트 `opencv_world440(d).dll`)되어 있어 별도 설치 불필요, CMake가 자동 감지.</br> Linux는 시스템 패키지 사용(아래 참고), 4.x대면 대체로 호환. |
-| Qt | Qt5 ≥ 5.14 또는 Qt6 (Widgets 모듈) | `QImage::Format_BGR888` 사용 때문에 5.14 미만은 안 됨. |
+| Qt | Qt5(버전 무관) 또는 Qt6 (Widgets 모듈) | 미리보기 프레임 변환에 `Format_RGB888` + `rgbSwapped()`를 쓰므로(Qt4 때부터 있는 API) 특정 최소 버전 제약 없음. |
 | Metavision SDK (Prophesee) | **5.2.0** (리포 `Prophesee/`에 번들된 버전) | Live 카메라 / RAW 재생(`EventProcessing.DiagQt`)에 필수.</br> 없어도 `EventProcessing.Core`/`EventProcessing.Console`은 CSV 입력만으로 빌드됨.</br> 필요 컴포넌트: `base`, `core`, `stream` (+ 내부적으로 `MetavisionHAL`, `MetavisionPSEEHWLayer`, `hdf5_ecf` 사용 — 전부 `Prophesee/`에 같이 번들됨). |
 | Boost | `timer` 컴포넌트만 | `Prophesee/`에 번들 안 되어 있음, 별도 설치 필요 (Metavision SDK의 `core` 모듈이 요구).</br> MSVC 툴셋 버전과 맞는 사전빌드 바이너리 권장(빌드 안 해도 됨). |
 
