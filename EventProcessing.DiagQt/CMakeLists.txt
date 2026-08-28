@@ -29,6 +29,7 @@ set_target_properties(EventProcessing.DiagQt PROPERTIES
 )
 
 eventcore_copy_windows_runtime_deps(EventProcessing.DiagQt)
+eventcore_copy_linux_runtime_deps(EventProcessing.DiagQt)
 
 # Qt DLL(및 platform 플러그인 등)은 windeployqt로 배포한다. 개발 중 실행 파일을 바로
 # 실행해보고 싶다면 Qt bin\ 디렉터리를 PATH에 추가하거나 아래를 수동 실행한다:

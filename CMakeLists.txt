@@ -167,6 +167,41 @@ function(eventcore_copy_windows_runtime_deps target)
     endif()
 endfunction()
 
+# Linux: Prophesee-linux/lib/에 OpenEB 자체 라이브러리뿐 아니라 그게 링크하는 OpenCV/Boost/HDF5/
+# Protobuf 등의 .so까지 같이 번들해둔 경우(ldd로 수집, README 참고), 실행 파일 옆으로 복사하고
+# RPATH를 $ORIGIN(실행 파일 자신의 디렉터리)으로 박아 넣어서 그 배포판에 OpenCV 등이 따로 안
+# 깔려 있어도 바로 실행되게 한다. Windows Prophesee/bin과 같은 취지.
+#
+# --disable-new-dtags: 기본값인 DT_RUNPATH는 실행 파일의 "직접" 의존성에만 적용되고, 그 라이브러리가
+# 다시 필요로 하는 라이브러리(예: libmetavision_sdk_stream.so가 필요로 하는 libopencv_core.so)에는
+# 전파되지 않는다. 반대로 예전 방식인 DT_RPATH는 프로세스 전체 의존성 체인에 전파되므로, 여러
+# 단계로 얽힌 이 번들에는 DT_RPATH가 필요하다.
+#
+# Prophesee-linux/가 없으면(아직 안 만들었거나 OpenEB를 스크립트로 소스 빌드해서 시스템에 설치한
+# 경우) 조용히 아무것도 안 한다 - 그때는 시스템에 설치된 라이브러리를 정상적인 방식(ldconfig 캐시)
+# 으로 찾아서 쓴다.
+function(eventcore_copy_linux_runtime_deps target)
+    if(NOT UNIX OR APPLE)
+        return()
+    endif()
+
+    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-linux/lib")
+        return()
+    endif()
+
+    target_link_options(${target} PRIVATE "LINKER:--disable-new-dtags")
+
+    set_target_properties(${target} PROPERTIES
+        BUILD_RPATH "$ORIGIN"
+        INSTALL_RPATH "$ORIGIN"
+    )
+
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/Prophesee-linux/lib" "$<TARGET_FILE_DIR:${target}>"
+        COMMENT "Copying bundled Linux OpenEB + dependency runtime libraries next to ${target}")
+endfunction()
+
 add_subdirectory(EventProcessing.Core)
 add_subdirectory(EventProcessing.Console)
 
