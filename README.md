@@ -190,17 +190,24 @@ Ball Detection
 Ready
     │
     ▼
-Shot Trigger
+Direction-Consistency Trigger
     │
     ▼
-Capturing
+Impact
+    │
+    ▼
+Trajectory (TRJCT)
     │
     └──────────► Searching
 ```
 
-Ball이 일정 시간 동안 동일 위치에서 안정적으로 검출되면 `Ready` 상태로 전환함.
+Ball이 `readySeconds` 이상 동일 위치(`stableMovePx` 이내)에서 안정적으로 검출되면 `Ready` 상태로 전환함(GUI에도 `READY` 표시).
 
-Ready 상태에서 설정한 이동 속도 이상의 변화가 발생하면 Shot으로 판단하고 `Capturing` 상태로 전환함.
+Ready 상태에서 Ball이 정지 위치를 벗어난 첫 프레임부터, 연속된 이동 벡터의 방향이 서로 크게 어긋나지 않는지(`maxDirectionDeviationDeg` 이내로 `directionConsistentFrames` 구간 연속)를 확인해 지그재그성 잡음과 실제 샷(클럽으로 쳐서 한 방향으로 날아가는 궤적)을 구분함. 방향 일관성이 확정되면 그 순간을 `Impact`로 표시하고, 트리거 기준은 확인이 끝난 프레임이 아니라 이동이 시작된 가장 첫 프레임임.
+
+Impact로 확정된 첫 프레임 기준으로 이전 `preCaptureSeconds`(기본 2초, 프레임 버퍼에서 소급 저장)와 이후 `postCaptureSeconds`(기본 2초, 실시간 저장) 구간을 `Trajectory`(`TRJCT`) 상태로 저장한 뒤 `Searching`으로 복귀함.
+
+RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인을 거치므로, Ball로 추정되는 물체(가장 넓은 외곽선)의 중심(초록 점)과 외곽(빨간 원 + 파란 바운딩 박스)이 매 프레임 디버그 이미지에 표시됨.
 
 ---
 
@@ -546,7 +553,7 @@ Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 
 - [x] Console Batch Processing
 - [x] Qt Diagnostic Viewer (Windows / Linux)
 - [x] CMake Build (Windows / Linux)
-- [x] Searching / Ready / Trigger / Capturing State Machine
+- [x] Searching / Ready / Impact / Trajectory (TRJCT) State Machine (direction-consistency shot trigger, pre/post capture)
 - [x] Repository-local Metavision SDK Path 구성
 - [x] Metavision Runtime DLL Post-Build Copy
 - [x] HAL Plugin Path 자동 설정

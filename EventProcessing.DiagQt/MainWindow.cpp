@@ -28,9 +28,10 @@ namespace
     {
         switch (state)
         {
-        case ShotState::Searching: return QStringLiteral("SEARCHING");
-        case ShotState::Ready:     return QStringLiteral("READY");
-        case ShotState::Capturing: return QStringLiteral("CAPTURING");
+        case ShotState::Searching:  return QStringLiteral("SEARCHING");
+        case ShotState::Ready:      return QStringLiteral("READY");
+        case ShotState::Impact:     return QStringLiteral("IMPACT");
+        case ShotState::Trajectory: return QStringLiteral("TRJCT");
         }
         return QStringLiteral("?");
     }
@@ -61,9 +62,12 @@ MainWindow::MainWindow(QWidget* parent)
     m_radioRaw->setChecked(true);
     m_editOutputDir->setText(QStringLiteral("./output"));
     m_editReadySec->setText(QStringLiteral("1.0"));
-    m_editCaptureSec->setText(QStringLiteral("1.0"));
+    m_editPreCaptureSec->setText(QStringLiteral("2.0"));
+    m_editPostCaptureSec->setText(QStringLiteral("2.0"));
     m_editStablePx->setText(QStringLiteral("15"));
     m_editShotSpeed->setText(QStringLiteral("1000"));
+    m_editDirConsistentFrames->setText(QStringLiteral("2"));
+    m_editMaxDirDeviationDeg->setText(QStringLiteral("35"));
     m_editMissToleranceMs->setText(QStringLiteral("150"));
     m_editWindowUs->setText(QStringLiteral("10000"));
 
@@ -147,24 +151,33 @@ void MainWindow::BuildUi()
     auto* paramLayout = new QGridLayout(paramBox);
 
     m_editReadySec = new QLineEdit(paramBox);
-    m_editCaptureSec = new QLineEdit(paramBox);
+    m_editPreCaptureSec = new QLineEdit(paramBox);
+    m_editPostCaptureSec = new QLineEdit(paramBox);
     m_editStablePx = new QLineEdit(paramBox);
     m_editShotSpeed = new QLineEdit(paramBox);
+    m_editDirConsistentFrames = new QLineEdit(paramBox);
+    m_editMaxDirDeviationDeg = new QLineEdit(paramBox);
     m_editMissToleranceMs = new QLineEdit(paramBox);
     m_editWindowUs = new QLineEdit(paramBox);
 
     paramLayout->addWidget(new QLabel(QStringLiteral("Ready (sec)")), 0, 0);
     paramLayout->addWidget(m_editReadySec, 0, 1);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Capture (sec)")), 0, 2);
-    paramLayout->addWidget(m_editCaptureSec, 0, 3);
+    paramLayout->addWidget(new QLabel(QStringLiteral("Pre-capture (sec)")), 0, 2);
+    paramLayout->addWidget(m_editPreCaptureSec, 0, 3);
+    paramLayout->addWidget(new QLabel(QStringLiteral("Post-capture (sec)")), 0, 4);
+    paramLayout->addWidget(m_editPostCaptureSec, 0, 5);
     paramLayout->addWidget(new QLabel(QStringLiteral("Stable move (px)")), 1, 0);
     paramLayout->addWidget(m_editStablePx, 1, 1);
     paramLayout->addWidget(new QLabel(QStringLiteral("Shot speed (px/s)")), 1, 2);
     paramLayout->addWidget(m_editShotSpeed, 1, 3);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Miss tolerance (ms)")), 2, 0);
-    paramLayout->addWidget(m_editMissToleranceMs, 2, 1);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Window (us)")), 2, 2);
-    paramLayout->addWidget(m_editWindowUs, 2, 3);
+    paramLayout->addWidget(new QLabel(QStringLiteral("Direction consistent frames")), 1, 4);
+    paramLayout->addWidget(m_editDirConsistentFrames, 1, 5);
+    paramLayout->addWidget(new QLabel(QStringLiteral("Max direction deviation (deg)")), 2, 0);
+    paramLayout->addWidget(m_editMaxDirDeviationDeg, 2, 1);
+    paramLayout->addWidget(new QLabel(QStringLiteral("Miss tolerance (ms)")), 2, 2);
+    paramLayout->addWidget(m_editMissToleranceMs, 2, 3);
+    paramLayout->addWidget(new QLabel(QStringLiteral("Window (us)")), 2, 4);
+    paramLayout->addWidget(m_editWindowUs, 2, 5);
 
     root->addWidget(paramBox);
 
@@ -225,9 +238,12 @@ ShotTriggerConfig MainWindow::ReadConfigFromUI() const
     ShotTriggerConfig cfg;
 
     cfg.readySeconds = m_editReadySec->text().toDouble();
-    cfg.captureSeconds = m_editCaptureSec->text().toDouble();
+    cfg.preCaptureSeconds = m_editPreCaptureSec->text().toDouble();
+    cfg.postCaptureSeconds = m_editPostCaptureSec->text().toDouble();
     cfg.stableMovePx = m_editStablePx->text().toFloat();
     cfg.shotSpeedPxPerSec = m_editShotSpeed->text().toFloat();
+    cfg.directionConsistentFrames = std::max(1, m_editDirConsistentFrames->text().toInt());
+    cfg.maxDirectionDeviationDeg = m_editMaxDirDeviationDeg->text().toFloat();
     cfg.missToleranceUs = static_cast<lli>(m_editMissToleranceMs->text().toDouble() * 1000.0);
 
     return cfg;
@@ -374,6 +390,39 @@ void MainWindow::FinishCaptureSave()
     m_capturingNow = false;
 }
 
+void MainWindow::PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg)
+{
+    m_preRollBuffer.push_back(msg);
+
+    const lli preRollUs = static_cast<lli>(m_activeConfig.preCaptureSeconds * 1000000.0);
+
+    while (!m_preRollBuffer.empty()
+        && (msg->windowStartUs - m_preRollBuffer.front()->windowStartUs) > preRollUs)
+    {
+        m_preRollBuffer.pop_front();
+    }
+}
+
+void MainWindow::FlushPreRollBuffer(lli impactUs)
+{
+    const lli preRollStartUs = impactUs - static_cast<lli>(m_activeConfig.preCaptureSeconds * 1000000.0);
+
+    int savedCount = 0;
+
+    for (const auto& buffered : m_preRollBuffer)
+    {
+        if (buffered->windowStartUs >= preRollStartUs)
+        {
+            SaveCaptureFrame(buffered->frame);
+            ++savedCount;
+        }
+    }
+
+    m_preRollBuffer.clear();
+
+    AppendLog(QStringLiteral("IMPACT - trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
+}
+
 void MainWindow::onStartClicked()
 {
     if (m_running)
@@ -393,9 +442,11 @@ void MainWindow::onStartClicked()
         windowUs = 10000;
     }
 
-    m_trigger = ShotTrigger(ReadConfigFromUI());
+    m_activeConfig = ReadConfigFromUI();
+    m_trigger = ShotTrigger(m_activeConfig);
     m_capturingNow = false;
     m_captureFrameIndex = 0;
+    m_preRollBuffer.clear();
 
     m_gotFirstFrame = false;
     m_seekRangeKnown = false;
@@ -502,6 +553,7 @@ void MainWindow::StopStream(const QString& logMessage)
     m_sliderPosition->setEnabled(false);
     m_sliderPosition->setValue(0);
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
+    m_preRollBuffer.clear();
     AppendLog(logMessage);
 }
 
@@ -569,6 +621,13 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
     const ShotUpdateResult su = m_trigger.Update(msg->ball, msg->windowStartUs);
     UpdateStateLabel(su.state);
 
+    // Trajectory 상태(TRJCT)에 들어가기 전까지의 모든 프레임은 Impact가 언제 확정될지 몰라도
+    // 미리 링 버퍼에 쌓아 둔다. Impact가 확정되면 이 버퍼에서 preCaptureSeconds 분량을 저장한다.
+    if (su.state != ShotState::Trajectory)
+    {
+        PushPreRollFrame(msg);
+    }
+
     if (su.justEnteredReady)
     {
         AppendLog(QStringLiteral("READY"));
@@ -577,17 +636,17 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
     if (su.justTriggered)
     {
         StartCaptureSave();
-        AppendLog(QStringLiteral("TRIGGERED - capture started"));
+        FlushPreRollBuffer(m_trigger.TriggerTimeUs());
     }
 
-    if (su.state == ShotState::Capturing)
+    if (su.state == ShotState::Trajectory)
     {
         SaveCaptureFrame(msg->frame);
     }
 
-    if (su.justFinishedCapture)
+    if (su.justFinishedTrajectory)
     {
-        AppendLog(QStringLiteral("Capture finished: %1 frame(s) saved to %2")
+        AppendLog(QStringLiteral("Trajectory capture finished: %1 frame(s) saved to %2")
             .arg(m_captureFrameIndex)
             .arg(m_currentCaptureDir));
         FinishCaptureSave();

@@ -8,6 +8,7 @@
 
 #include <QWidget>
 
+#include <deque>
 #include <memory>
 
 QT_BEGIN_NAMESPACE
@@ -62,6 +63,8 @@ private:
     void SaveCaptureFrame(const cv::Mat& bgrFrame);
     void FinishCaptureSave();
     void StopStream(const QString& logMessage);
+    void PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg);
+    void FlushPreRollBuffer(eventcore::lli impactUs);
 
     // LiveEventStream의 콜백은 워커 스레드에서 호출된다. 캡처한 프레임은 힙에 올려
     // QMetaObject::invokeMethod(..., Qt::QueuedConnection)로 UI 스레드에 마샬링해서 처리한다.
@@ -75,8 +78,14 @@ private:
 
     eventcore::LiveEventStream m_stream;
     eventcore::ShotTrigger m_trigger;
+    eventcore::ShotTriggerConfig m_activeConfig;
     bool m_running = false;
     QTimer* m_pollTimer = nullptr;
+
+    // Impact 확정 이전 프레임들을 preCaptureSeconds만큼 보관해 두는 링 버퍼. Impact가 확정되면
+    // (justTriggered) 여기서 기준 프레임 이후분을 한꺼번에 저장하고, 이후 프레임은 Trajectory
+    // 상태 동안 실시간으로 저장한다.
+    std::deque<std::shared_ptr<FrameMessage>> m_preRollBuffer;
 
     // RAW 파일 탐색(seek) 관련 상태. Live 카메라 소스에서는 사용하지 않는다.
     // Start() 직후에는 카메라가 아직 완전히 준비되지 않아 offline_streaming_control() 호출이
@@ -102,9 +111,12 @@ private:
     QLineEdit* m_editOutputDir = nullptr;
     QPushButton* m_btnBrowseOutput = nullptr;
     QLineEdit* m_editReadySec = nullptr;
-    QLineEdit* m_editCaptureSec = nullptr;
+    QLineEdit* m_editPreCaptureSec = nullptr;
+    QLineEdit* m_editPostCaptureSec = nullptr;
     QLineEdit* m_editStablePx = nullptr;
     QLineEdit* m_editShotSpeed = nullptr;
+    QLineEdit* m_editDirConsistentFrames = nullptr;
+    QLineEdit* m_editMaxDirDeviationDeg = nullptr;
     QLineEdit* m_editMissToleranceMs = nullptr;
     QLineEdit* m_editWindowUs = nullptr;
     QPushButton* m_btnStart = nullptr;
