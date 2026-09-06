@@ -589,7 +589,7 @@ void MainWindow::SeekTo(lli timestampUs)
 
     if (!m_stream.Seek(clamped))
     {
-        AppendLog(Tr(QStringLiteral("Seek failed"), QStringLiteral("탐색 실패")));
+        AppendLog(QStringLiteral("Seek failed"));
         return;
     }
 
@@ -666,9 +666,7 @@ void MainWindow::FlushPreRollBuffer(lli impactUs)
 
     m_preRollBuffer.clear();
 
-    AppendLog(Tr(
-        QStringLiteral("IMPACT - trajectory capture started (%1 pre-roll frame(s))"),
-        QStringLiteral("IMPACT - 궤적 저장 시작 (사전 프레임 %1개)")).arg(savedCount));
+    AppendLog(QStringLiteral("IMPACT - trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
 }
 
 void MainWindow::onStartStopClicked()
@@ -679,7 +677,7 @@ void MainWindow::onStartStopClicked()
     }
     else
     {
-        StopStream(Tr(QStringLiteral("Stopped"), QStringLiteral("정지됨")));
+        StopStream(QStringLiteral("Stopped"));
     }
 }
 
@@ -736,9 +734,7 @@ void MainWindow::StartStream()
 
     if (!live && rawPathStd.empty())
     {
-        AppendLog(Tr(
-            QStringLiteral("Please choose a RAW file, or select 'Live camera'."),
-            QStringLiteral("RAW 파일을 선택하거나 'Live camera'를 선택하세요.")));
+        AppendLog(QStringLiteral("Please choose a RAW file, or select 'Live camera'."));
         return;
     }
 
@@ -761,7 +757,7 @@ void MainWindow::StartStream()
 
     if (!ok)
     {
-        QString msg = Tr(QStringLiteral("Failed to start stream"), QStringLiteral("스트림 시작 실패"));
+        QString msg = QStringLiteral("Failed to start stream");
         const std::string& err = m_stream.LastError();
         if (!err.empty())
         {
@@ -778,8 +774,8 @@ void MainWindow::StartStream()
     UpdateRunButtons();
     m_labelState->setText(QStringLiteral("SEARCHING"));
     AppendLog(live
-        ? Tr(QStringLiteral("Started (live camera) - recording"), QStringLiteral("시작됨 (라이브 카메라) - 녹화 중"))
-        : Tr(QStringLiteral("Started (RAW playback)"), QStringLiteral("시작됨 (RAW 재생)")));
+        ? QStringLiteral("Started (live camera) - recording")
+        : QStringLiteral("Started (RAW playback)"));
 }
 
 void MainWindow::PauseStream()
@@ -794,9 +790,7 @@ void MainWindow::PauseStream()
         // 카메라/미리보기는 그대로 흐르게 둔다(끼어든 상황이 지나가는 걸 볼 수 있도록). ShotTrigger
         // 갱신과 프레임 저장(녹화)만 건너뛴다 - OnFrameReady에서 m_processingPaused를 확인해 처리.
         m_processingPaused = true;
-        AppendLog(Tr(
-            QStringLiteral("PAUSED - live preview continues, recording suspended"),
-            QStringLiteral("일시정지됨 - 미리보기는 계속되고 녹화만 중단됨")));
+        AppendLog(QStringLiteral("PAUSED - live preview continues, recording suspended"));
     }
     else
     {
@@ -804,11 +798,11 @@ void MainWindow::PauseStream()
         // 멈춘 그 자리에 그대로 남는다.
         if (!m_stream.Pause())
         {
-            AppendLog(Tr(QStringLiteral("Pause failed"), QStringLiteral("일시정지 실패")));
+            AppendLog(QStringLiteral("Pause failed"));
             return;
         }
         m_processingPaused = true;
-        AppendLog(Tr(QStringLiteral("PAUSED - playback frozen"), QStringLiteral("일시정지됨 - 재생 화면 정지")));
+        AppendLog(QStringLiteral("PAUSED - playback frozen"));
     }
 
     m_runState = RunState::Paused;
@@ -826,7 +820,7 @@ void MainWindow::ResumeStream()
     {
         if (!m_stream.Resume())
         {
-            AppendLog(Tr(QStringLiteral("Resume failed"), QStringLiteral("재개 실패")));
+            AppendLog(QStringLiteral("Resume failed"));
             return;
         }
     }
@@ -835,8 +829,8 @@ void MainWindow::ResumeStream()
     m_runState = RunState::Running;
     UpdateRunButtons();
     AppendLog(m_liveMode
-        ? Tr(QStringLiteral("RESUMED - recording"), QStringLiteral("재개됨 - 녹화 중"))
-        : Tr(QStringLiteral("RESUMED - playback"), QStringLiteral("재개됨 - 재생 중")));
+        ? QStringLiteral("RESUMED - recording")
+        : QStringLiteral("RESUMED - playback"));
 }
 
 void MainWindow::onPollStreamState()
@@ -851,9 +845,7 @@ void MainWindow::onPollStreamState()
         // RAW 파일이 끝까지 재생되어 LiveEventStream이 스스로 멈춘 경우. m_stream.Stop()은
         // 이미 멈춘 스트림에 대해서도 안전하게 호출할 수 있고(워커 스레드 join 보장),
         // Stop 버튼을 누른 것과 동일하게 UI 상태를 정리한다.
-        StopStream(Tr(
-            QStringLiteral("Playback finished (reached end of RAW file)"),
-            QStringLiteral("재생 완료 (RAW 파일 끝에 도달)")));
+        StopStream(QStringLiteral("Playback finished (reached end of RAW file)"));
         return;
     }
 
@@ -1013,9 +1005,7 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
 
     if (su.justFinishedTrajectory)
     {
-        AppendLog(Tr(
-            QStringLiteral("Trajectory capture finished: %1 frame(s) saved to %2"),
-            QStringLiteral("궤적 저장 완료: %1개 프레임을 %2에 저장함"))
+        AppendLog(QStringLiteral("Trajectory capture finished: %1 frame(s) saved to %2")
             .arg(m_captureFrameIndex)
             .arg(m_currentCaptureDir));
         FinishCaptureSave();

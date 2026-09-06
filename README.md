@@ -219,7 +219,7 @@ RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인�
 상단 메뉴바는 **File(파일) - Settings(설정) - About(정보)** 순서로 구성됨.
 
 - **File**: `Mode`(Live camera / RAW file - Source 그룹의 라디오 버튼과 양방향으로 동기화됨), `Open File...`(RAW 파일 찾아보기, 기존 Browse... 버튼과 동일), `Set Output Path...`(산출물 폴더 찾아보기, 기존 Browse... 버튼과 동일). Start/Pause/Stop은 메뉴로 옮기지 않고 버튼으로만 둠.
-- **Settings**: `Language`에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 메뉴 문구, 로그 메시지 등 화면에 보이는 문구가 즉시 다시 그려짐(재시작 불필요). 단, `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 같은 상태 코드는 언어와 무관하게 고정된 영문 토큰으로 유지됨.
+- **Settings**: `Language`에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 메뉴 문구, 파일 대화상자 등 화면에 보이는 UI 문구가 즉시 다시 그려짐(재시작 불필요). 단, 로그 패널(`AppendLog`) 메시지와 `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 상태 코드는 언어 설정과 무관하게 항상 영어로 고정됨.
 - **About**: `Version`은 정식 버전 번호 체계가 없어 빌드 시점의 git 커밋 해시와 날짜를 대신 보여줌(`EventProcessing.DiagQt/CMakeLists.txt`에서 컴파일 시 주입). `License`는 연락처 정보(서울대학교 공학전문대학원 김혜빈)를 보여줌.
 
 ---
