@@ -146,7 +146,8 @@
 | 옵션 | 기본값 | 설명 |
 |---|---|---|
 | `EVENTCORE_NO_METAVISION` | `OFF` | `ON`으로 주면 Metavision SDK가 있어도 강제로 안 씀 </br>(CSV 입력만 지원, `EventProcessing.DiagQt` 제외). |
-| `CMAKE_BUILD_TYPE` | `Release`(미지정 시 기본값으로 설정됨) | `Debug`/`Release` |
+| `EVENTCORE_USE_SYSTEM_METAVISION` | `OFF` | `ON`으로 주면 번들된 `Prophesee-window/`·`Prophesee-linux/` 대신 시스템에 설치된 Metavision SDK/OpenEB를 사용함 </br>(번들 버전이 실제 카메라가 녹화한 RAW 파일 포맷을 못 열 때 등). 런타임 DLL/`.so` 복사도 같이 꺼짐(버전 혼선 방지). |
+| `CMAKE_BUILD_TYPE` | `Release`(미지정 시 기본값으로 설정됨; Metavision SDK가 잡히면 Windows에서는 Release로 강제됨 - Prophesee가 Release 바이너리만 배포해 Debug와 ABI 호환 안 됨) | `Debug`/`Release` |
 | `CMAKE_PREFIX_PATH` | - | Qt 등 추가 검색 경로. `windows-qt` CMake preset이 `QT_DIR`로 자동 설정함. |
 
 
@@ -272,17 +273,37 @@ Ball Detection
 Ready
     │
     ▼
-Shot Trigger
+Direction-Consistency Trigger
     │
     ▼
-Capturing
+Impact
+    │
+    ▼
+Trajectory (TRJCT)
     │
     └──────────► Searching
 ```
 
-Ball이 일정 시간 동안 동일 위치에서 안정적으로 검출되면 `Ready` 상태로 전환함.
+Ball이 `readySeconds` 이상 동일 위치(`stableMovePx` 이내)에서 안정적으로 검출되면 `Ready` 상태로 전환함(GUI에도 `READY` 표시).
 
-Ready 상태에서 설정한 이동 속도 이상의 변화가 발생하면 Shot으로 판단하고 `Capturing` 상태로 전환함.
+Ready 상태에서 Ball이 정지 위치를 벗어난 첫 프레임부터, 연속된 이동 벡터의 방향이 서로 크게 어긋나지 않는지(`maxDirectionDeviationDeg` 이내로 `directionConsistentFrames` 구간 연속)를 확인해 지그재그성 잡음과 실제 샷(클럽으로 쳐서 한 방향으로 날아가는 궤적)을 구분함. 방향 일관성이 확정되면 그 순간을 `Impact`로 표시하고, 트리거 기준은 확인이 끝난 프레임이 아니라 이동이 시작된 가장 첫 프레임임.
+
+Impact로 확정된 첫 프레임 기준으로 이전 `preCaptureSeconds`(기본 2초, 프레임 버퍼에서 소급 저장)와 이후 `postCaptureSeconds`(기본 2초, 실시간 저장) 구간을 `Trajectory`(`TRJCT`) 상태로 저장한 뒤 `Searching`으로 복귀함.
+
+RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인을 거치므로, Ball로 추정되는 물체(가장 넓은 외곽선)의 중심(초록 점)과 외곽(빨간 원 + 파란 바운딩 박스)이 매 프레임 디버그 이미지에 표시됨.
+
+컨트롤 버튼은 2개: **Start(시작)/Stop(중단)** 토글 버튼과 **Pause(멈춤)/Resume(재개)** 토글 버튼. 각 버튼이 상태에 따라 라벨과 동작이 함께 바뀜(빈 라벨로 남는 경우 없음).
+
+- **Start/Stop 버튼**: IDLE일 때 라벨은 `Start`(누르면 시작). Running/Paused일 때는 라벨이 `Stop`으로 바뀌고, 누르면 항상 완전히 종료해 처음(IDLE) 상태로 되돌아감 - 미리보기 화면도 까맣게 초기화됨.
+- **Pause/Resume 버튼**: IDLE일 때는 비활성화(멈출 대상이 없음). Running일 때 라벨은 `Pause`(누르면 일시정지). Paused일 때는 라벨이 `Resume`으로 바뀜(누르면 재개).
+- **Pause 동작 - RAW 파일**(영상 재생 중일 때): 재생 자체를 그 자리에서 멈춰(카메라를 정지) 화면이 멈춘 프레임 그대로 남음. `Resume`을 누르면 멈췄던 바로 그 시각으로 seek해서 이어서 재생함(멈춰 있던 시간만큼 건너뛰지 않음).
+- **Pause 동작 - Live Camera**: `Start`는 녹화 시작, `Stop`은 녹화 종료. `Pause`는 녹화 종료가 아니라 녹화만 잠시 중지하는 것으로, 카메라와 미리보기 화면은 계속 흘러서 끼어든 상황이 지나가는 걸 볼 수 있고, ShotTrigger 갱신과 프레임 저장만 건너뜀. `Resume`을 누르면 그 시점부터 다시 녹화를 재개함.
+
+상단 메뉴바는 **File(파일) - Settings(설정) - About(정보)** 순서로 구성됨.
+
+- **File**: `Mode`(Live camera / RAW file - Source 그룹의 라디오 버튼과 양방향으로 동기화됨), `Open File...`(RAW 파일 찾아보기, 기존 Browse... 버튼과 동일), `Set Output Path...`(산출물 폴더 찾아보기, 기존 Browse... 버튼과 동일). Start/Pause/Stop은 메뉴로 옮기지 않고 버튼으로만 둠.
+- **Settings**: `Language`에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 메뉴 문구, 파일 대화상자 등 화면에 보이는 UI 문구가 즉시 다시 그려짐(재시작 불필요). 단, 로그 패널(`AppendLog`) 메시지와 `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 상태 코드는 언어 설정과 무관하게 항상 영어로 고정됨.
+- **About**: `Version`은 정식 버전 번호 체계가 없어 빌드 시점의 git 커밋 해시와 날짜를 대신 보여줌(`EventProcessing.DiagQt/CMakeLists.txt`에서 컴파일 시 주입). `License`는 제품명/버전/저작권/라이선스 조항/서드파티 라이선스/연락처를 한 화면에 보여주는 About 형식 텍스트임 - 정식 오픈소스 라이선스가 아직 지정되지 않았고 저장소에 LICENSE 파일이 없다는 점을 그대로 명시하고, 실제로 확인 가능한 사실(번들된 Prophesee-window/Prophesee-linux·HDF5 SDK의 실제 라이선스 파일 경로, 실제 GitHub 저장소·이슈 트래커 주소, 서울대학교 공학전문대학원 김혜빈 연락처)만 채움(가상의 라이선스 종류나 웹사이트를 지어내지 않음). Website/Bug Report/Email은 `QTextBrowser`(`setOpenExternalLinks(true)`) 기반 다이얼로그라 실제 클릭하면 기본 브라우저/메일 클라이언트로 이동함. 이 블록은 로그와 마찬가지로 언어 설정과 무관하게 항상 영어 원문임.
 
 ---
 
@@ -628,7 +649,7 @@ Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 
 - [x] Console Batch Processing
 - [x] Qt Diagnostic Viewer (Windows / Linux)
 - [x] CMake Build (Windows / Linux)
-- [x] Searching / Ready / Trigger / Capturing State Machine
+- [x] Searching / Ready / Impact / Trajectory (TRJCT) State Machine (direction-consistency shot trigger, pre/post capture)
 - [x] Repository-local Metavision SDK Path 구성
 - [x] Metavision Runtime DLL Post-Build Copy
 - [x] HAL Plugin Path 자동 설정
