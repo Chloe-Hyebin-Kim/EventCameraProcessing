@@ -74,14 +74,20 @@ find_package(OpenCV REQUIRED)
 # CMake package config가 이미 들어있으므로(share\cmake\MetavisionSDK\...), 시스템에 SDK가 따로
 # 설치되어 있지 않아도 이 리포만 clone하면 바로 잡히도록 검색 경로 맨 앞에 추가한다.
 # Metavision.props와 동일하게 리포에 번들된 쪽을 시스템 설치보다 우선시킨다.
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-window/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
+#
+# 다만 컴퓨터마다 시스템에 설치된 Metavision SDK/OpenEB 버전이 다르고, 실제 카메라로 녹화한
+# RAW 파일은 그 컴퓨터의 SDK 버전에 맞게 만들어졌을 수 있다. 번들된 버전(현재 5.2.0)이 그 RAW
+# 파일을 못 열면(오래된/새로운 포맷 등), 아래 옵션으로 시스템 설치본을 대신 쓰도록 전환할 수 있다.
+option(EVENTCORE_USE_SYSTEM_METAVISION "Prefer a system-installed Metavision SDK over the bundled Prophesee-window/Prophesee-linux copy" OFF)
+
+if(WIN32 AND NOT EVENTCORE_USE_SYSTEM_METAVISION AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-window/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
     list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Prophesee-window")
 endif()
 
 # Linux: 위와 같은 취지로, 연구실 Linux 머신에서 실제로 빌드된 OpenEB를 install_manifest.txt
 # 기준으로 리포에 번들해둔 Prophesee-linux/(scripts/setup-linux-openeb.sh로 매번 소스 빌드하는
 # 대신 바로 쓸 수 있게)가 있으면 시스템 설치본보다 우선 사용한다.
-if(UNIX AND NOT APPLE AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-linux/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
+if(UNIX AND NOT APPLE AND NOT EVENTCORE_USE_SYSTEM_METAVISION AND EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-linux/share/cmake/MetavisionSDK/MetavisionSDKConfig.cmake")
     list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Prophesee-linux")
 endif()
 
@@ -143,26 +149,31 @@ function(eventcore_copy_windows_runtime_deps target)
         return()
     endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-window/bin")
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/Prophesee-window/bin" "$<TARGET_FILE_DIR:${target}>"
-            COMMENT "Copying bundled Metavision runtime DLLs next to ${target}")
-    endif()
+    # EVENTCORE_USE_SYSTEM_METAVISION일 때는 이 번들 DLL/HAL 플러그인을 복사하면 안 된다.
+    # 실행 파일 옆(로컬 디렉터리)의 DLL이 PATH보다 먼저 검색되므로, 링크는 시스템 SDK로 했는데
+    # 실행 시에는 여기서 복사한 번들(다른 버전) DLL이 로드되어 버전이 어긋나 버린다.
+    if(NOT EVENTCORE_USE_SYSTEM_METAVISION)
+        if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-window/bin")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/Prophesee-window/bin" "$<TARGET_FILE_DIR:${target}>"
+                COMMENT "Copying bundled Metavision runtime DLLs next to ${target}")
+        endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-window/lib/metavision/hal/plugins")
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/hal_plugins"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/Prophesee-window/lib/metavision/hal/plugins" "$<TARGET_FILE_DIR:${target}>/hal_plugins"
-            COMMENT "Copying bundled Metavision HAL plugins next to ${target}")
-    endif()
+        if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-window/lib/metavision/hal/plugins")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/hal_plugins"
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/Prophesee-window/lib/metavision/hal/plugins" "$<TARGET_FILE_DIR:${target}>/hal_plugins"
+                COMMENT "Copying bundled Metavision HAL plugins next to ${target}")
+        endif()
 
-    if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-window/bin/libusb-1.0.dll")
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/Prophesee-window/bin/libusb-1.0.dll" "$<TARGET_FILE_DIR:${target}>/hal_plugins/"
-            COMMENT "Copying libusb-1.0.dll next to ${target}'s hal_plugins")
+        if(EXISTS "${CMAKE_SOURCE_DIR}/Prophesee-window/bin/libusb-1.0.dll")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_SOURCE_DIR}/Prophesee-window/bin/libusb-1.0.dll" "$<TARGET_FILE_DIR:${target}>/hal_plugins/"
+                COMMENT "Copying libusb-1.0.dll next to ${target}'s hal_plugins")
+        endif()
     endif()
 
     if(EXISTS "${CMAKE_SOURCE_DIR}/opencv_world440.dll" OR EXISTS "${CMAKE_SOURCE_DIR}/opencv_world440d.dll")
@@ -171,6 +182,21 @@ function(eventcore_copy_windows_runtime_deps target)
                 "$<$<CONFIG:Debug>:${CMAKE_SOURCE_DIR}/opencv_world440d.dll>$<$<NOT:$<CONFIG:Debug>>:${CMAKE_SOURCE_DIR}/opencv_world440.dll>"
                 "$<TARGET_FILE_DIR:${target}>"
             COMMENT "Copying bundled OpenCV DLL next to ${target}")
+    endif()
+
+    # 위의 opencv_world440(d).dll 하드코딩 복사는 우리 번들 OpenCV를 실제로 링크했을 때만 맞다.
+    # 이 머신에 vcpkg가 전역 통합되어 있는 등의 이유로 find_package(OpenCV)가 다른(예: 모듈형)
+    # OpenCV를 대신 찾아 링크하면, opencv_imgcodecs4d.dll 같은 낯선 이름의 DLL이 필요해지는데
+    # 위 로직은 그 이름을 몰라서 복사를 못 한다("...dll이(가) 없어 코드 실행을 진행할 수 없습니다"
+    # 오류로 나타남). 어떤 OpenCV/Qt/기타 라이브러리가 실제로 링크됐든 상관없이, 그 타깃이
+    # 필요로 하는 런타임 DLL을 CMake가 스스로 알아내 복사하게 한다(CMake 3.21+).
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_RUNTIME_DLLS:${target}>"
+                "$<TARGET_FILE_DIR:${target}>"
+            COMMAND_EXPAND_LISTS
+            COMMENT "Copying ${target}'s runtime DLL dependencies (whatever OpenCV/Qt/etc. it actually linked)")
     endif()
 endfunction()
 
@@ -189,6 +215,13 @@ endfunction()
 # 으로 찾아서 쓴다.
 function(eventcore_copy_linux_runtime_deps target)
     if(NOT UNIX OR APPLE)
+        return()
+    endif()
+
+    # EVENTCORE_USE_SYSTEM_METAVISION일 때는(위 Windows용 함수와 같은 이유로) 이 번들 .so를
+    # 실행 파일 옆에 복사하면 안 된다 - RPATH가 $ORIGIN이라 시스템에 설치된 버전보다 이쪽이
+    # 먼저 로드되어, 링크는 시스템 SDK로 했는데 실행은 번들된(다른 버전) 라이브러리로 되어버린다.
+    if(EVENTCORE_USE_SYSTEM_METAVISION)
         return()
     endif()
 
