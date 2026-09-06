@@ -160,6 +160,40 @@ void MainWindow::BuildUi()
     m_editMissToleranceMs = new QLineEdit(paramBox);
     m_editWindowUs = new QLineEdit(paramBox);
 
+    m_editReadySec->setToolTip(QStringLiteral(
+        "How long (seconds) the ball must stay still at the same spot\n"
+        "before the state machine enters READY."));
+    m_editPreCaptureSec->setToolTip(QStringLiteral(
+        "How many seconds of buffered frames BEFORE the Impact frame\n"
+        "to include when saving the Trajectory (TRJCT) capture."));
+    m_editPostCaptureSec->setToolTip(QStringLiteral(
+        "How many seconds AFTER the Impact frame to keep saving frames\n"
+        "during Trajectory (TRJCT), before returning to SEARCHING."));
+    m_editStablePx->setToolTip(QStringLiteral(
+        "Maximum center-point jitter (pixels) still counted as \"stationary\"\n"
+        "while in READY. Also the threshold used to detect the first frame\n"
+        "the ball leaves that spot (the start of a possible shot)."));
+    m_editShotSpeed->setToolTip(QStringLiteral(
+        "Minimum center-point speed (pixels/second) a movement must reach,\n"
+        "in addition to direction consistency, to count toward confirming\n"
+        "Impact."));
+    m_editDirConsistentFrames->setToolTip(QStringLiteral(
+        "How many consecutive direction comparisons must stay within\n"
+        "\"Max direction deviation\" before a movement is confirmed as a real\n"
+        "shot (Impact) rather than zigzag noise."));
+    m_editMaxDirDeviationDeg->setToolTip(QStringLiteral(
+        "Maximum angle (degrees) allowed between consecutive movement\n"
+        "vectors while confirming a shot. A bigger change is treated as\n"
+        "zigzag/noise, which resets back to SEARCHING."));
+    m_editMissToleranceMs->setToolTip(QStringLiteral(
+        "How long (milliseconds) a brief ball-detection dropout is tolerated\n"
+        "without resetting the state. A stationary ball produces very few\n"
+        "events, so detection can blink out for a moment even though the\n"
+        "ball hasn't actually moved."));
+    m_editWindowUs->setToolTip(QStringLiteral(
+        "Event-accumulation window length (microseconds): how often a new\n"
+        "frame is built and the ball position is re-evaluated."));
+
     paramLayout->addWidget(new QLabel(QStringLiteral("Ready (sec)")), 0, 0);
     paramLayout->addWidget(m_editReadySec, 0, 1);
     paramLayout->addWidget(new QLabel(QStringLiteral("Pre-capture (sec)")), 0, 2);
