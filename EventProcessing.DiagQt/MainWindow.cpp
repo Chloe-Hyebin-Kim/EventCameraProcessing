@@ -923,11 +923,47 @@ void MainWindow::onShowAboutVersion()
 
 void MainWindow::onShowAboutLicense()
 {
+    // 이 블록은 의도적으로 언어 설정과 무관하게 항상 영어 원문 그대로 보여준다(로그와 같은 이유 -
+    // 법적/연락처 정보라 의역하지 않음). 정식 라이선스가 아직 지정되지 않았고 저장소에 LICENSE
+    // 파일이 없으므로, 없는 사실(라이선스 종류, 웹사이트 등)을 지어내는 대신 실제로 확인 가능한
+    // 내용만 채운다: 번들된 서드파티 SDK의 실제 라이선스 파일 경로, 실제 GitHub 저장소 주소 등.
     const QString text = QStringLiteral(
-        "HyeBin Kim, Graduate School of Engineering Practice, Seoul National University\n"
-        "1 Gwanak-ro, Gwanak-gu, Seoul, Republic of Korea\n"
-        "Email: dev5igner@snu.ac.kr\n"
-        "Tel: +82-010-2008-2026");
+        "======================================================================\n"
+        " PRODUCT NAME : Event Camera Processor\n"
+        " VERSION      : Build %1 (%2)\n"
+        " COPYRIGHT    : Copyright (c) %3 HyeBin Kim, Graduate School of\n"
+        "                Engineering Practice, Seoul National University.\n"
+        "                All rights reserved.\n"
+        "======================================================================\n"
+        "\n"
+        " LICENSING TERMS :\n"
+        " No open-source license has been assigned to this software yet\n"
+        " (this repository does not currently contain a LICENSE file). All\n"
+        " rights are reserved by the copyright holder above unless otherwise\n"
+        " agreed in writing.\n"
+        "\n"
+        " THIRD-PARTY LICENSES :\n"
+        " This application uses the following third-party components:\n"
+        "   - Prophesee Metavision SDK\n"
+        "     see Prophesee/share/metavision/licensing/LICENSE_OPEN\n"
+        "   - HDF5 (ECF codec, bundled with the Metavision SDK)\n"
+        "     see Prophesee/share/hdf5_ecf/LICENSE\n"
+        "   - OpenCV 4.4.x (bundled under ocv440/)\n"
+        "     BSD 3-Clause License (per OpenCV's own release notes; no\n"
+        "     LICENSE file is bundled in ocv440/ to check directly)\n"
+        "   - Qt Widgets (not bundled; found on your system via CMake)\n"
+        "     LGPLv3 / GPLv3, or commercial, depending on your Qt install\n"
+        "\n"
+        " CONTACT / SUPPORT :\n"
+        " - Email      : dev5igner@snu.ac.kr\n"
+        " - Tel        : +82-010-2008-2026\n"
+        " - Address    : 1 Gwanak-ro, Gwanak-gu, Seoul, Republic of Korea\n"
+        " - Website    : https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing\n"
+        " - Bug Report : https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing/issues\n"
+        "======================================================================")
+        .arg(QStringLiteral(EVENTCORE_GIT_COMMIT_HASH))
+        .arg(QStringLiteral(EVENTCORE_BUILD_DATE))
+        .arg(QDate::currentDate().year());
 
     QMessageBox::information(this, Tr(QStringLiteral("License"), QStringLiteral("라이센스")), text);
 }
