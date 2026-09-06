@@ -13,6 +13,8 @@
 #include <excpt.h>
 #endif
 
+#include "Utf8Path.h"
+
 namespace eventcore
 {
     namespace
@@ -99,7 +101,7 @@ namespace eventcore
             }
             else
             {
-                *ctx->target = Metavision::Camera::from_file(*ctx->path, Metavision::FileConfigHints().real_time_playback(true));
+                *ctx->target = Metavision::Camera::from_file(Utf8ToPath(*ctx->path), Metavision::FileConfigHints().real_time_playback(true));
             }
         }
 #endif
@@ -135,7 +137,7 @@ namespace eventcore
             }
             else
             {
-                m_camera = Metavision::Camera::from_file(std::string(path), Metavision::FileConfigHints().real_time_playback(true));
+                m_camera = Metavision::Camera::from_file(Utf8ToPath(path), Metavision::FileConfigHints().real_time_playback(true));
             }
 #endif
         }

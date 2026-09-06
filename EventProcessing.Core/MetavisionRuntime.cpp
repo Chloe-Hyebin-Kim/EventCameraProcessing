@@ -70,7 +70,7 @@ namespace eventcore
 
         const std::filesystem::path pluginDir = exePath.parent_path() / "hal_plugins";
 
-        // 실행 파일 옆에 번들된 hal_plugins\ (post-build에서 Prophesee\lib\metavision\hal\plugins를
+        // 실행 파일 옆에 번들된 hal_plugins\ (post-build에서 Prophesee-window\lib\metavision\hal\plugins를
         // 복사해둔 것)가 있으면, 시스템에 이미 설정된 MV_HAL_PLUGIN_PATH가 있더라도 이 리포에 맞는
         // 플러그인을 확실히 쓰도록 우선시킨다. (오래되었거나 다른 SDK 설치를 가리키는 시스템 값이
         // 남아있으면 "No plugin available" 같은 혼란스러운 에러로 이어질 수 있다.)

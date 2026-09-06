@@ -9,6 +9,79 @@
 </br>
 
 
+## Quick Start (소스 받아서 GUI 실행하기)
+
+> **`QtVer` 브랜치 기준.** GUI(`EventProcessing.DiagQt`) 실행에 필요한 인프라(Linux용 OpenEB 빌드 스크립트, Windows Release 강제, DLL 자동 배포 등)가 현재 `QtVer` 브랜치에만 있으므로, 아래 단계는 전부 `QtVer`를 받았다는 전제로 진행함. 더 자세한 배경/트러블슈팅은 아래 [Requirements](#requirements), [알려진 이슈](#알려진-이슈) 섹션 참고.
+
+### Windows
+
+1. **필수 프로그램 설치**
+   - Visual Studio 2019(16.11+) 또는 2022 — 설치 시 **"C++를 사용한 데스크톱 개발"** 워크로드 + **"C++ CMake 도구"** 컴포넌트 체크
+   - Qt — [Qt Online Installer](https://www.qt.io/download-qt-installer)로 설치. VS2022면 `MSVC 2022 64-bit` 키트(Qt 6.x) 선택
+   - Boost — [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치 (VS2022 → `boost_1_8x_0-msvc-14.3-64.exe`, 기본 경로 `C:\local\boost_1_8x_0\` 그대로 두면 자동 감지됨)
+   - OpenCV / Metavision SDK는 리포에 번들되어 있어 별도 설치 불필요
+
+2. **Qt 경로를 환경 변수로 등록**: 시스템 환경 변수에 `QT_DIR`을 Qt 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`). 설정 후 Visual Studio를 껐다 다시 켜야 반영됨.
+
+3. **소스 받기**
+   ```bash
+   git clone --branch QtVer https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing
+   ```
+
+4. **Visual Studio에서 열기**: `EventCameraProcessing` 폴더를 **파일 > 폴더 열기(Open Folder)** 로 연다. (`.sln`을 더블클릭하는 게 아님 — 거기엔 GUI가 안 들어있음.)
+
+5. 상단 구성 드롭다운에서 **`windows-qt`** 를 선택하면 CMake가 자동으로 configure됨(잠시 대기).
+
+6. **빌드**: 상단 메뉴 `빌드 > 모두 빌드`(또는 `Ctrl+Shift+B`).
+
+7. **실행**: 시작 항목을 `EventProcessing.DiagQt.exe`로 선택하고 실행(F5), 또는 빌드된 실행 파일을 직접 실행:
+   ```
+   build\windows-qt\EventProcessing.DiagQt\EventProcessing.DiagQt.exe
+   ```
+
+### Linux (Ubuntu/Debian 기준)
+
+1. **필수 패키지 설치**
+   ```bash
+   sudo apt install cmake build-essential libopencv-dev qt6-base-dev
+   # qt6-base-dev가 안 잡히면 대신: qtbase5-dev
+   ```
+
+2. **소스 받기**
+   ```bash
+   git clone --branch QtVer https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing
+   cd EventCameraProcessing
+   ```
+
+3. **Metavision SDK(OpenEB) 준비** — 두 가지 방법이 있음.
+
+   **방법 A: 번들 그대로 써보기 (`Prophesee-linux/`, 별도 설치/빌드 없음)**
+
+   리포에 Ubuntu 20.04에서 빌드해 번들해둔 OpenEB + 의존 라이브러리(`Prophesee-linux/`)가 들어있어서, 그냥 clone만 하면 3번 단계 없이 바로 4번(Configure + 빌드)으로 넘어가도 됨. 다만 **그 컴퓨터의 시스템 OpenCV 버전이 번들(4.2)과 크게 다르면(예: Ubuntu 22.04/24.04의 기본 OpenCV 4.5+/4.6+) 빌드 시점에 라이브러리 버전 충돌로 링크가 실패할 수 있음** — 실제로 확인된 증상: `EventProcessing.Console`/`EventProcessing.DiagQt` 링크 단계에서 `libgdal`/`libgeos`/`libspatialite` 등에서 `undefined reference` 에러가 무더기로 남. 이 경우 아래 방법 B로 넘어갈 것.
+
+   **방법 B: 소스에서 직접 빌드/설치 (방법 A가 안 될 때, 또는 처음부터 이쪽을 원하면)**
+
+   그 컴퓨터의 실제 시스템 라이브러리 버전에 맞춰 새로 빌드하므로 방법 A의 버전 충돌 문제가 없음. 대신 OpenEB 자체가 커서 시간이 좀 걸림.
+   ```bash
+   ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
+   # sudo 권한이 없으면:
+   ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치 (완료 후 안내되는 환경변수 추가 필요)
+   ```
+   방법 B로 설치하면 CMake가 시스템 설치본을 우선 쓰므로, 리포의 `Prophesee-linux/`는 무시됨(`CMakeLists.txt`가 `Prophesee-linux/`를 시스템보다 먼저 검색 경로에 넣긴 하지만, `find_package`가 성공하는 쪽이 어차피 먼저 잡힌 그 경로이므로 실질적으로 방법 A가 실패하지 않는 한 방법 B 설치본이 쓰일 일은 없음 — 방법 A가 안 되면 `rm -rf Prophesee-linux`로 아예 지우고 방법 B만 쓸 것).
+
+4. **Configure + 빌드**
+   ```bash
+   cmake --preset linux
+   cmake --build build/linux -j$(nproc)
+   ```
+   configure 로그에 `Metavision SDK found - Live camera / RAW support enabled` 가 보여야 `EventProcessing.DiagQt`까지 같이 빌드됨. 안 보이면 3번을 아직 안 했거나(방법 A만 있고 B는 안 했는데 A도 실패한 경우 등) 새 셸을 안 열었을 가능성이 큼. configure는 통과했는데 **빌드(링크) 단계에서 `undefined reference to ...` 에러**가 나면 방법 A의 버전 충돌이니 3번의 방법 B로 넘어갈 것.
+
+5. **실행**
+   ```bash
+   ./build/linux/EventProcessing.DiagQt/EventProcessing.DiagQt
+   ```
+   `error while loading shared libraries: libmetavision_sdk_core.so.5` 같은 에러가 뜨면 `sudo ldconfig` 한 번 실행 후 다시 시도.
+
 ## Requirements
 
 ### Common
@@ -18,9 +91,9 @@
 | CMake | 3.16 (일반 빌드) / **3.21+ 권장** | `CMakePresets.json`(schema version 3)은 3.21 이상 필요.</br> VS2019 16.11 번들 CMake는 약 3.20대라 preset 일부 기능이 불안정할 수 있음(아래 "알려진 이슈" 참고). |
 | C++ 표준 | C++17 | `CMAKE_CXX_STANDARD 17` |
 | OpenCV | 4.4.0 | Windows는 리포에 번들(`ocv440/` + 루트 `opencv_world440(d).dll`)되어 있어 별도 설치 불필요, CMake가 자동 감지.</br> Linux는 시스템 패키지 사용(아래 참고), 4.x대면 대체로 호환. |
-| Qt | Qt5 ≥ 5.14 또는 Qt6 (Widgets 모듈) | `QImage::Format_BGR888` 사용 때문에 5.14 미만은 안 됨. |
-| Metavision SDK (Prophesee) | **5.2.0** (리포 `Prophesee/`에 번들된 버전) | Live 카메라 / RAW 재생(`EventProcessing.DiagQt`)에 필수.</br> 없어도 `EventProcessing.Core`/`EventProcessing.Console`은 CSV 입력만으로 빌드됨.</br> 필요 컴포넌트: `base`, `core`, `stream` (+ 내부적으로 `MetavisionHAL`, `MetavisionPSEEHWLayer`, `hdf5_ecf` 사용 — 전부 `Prophesee/`에 같이 번들됨). |
-| Boost | `timer` 컴포넌트만 | `Prophesee/`에 번들 안 되어 있음, 별도 설치 필요 (Metavision SDK의 `core` 모듈이 요구).</br> MSVC 툴셋 버전과 맞는 사전빌드 바이너리 권장(빌드 안 해도 됨). |
+| Qt | Qt5(버전 무관) 또는 Qt6 (Widgets 모듈) | 미리보기 프레임 변환에 `Format_RGB888` + `rgbSwapped()`를 쓰므로(Qt4 때부터 있는 API) 특정 최소 버전 제약 없음. |
+| Metavision SDK (Prophesee) | **5.2.0** (리포 `Prophesee-window/`에 번들된 버전) | Live 카메라 / RAW 재생(`EventProcessing.DiagQt`)에 필수.</br> 없어도 `EventProcessing.Core`/`EventProcessing.Console`은 CSV 입력만으로 빌드됨.</br> 필요 컴포넌트: `base`, `core`, `stream` (+ 내부적으로 `MetavisionHAL`, `MetavisionPSEEHWLayer`, `hdf5_ecf` 사용 — 전부 `Prophesee-window/`에 같이 번들됨). |
+| Boost | `timer` 컴포넌트만 | `Prophesee-window/`에 번들 안 되어 있음, 별도 설치 필요 (Metavision SDK의 `core` 모듈이 요구).</br> MSVC 툴셋 버전과 맞는 사전빌드 바이너리 권장(빌드 안 해도 됨). |
 
 ### Windows
 
@@ -29,7 +102,7 @@
   - VS2019 → `MSVC 2019 64-bit` 키트 (Qt 6.5 LTS까지 제공, 또는 Qt 5.15.2)
   - VS2022 → `MSVC 2022 64-bit` 키트 (Qt 6.6+ 포함 최신)
 - **OpenCV**: 별도 설치 불필요 (리포 번들 자동 감지)
-- **Metavision SDK**: 별도 설치 불필요 (리포 `Prophesee/` 자동 감지, 시스템 설치본이 있으면 그건 대신 무시하고 리포 번들본을 우선 사용함)
+- **Metavision SDK**: 별도 설치 불필요 (리포 `Prophesee-window/` 자동 감지, 시스템 설치본이 있으면 그건 대신 무시하고 리포 번들본을 우선 사용함)
 - **Boost**: [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치
   - VS2019(MSVC 14.2) → `boost_1_8x_0-msvc-14.2-64.exe`
   - VS2022(MSVC 14.3) → `boost_1_8x_0-msvc-14.3-64.exe`
@@ -43,8 +116,17 @@
   sudo apt install cmake build-essential libopencv-dev qt6-base-dev
   # Qt6 안 될 경우 대체: qtbase5-dev
   ```
-- **Metavision SDK**: 번들 안 되어 있음(리포 `Prophesee/`는 Windows 바이너리만 포함). [Prophesee 공식 Linux 설치 안내](https://docs.prophesee.ai) 따라 별도 설치.
-- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요)
+- **Metavision SDK (OpenEB)**: 두 가지 경로가 있음.
+  - **번들(`Prophesee-linux/`)**: Ubuntu 20.04에서 빌드한 OpenEB(버전 **5.2.0**, `Prophesee-window/include/metavision/sdk/version.h`에 명시된 Windows 번들판과 동일)와, 그게 링크하는 OpenCV/Boost/HDF5/Protobuf/ffmpeg 등의 `.so`까지 `ldd`로 수집해 같이 커밋해뒀음(`readelf -d` NEEDED 기준 실제 필요한 것만 - GDAL/PostgreSQL/Kerberos까지 딸려오는데, `libopencv_videoio.so`가 실제로 이것들에 링크되어 있어서 어쩔 수 없음). `CMakeLists.txt`가 자동으로 찾아 쓰므로 clone만 하면 별도 설치 없이 바로 빌드됨.
+    **단, 그 컴퓨터의 시스템 OpenCV 버전이 번들(4.2)과 많이 다르면(Ubuntu 22.04/24.04 등) 빌드 시점에 `libgdal`/`libgeos`/`libspatialite` 등에서 `undefined reference` 링크 에러가 날 수 있음** — 번들이 링크하는 구버전 GEOS/GDAL과 시스템 OpenCV가 링크하는 신버전 GDAL이 같은 실행 파일 안에서 충돌하는 것. 이럴 땐 아래 스크립트로 넘어갈 것.
+  - **소스 빌드 스크립트** (번들이 버전 충돌 날 때, 또는 처음부터 이쪽을 원할 때): 그 컴퓨터의 실제 시스템 라이브러리 버전에 맞춰 새로 빌드하므로 위 버전 충돌이 없음.
+    ```bash
+    ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
+    # sudo 권한이 없으면:
+    ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치, CMAKE_PREFIX_PATH 안내가 출력됨
+    ```
+    OpenEB 자체가 커서 빌드에 시간이 좀 걸림. 번들이 버전 충돌로 실패한 상태였다면 `rm -rf Prophesee-linux`로 지운 뒤 이 스크립트를 쓸 것(그래야 `CMakeLists.txt`가 시스템 설치본을 확실히 사용함). 완료 후 `cmake --preset linux`를 다시 돌리면(이미 configure된 상태였다면 `build/linux/` 삭제 후) `EventProcessing.DiagQt`까지 같이 빌드된다.
+- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요 - 위 스크립트를 쓰면 `libboost-all-dev`로 이미 같이 설치됨)
 
 
 ### 환경 변수
@@ -64,7 +146,8 @@
 | 옵션 | 기본값 | 설명 |
 |---|---|---|
 | `EVENTCORE_NO_METAVISION` | `OFF` | `ON`으로 주면 Metavision SDK가 있어도 강제로 안 씀 </br>(CSV 입력만 지원, `EventProcessing.DiagQt` 제외). |
-| `CMAKE_BUILD_TYPE` | `Release`(미지정 시 기본값으로 설정됨) | `Debug`/`Release` |
+| `EVENTCORE_USE_SYSTEM_METAVISION` | `OFF` | `ON`으로 주면 번들된 `Prophesee-window/`·`Prophesee-linux/` 대신 시스템에 설치된 Metavision SDK/OpenEB를 사용함 </br>(번들 버전이 실제 카메라가 녹화한 RAW 파일 포맷을 못 열 때 등). 런타임 DLL/`.so` 복사도 같이 꺼짐(버전 혼선 방지). |
+| `CMAKE_BUILD_TYPE` | `Release`(미지정 시 기본값으로 설정됨; Metavision SDK가 잡히면 Windows에서는 Release로 강제됨 - Prophesee가 Release 바이너리만 배포해 Debug와 ABI 호환 안 됨) | `Debug`/`Release` |
 | `CMAKE_PREFIX_PATH` | - | Qt 등 추가 검색 경로. `windows-qt` CMake preset이 `QT_DIR`로 자동 설정함. |
 
 
@@ -77,7 +160,7 @@
     2. 그와 별개로, `CMakeLists.txt`가 **Windows에서는 어떤 구성이 선택되든** 다음을 자동으로 검색하도록 이미 보강되어 있음:
        - `QT_DIR` → 없으면 `QTDIR` 순으로 Qt 경로 자동 추가
        - 번들 OpenCV(`ocv440/`)를 IMPORTED 타깃으로 직접 구성(별도 옵션 불필요)
-       - 번들 Metavision SDK(`Prophesee/`)를 `CMAKE_PREFIX_PATH` 최우선으로 추가
+       - 번들 Metavision SDK(`Prophesee-window/`)를 `CMAKE_PREFIX_PATH` 최우선으로 추가
       
        
 </br>
@@ -102,7 +185,7 @@ EventCameraProcessing/
 ├─ EventProcessing.DiagQt/
 │  └─ Qt Widgets 기반 Live / RAW Diagnostic Viewer (Windows / Linux 공용)
 │
-├─ Prophesee/
+├─ Prophesee-window/
 │  ├─ include/
 │  ├─ lib/
 │  └─ bin/
@@ -220,7 +303,7 @@ RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인�
 
 - **File**: `Mode`(Live camera / RAW file - Source 그룹의 라디오 버튼과 양방향으로 동기화됨), `Open File...`(RAW 파일 찾아보기, 기존 Browse... 버튼과 동일), `Set Output Path...`(산출물 폴더 찾아보기, 기존 Browse... 버튼과 동일). Start/Pause/Stop은 메뉴로 옮기지 않고 버튼으로만 둠.
 - **Settings**: `Language`에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 메뉴 문구, 파일 대화상자 등 화면에 보이는 UI 문구가 즉시 다시 그려짐(재시작 불필요). 단, 로그 패널(`AppendLog`) 메시지와 `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 상태 코드는 언어 설정과 무관하게 항상 영어로 고정됨.
-- **About**: `Version`은 정식 버전 번호 체계가 없어 빌드 시점의 git 커밋 해시와 날짜를 대신 보여줌(`EventProcessing.DiagQt/CMakeLists.txt`에서 컴파일 시 주입). `License`는 제품명/버전/저작권/라이선스 조항/서드파티 라이선스/연락처를 한 화면에 보여주는 About 형식 텍스트임 - 정식 오픈소스 라이선스가 아직 지정되지 않았고 저장소에 LICENSE 파일이 없다는 점을 그대로 명시하고, 실제로 확인 가능한 사실(번들된 Prophesee/HDF5 SDK의 실제 라이선스 파일 경로, 실제 GitHub 저장소·이슈 트래커 주소, 서울대학교 공학전문대학원 김혜빈 연락처)만 채움(가상의 라이선스 종류나 웹사이트를 지어내지 않음). Website/Bug Report/Email은 `QTextBrowser`(`setOpenExternalLinks(true)`) 기반 다이얼로그라 실제 클릭하면 기본 브라우저/메일 클라이언트로 이동함. 이 블록은 로그와 마찬가지로 언어 설정과 무관하게 항상 영어 원문임.
+- **About**: `Version`은 정식 버전 번호 체계가 없어 빌드 시점의 git 커밋 해시와 날짜를 대신 보여줌(`EventProcessing.DiagQt/CMakeLists.txt`에서 컴파일 시 주입). `License`는 제품명/버전/저작권/라이선스 조항/서드파티 라이선스/연락처를 한 화면에 보여주는 About 형식 텍스트임 - 정식 오픈소스 라이선스가 아직 지정되지 않았고 저장소에 LICENSE 파일이 없다는 점을 그대로 명시하고, 실제로 확인 가능한 사실(번들된 Prophesee-window/Prophesee-linux·HDF5 SDK의 실제 라이선스 파일 경로, 실제 GitHub 저장소·이슈 트래커 주소, 서울대학교 공학전문대학원 김혜빈 연락처)만 채움(가상의 라이선스 종류나 웹사이트를 지어내지 않음). Website/Bug Report/Email은 `QTextBrowser`(`setOpenExternalLinks(true)`) 기반 다이얼로그라 실제 클릭하면 기본 브라우저/메일 클라이언트로 이동함. 이 블록은 로그와 마찬가지로 언어 설정과 무관하게 항상 영어 원문임.
 
 ---
 
@@ -276,7 +359,7 @@ Metavision HAL
 SDK Header, Import Library, Runtime DLL을 Repository 내부에서도 참조할 수 있도록 구성함.
 
 ```text
-Prophesee/
+Prophesee-window/
 │
 ├─ include/
 ├─ lib/
@@ -286,15 +369,15 @@ Prophesee/
 각 Directory의 역할:
 
 ```text
-Prophesee/include
+Prophesee-window/include
         ↓
 Compile-time Header
 
-Prophesee/lib
+Prophesee-window/lib
         ↓
 Link-time Import Library
 
-Prophesee/bin
+Prophesee-window/bin
         ↓
 Runtime DLL
 ```
@@ -303,10 +386,10 @@ Runtime DLL
 
 `Metavision.props`에서 Metavision SDK 경로를 관리함.
 
-Repository 내부에 `Prophesee/`가 존재하면 해당 경로를 우선 사용하고, 존재하지 않을 경우 System-wide Metavision SDK 경로를 사용하도록 구성함.
+Repository 내부에 `Prophesee-window/`가 존재하면 해당 경로를 우선 사용하고, 존재하지 않을 경우 System-wide Metavision SDK 경로를 사용하도록 구성함.
 
 ```text
-1. $(SolutionDir)Prophesee
+1. $(SolutionDir)Prophesee-window
 
         ↓ if not found
 
@@ -322,13 +405,13 @@ Repository 내부에 `Prophesee/`가 존재하면 해당 경로를 우선 사용
 Build 완료 후
 
 ```text
-Prophesee\bin\*.dll
+Prophesee-window\bin\*.dll
 ```
 
 의 Runtime DLL을 실행 파일 Output Directory로 자동 복사함.
 
 ```text
-Prophesee\bin
+Prophesee-window\bin
       │
       │ Post-Build
       ▼
@@ -390,7 +473,7 @@ sudo apt install cmake build-essential libopencv-dev qt6-base-dev
           자동으로 찾아 쓰므로 별도 설치/옵션 지정 불필요 (원하면 다른 OpenCV로 덮어쓰기 가능)
 ```
 
-Metavision SDK(Prophesee)는 [공식 설치 안내](https://docs.prophesee.ai)를 따라 플랫폼별로 별도 설치함(Windows는 기존처럼 리포의 `Prophesee\` 폴더 또는 시스템 설치를 그대로 사용). `find_package(MetavisionSDK)`로 자동 감지되며,
+Metavision SDK(Prophesee)는 [공식 설치 안내](https://docs.prophesee.ai)를 따라 플랫폼별로 별도 설치함(Windows는 기존처럼 리포의 `Prophesee-window\` 폴더 또는 시스템 설치를 그대로 사용). `find_package(MetavisionSDK)`로 자동 감지되며,
 
 > **Windows에서 Boost 필요**: Metavision SDK의 `core` 모듈 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 Boost `timer` 컴포넌트를 요구함(리포에 번들되어 있지 않음). Live 카메라를 안 쓰고 RAW 파일만 보더라도 RAW 디코딩 자체가 Metavision SDK를 거치므로 Boost가 필요함. [Boost 사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/)를 설치(예: `boost_1_8x_0-msvc-14.2-64.exe`, 기본 경로 `C:\local\boost_1_8x_0\`에 설치하면 CMake가 자동으로 찾음, 안 잡히면 `BOOST_ROOT` 환경 변수로 지정).
 

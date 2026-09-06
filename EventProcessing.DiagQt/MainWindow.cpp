@@ -522,9 +522,9 @@ void MainWindow::DrawFrame(const cv::Mat& bgrFrame)
 
     const cv::Mat safe = bgrFrame.isContinuous() ? bgrFrame : bgrFrame.clone();
 
-    const QImage image(safe.data, safe.cols, safe.rows, static_cast<int>(safe.step), QImage::Format_BGR888);
+    const QImage image(safe.data, safe.cols, safe.rows, static_cast<int>(safe.step), QImage::Format_RGB888);
 
-    m_previewPixmap = QPixmap::fromImage(image);
+    m_previewPixmap = QPixmap::fromImage(image.rgbSwapped());
     m_labelPreview->setPixmap(m_previewPixmap.scaled(
         m_labelPreview->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
@@ -953,9 +953,9 @@ void MainWindow::onShowAboutLicense()
         " THIRD-PARTY LICENSES :\n"
         " This application uses the following third-party components:\n"
         "   - Prophesee Metavision SDK\n"
-        "     see Prophesee/share/metavision/licensing/LICENSE_OPEN\n"
+        "     see Prophesee-window|Prophesee-linux/share/metavision/licensing/LICENSE_OPEN\n"
         "   - HDF5 (ECF codec, bundled with the Metavision SDK)\n"
-        "     see Prophesee/share/hdf5_ecf/LICENSE\n"
+        "     see Prophesee-window|Prophesee-linux/share/hdf5_ecf/LICENSE\n"
         "   - OpenCV 4.4.x (bundled under ocv440/)\n"
         "     BSD 3-Clause License (per OpenCV's own release notes; no\n"
         "     LICENSE file is bundled in ocv440/ to check directly)\n"

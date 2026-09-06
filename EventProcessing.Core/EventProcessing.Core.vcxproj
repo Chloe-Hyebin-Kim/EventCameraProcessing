@@ -141,7 +141,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Prophesee\lib;$(SolutionDir)\ocv440\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Prophesee-window\lib;$(SolutionDir)\ocv440\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>metavision_sdk_base.lib;metavision_sdk_core.lib;metavision_sdk_stream.lib;opencv_world440d.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -166,7 +166,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Prophesee\lib;$(SolutionDir)\ocv440\lib;</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Prophesee-window\lib;$(SolutionDir)\ocv440\lib;</AdditionalLibraryDirectories>
       <AdditionalDependencies>metavision_sdk_base.lib;metavision_sdk_core.lib;metavision_sdk_stream.lib;opencv_world440.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -187,6 +187,7 @@
     <ClInclude Include="MetavisionRuntime.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ShotTrigger.h" />
+    <ClInclude Include="Utf8Path.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BallDetector.cpp" />
