@@ -55,6 +55,8 @@ private slots:
     void onPollStreamState();
     void onSliderMoved(int value);
     void onSliderReleased();
+    void onShowAboutVersion();
+    void onShowAboutLicense();
 
 private:
     // Start/Pause는 버튼 하나를 같이 쓴다(눌린 순간의 m_runState에 따라 동작이 갈림).
@@ -146,12 +148,23 @@ private:
     QPixmap m_previewPixmap;
 
     // UI
-    // 설정 메뉴 (BuildUi()가 root 레이아웃에 QLayout::setMenuBar()로 얹는다 - QMainWindow가
-    // 아니어도 위젯 하나짜리 앱에 메뉴바를 둘 수 있다).
+    // 메뉴바(BuildUi()가 root 레이아웃에 QLayout::setMenuBar()로 얹는다 - QMainWindow가 아니어도
+    // 위젯 하나짜리 앱에 메뉴바를 둘 수 있다). 순서: 파일(File) - 설정(Settings) - 정보(About).
+    QMenu* m_menuFile = nullptr;
+    QMenu* m_menuMode = nullptr;
+    QAction* m_actionModeLive = nullptr;
+    QAction* m_actionModeRaw = nullptr;
+    QAction* m_actionOpenFile = nullptr;
+    QAction* m_actionSetOutputPath = nullptr;
+
     QMenu* m_menuSettings = nullptr;
     QMenu* m_menuLanguage = nullptr;
     QAction* m_actionLangEnglish = nullptr;
     QAction* m_actionLangKorean = nullptr;
+
+    QMenu* m_menuAbout = nullptr;
+    QAction* m_actionAboutVersion = nullptr;
+    QAction* m_actionAboutLicense = nullptr;
 
     QGroupBox* m_boxSource = nullptr;
     QGroupBox* m_boxOutput = nullptr;

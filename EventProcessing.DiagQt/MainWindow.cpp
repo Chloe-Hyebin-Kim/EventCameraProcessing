@@ -14,6 +14,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSlider>
@@ -22,6 +23,15 @@
 
 #include <algorithm>
 #include <filesystem>
+
+// CMakeLists.txt가 빌드 시점의 git 커밋 해시/날짜를 넣어 준다(EventProcessing.DiagQt/CMakeLists.txt
+// 참고). 이 파일이 그 타깃 밖에서(예: 다른 빌드 스크립트로) 컴파일되는 경우를 대비한 기본값.
+#ifndef EVENTCORE_GIT_COMMIT_HASH
+#define EVENTCORE_GIT_COMMIT_HASH "unknown"
+#endif
+#ifndef EVENTCORE_BUILD_DATE
+#define EVENTCORE_BUILD_DATE "unknown"
+#endif
 
 using namespace eventcore;
 namespace fs = std::filesystem;
@@ -122,9 +132,29 @@ void MainWindow::BuildUi()
 {
     auto* root = new QVBoxLayout(this);
 
-    // --- Settings menu (English/Korean) ---
+    // --- Menu bar: File - Settings - About ---
     // QWidget(비 QMainWindow)에도 QLayout::setMenuBar()로 메뉴바를 얹을 수 있다.
     auto* menuBar = new QMenuBar(this);
+
+    // File: Source 그룹의 라디오/찾아보기 버튼과 똑같은 동작을 메뉴에서도 쓸 수 있게 한다
+    // (버튼 자체는 그대로 남겨 둠 - 메뉴는 추가 경로일 뿐, 대체가 아님).
+    m_menuFile = menuBar->addMenu(QString());
+    m_menuMode = m_menuFile->addMenu(QString());
+
+    m_actionModeLive = m_menuMode->addAction(QString());
+    m_actionModeRaw = m_menuMode->addAction(QString());
+    m_actionModeLive->setCheckable(true);
+    m_actionModeRaw->setCheckable(true);
+
+    auto* modeGroup = new QActionGroup(this);
+    modeGroup->addAction(m_actionModeLive);
+    modeGroup->addAction(m_actionModeRaw);
+
+    m_menuFile->addSeparator();
+    m_actionOpenFile = m_menuFile->addAction(QString());
+    m_actionSetOutputPath = m_menuFile->addAction(QString());
+
+    // Settings: English/Korean.
     m_menuSettings = menuBar->addMenu(QString());
     m_menuLanguage = m_menuSettings->addMenu(QString());
 
@@ -140,6 +170,14 @@ void MainWindow::BuildUi()
 
     connect(m_actionLangEnglish, &QAction::triggered, this, [this]() { SetLanguage(AppLanguage::English); });
     connect(m_actionLangKorean, &QAction::triggered, this, [this]() { SetLanguage(AppLanguage::Korean); });
+
+    // About: Version / License.
+    m_menuAbout = menuBar->addMenu(QString());
+    m_actionAboutVersion = m_menuAbout->addAction(QString());
+    m_actionAboutLicense = m_menuAbout->addAction(QString());
+
+    connect(m_actionAboutVersion, &QAction::triggered, this, &MainWindow::onShowAboutVersion);
+    connect(m_actionAboutLicense, &QAction::triggered, this, &MainWindow::onShowAboutLicense);
 
     root->setMenuBar(menuBar);
 
@@ -268,6 +306,17 @@ void MainWindow::BuildUi()
     connect(m_sliderPosition, &QSlider::sliderMoved, this, &MainWindow::onSliderMoved);
     connect(m_sliderPosition, &QSlider::sliderReleased, this, &MainWindow::onSliderReleased);
 
+    // File > Mode와 Source 그룹의 라디오 버튼은 같은 선택을 나타내는 두 개의 창일 뿐이므로,
+    // 어느 쪽을 눌러도 서로 맞춰지게 양방향으로 이어준다.
+    connect(m_actionModeLive, &QAction::triggered, this, [this]() { m_radioLive->setChecked(true); });
+    connect(m_actionModeRaw, &QAction::triggered, this, [this]() { m_radioRaw->setChecked(true); });
+    connect(m_radioLive, &QRadioButton::toggled, this, [this](bool checked) { if (checked) m_actionModeLive->setChecked(true); });
+    connect(m_radioRaw, &QRadioButton::toggled, this, [this](bool checked) { if (checked) m_actionModeRaw->setChecked(true); });
+
+    // File > Open File / Set Output Path는 각각 기존 Browse... 버튼과 완전히 같은 동작을 한다.
+    connect(m_actionOpenFile, &QAction::triggered, this, &MainWindow::onBrowseRawClicked);
+    connect(m_actionSetOutputPath, &QAction::triggered, this, &MainWindow::onBrowseOutputClicked);
+
     RetranslateUi();
 }
 
@@ -345,9 +394,20 @@ void MainWindow::RetranslateUi()
 {
     setWindowTitle(QStringLiteral("EventProcessing.DiagQt"));
 
+    m_menuFile->setTitle(Tr(QStringLiteral("File"), QStringLiteral("파일")));
+    m_menuMode->setTitle(Tr(QStringLiteral("Mode"), QStringLiteral("모드")));
+    m_actionModeLive->setText(Tr(QStringLiteral("Live camera"), QStringLiteral("라이브 카메라")));
+    m_actionModeRaw->setText(Tr(QStringLiteral("RAW file"), QStringLiteral("RAW 파일")));
+    m_actionOpenFile->setText(Tr(QStringLiteral("Open File..."), QStringLiteral("파일 열기...")));
+    m_actionSetOutputPath->setText(Tr(QStringLiteral("Set Output Path..."), QStringLiteral("산출물 경로 설정...")));
+
     m_menuSettings->setTitle(Tr(QStringLiteral("Settings"), QStringLiteral("설정")));
     m_menuLanguage->setTitle(Tr(QStringLiteral("Language"), QStringLiteral("언어")));
     // 언어 이름 자체(English/한국어)는 관례상 항상 그 언어로 표시하고 번역하지 않는다.
+
+    m_menuAbout->setTitle(Tr(QStringLiteral("About"), QStringLiteral("정보")));
+    m_actionAboutVersion->setText(Tr(QStringLiteral("Version"), QStringLiteral("버전")));
+    m_actionAboutLicense->setText(Tr(QStringLiteral("License"), QStringLiteral("라이센스")));
 
     m_boxSource->setTitle(Tr(QStringLiteral("Source"), QStringLiteral("입력 소스")));
     m_radioLive->setText(Tr(QStringLiteral("Live camera"), QStringLiteral("라이브 카메라")));
@@ -853,6 +913,28 @@ void MainWindow::onBrowseOutputClicked()
     {
         m_editOutputDir->setText(dir);
     }
+}
+
+void MainWindow::onShowAboutVersion()
+{
+    // 정식 버전 번호 체계가 아직 없어서, 실제로 검증 가능한 값인 빌드 시점의 git 커밋 해시와
+    // 날짜를 대신 보여준다(EventProcessing.DiagQt/CMakeLists.txt에서 컴파일 시 주입).
+    const QString text = Tr(QStringLiteral("Build: %1 (%2)"), QStringLiteral("빌드: %1 (%2)"))
+        .arg(QStringLiteral(EVENTCORE_GIT_COMMIT_HASH))
+        .arg(QStringLiteral(EVENTCORE_BUILD_DATE));
+
+    QMessageBox::information(this, Tr(QStringLiteral("Version"), QStringLiteral("버전")), text);
+}
+
+void MainWindow::onShowAboutLicense()
+{
+    const QString text = QStringLiteral(
+        "HyeBin Kim, Graduate School of Engineering Practice, Seoul National University\n"
+        "1 Gwanak-ro, Gwanak-gu, Seoul, Republic of Korea\n"
+        "Email: dev5igner@snu.ac.kr\n"
+        "Tel: +82-010-2008-2026");
+
+    QMessageBox::information(this, Tr(QStringLiteral("License"), QStringLiteral("라이센스")), text);
 }
 
 void MainWindow::onSliderMoved(int value)

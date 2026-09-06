@@ -215,7 +215,11 @@ RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인�
 - **Pause** (RAW 파일, 즉 영상 재생 중일 때): 재생 자체를 그 자리에서 멈춰(카메라를 정지) 화면이 멈춘 프레임 그대로 남음. 버튼을 다시 누르면(라벨이 `Start`로 바뀜) 멈췄던 바로 그 시각으로 seek해서 이어서 재생함(멈춰 있던 시간만큼 건너뛰지 않음).
 - **Pause** (Live Camera일 때): `Start`는 녹화 시작, `Stop`은 녹화 종료. `Pause`는 녹화 종료가 아니라 녹화만 잠시 중지하는 것으로, 카메라와 미리보기 화면은 계속 흘러서 끼어든 상황이 지나가는 걸 볼 수 있고, ShotTrigger 갱신과 프레임 저장만 건너뜀. 다시 누르면(`Start`) 그 시점부터 다시 녹화를 재개함.
 
-상단 메뉴바의 **Settings > Language**에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 로그 메시지 등 화면에 보이는 문구가 즉시 다시 그려짐(재시작 불필요). 단, `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 같은 상태 코드는 언어와 무관하게 고정된 영문 토큰으로 유지됨.
+상단 메뉴바는 **File(파일) - Settings(설정) - About(정보)** 순서로 구성됨.
+
+- **File**: `Mode`(Live camera / RAW file - Source 그룹의 라디오 버튼과 양방향으로 동기화됨), `Open File...`(RAW 파일 찾아보기, 기존 Browse... 버튼과 동일), `Set Output Path...`(산출물 폴더 찾아보기, 기존 Browse... 버튼과 동일). Start/Pause/Stop은 메뉴로 옮기지 않고 버튼으로만 둠.
+- **Settings**: `Language`에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 메뉴 문구, 로그 메시지 등 화면에 보이는 문구가 즉시 다시 그려짐(재시작 불필요). 단, `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 같은 상태 코드는 언어와 무관하게 고정된 영문 토큰으로 유지됨.
+- **About**: `Version`은 정식 버전 번호 체계가 없어 빌드 시점의 git 커밋 해시와 날짜를 대신 보여줌(`EventProcessing.DiagQt/CMakeLists.txt`에서 컴파일 시 주입). `License`는 연락처 정보(서울대학교 공학전문대학원 김혜빈)를 보여줌.
 
 ---
 
