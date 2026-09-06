@@ -256,14 +256,14 @@ void MainWindow::BuildUi()
 
     // --- Controls ---
     auto* controlLayout = new QHBoxLayout();
-    m_btnStartPause = new QPushButton(this);
-    m_btnStop = new QPushButton(this);
+    m_btnStartStop = new QPushButton(this);
+    m_btnPauseResume = new QPushButton(this);
     m_labelStateCaption = new QLabel(this);
     m_labelState = new QLabel(QStringLiteral("IDLE"), this);
     m_labelState->setStyleSheet(QStringLiteral("font-weight: bold;"));
 
-    controlLayout->addWidget(m_btnStartPause);
-    controlLayout->addWidget(m_btnStop);
+    controlLayout->addWidget(m_btnStartStop);
+    controlLayout->addWidget(m_btnPauseResume);
     controlLayout->addStretch();
     controlLayout->addWidget(m_labelStateCaption);
     controlLayout->addWidget(m_labelState);
@@ -299,8 +299,8 @@ void MainWindow::BuildUi()
 
     root->addLayout(bodyLayout, 1);
 
-    connect(m_btnStartPause, &QPushButton::clicked, this, &MainWindow::onStartPauseClicked);
-    connect(m_btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
+    connect(m_btnStartStop, &QPushButton::clicked, this, &MainWindow::onStartStopClicked);
+    connect(m_btnPauseResume, &QPushButton::clicked, this, &MainWindow::onPauseResumeClicked);
     connect(m_btnBrowseRaw, &QPushButton::clicked, this, &MainWindow::onBrowseRawClicked);
     connect(m_btnBrowseOutput, &QPushButton::clicked, this, &MainWindow::onBrowseOutputClicked);
     connect(m_sliderPosition, &QSlider::sliderMoved, this, &MainWindow::onSliderMoved);
@@ -356,20 +356,22 @@ void MainWindow::UpdateRunButtons()
     switch (m_runState)
     {
     case RunState::Idle:
-        m_btnStartPause->setText(Tr(QStringLiteral("Start"), QStringLiteral("시작")));
-        m_btnStartPause->setEnabled(true);
-        m_btnStop->setEnabled(false);
+        m_btnStartStop->setText(Tr(QStringLiteral("Start"), QStringLiteral("시작")));
+        m_btnStartStop->setEnabled(true);
+        m_btnPauseResume->setText(Tr(QStringLiteral("Pause"), QStringLiteral("멈춤")));
+        m_btnPauseResume->setEnabled(false);
         break;
     case RunState::Running:
-        m_btnStartPause->setText(Tr(QStringLiteral("Pause"), QStringLiteral("일시정지")));
-        m_btnStartPause->setEnabled(true);
-        m_btnStop->setEnabled(true);
+        m_btnStartStop->setText(Tr(QStringLiteral("Stop"), QStringLiteral("중단")));
+        m_btnStartStop->setEnabled(true);
+        m_btnPauseResume->setText(Tr(QStringLiteral("Pause"), QStringLiteral("멈춤")));
+        m_btnPauseResume->setEnabled(true);
         break;
     case RunState::Paused:
-        // 다시 누르면 이어서 재개(Start/Resume)한다는 뜻으로, Idle과 같은 "Start" 라벨을 쓴다.
-        m_btnStartPause->setText(Tr(QStringLiteral("Start"), QStringLiteral("시작")));
-        m_btnStartPause->setEnabled(true);
-        m_btnStop->setEnabled(true);
+        m_btnStartStop->setText(Tr(QStringLiteral("Stop"), QStringLiteral("중단")));
+        m_btnStartStop->setEnabled(true);
+        m_btnPauseResume->setText(Tr(QStringLiteral("Resume"), QStringLiteral("재개")));
+        m_btnPauseResume->setEnabled(true);
         break;
     }
 }
@@ -669,18 +671,29 @@ void MainWindow::FlushPreRollBuffer(lli impactUs)
         QStringLiteral("IMPACT - 궤적 저장 시작 (사전 프레임 %1개)")).arg(savedCount));
 }
 
-void MainWindow::onStartPauseClicked()
+void MainWindow::onStartStopClicked()
+{
+    if (m_runState == RunState::Idle)
+    {
+        StartStream();
+    }
+    else
+    {
+        StopStream(Tr(QStringLiteral("Stopped"), QStringLiteral("정지됨")));
+    }
+}
+
+void MainWindow::onPauseResumeClicked()
 {
     switch (m_runState)
     {
-    case RunState::Idle:
-        StartStream();
-        break;
     case RunState::Running:
         PauseStream();
         break;
     case RunState::Paused:
         ResumeStream();
+        break;
+    case RunState::Idle:
         break;
     }
 }
@@ -824,16 +837,6 @@ void MainWindow::ResumeStream()
     AppendLog(m_liveMode
         ? Tr(QStringLiteral("RESUMED - recording"), QStringLiteral("재개됨 - 녹화 중"))
         : Tr(QStringLiteral("RESUMED - playback"), QStringLiteral("재개됨 - 재생 중")));
-}
-
-void MainWindow::onStopClicked()
-{
-    if (m_runState == RunState::Idle)
-    {
-        return;
-    }
-
-    StopStream(Tr(QStringLiteral("Stopped"), QStringLiteral("정지됨")));
 }
 
 void MainWindow::onPollStreamState()

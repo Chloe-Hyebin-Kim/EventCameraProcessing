@@ -48,8 +48,8 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
-    void onStartPauseClicked();
-    void onStopClicked();
+    void onStartStopClicked();
+    void onPauseResumeClicked();
     void onBrowseRawClicked();
     void onBrowseOutputClicked();
     void onPollStreamState();
@@ -59,9 +59,11 @@ private slots:
     void onShowAboutLicense();
 
 private:
-    // Start/Pause는 버튼 하나를 같이 쓴다(눌린 순간의 m_runState에 따라 동작이 갈림).
-    // Idle에서 누르면 StartStream(), Running에서 누르면 PauseStream(), Paused에서 누르면
-    // ResumeStream()이 호출된다. Stop은 별도 버튼으로, 항상 처음(IDLE, 까만 화면)으로 되돌린다.
+    // 버튼 두 개, 각각 두 가지 역할을 겸한다:
+    // - Start(시작)/Stop(중단) 버튼: Idle에서 누르면 StartStream(), Running/Paused에서 누르면
+    //   StopStream()(항상 처음 IDLE, 까만 화면으로 되돌아감).
+    // - Pause(멈춤)/Resume(재개) 버튼: Running에서 누르면 PauseStream(), Paused에서 누르면
+    //   ResumeStream(). Idle일 때는 비활성화.
     enum class RunState
     {
         Idle,
@@ -196,8 +198,8 @@ private:
     QLineEdit* m_editMaxDirDeviationDeg = nullptr;
     QLineEdit* m_editMissToleranceMs = nullptr;
     QLineEdit* m_editWindowUs = nullptr;
-    QPushButton* m_btnStartPause = nullptr;
-    QPushButton* m_btnStop = nullptr;
+    QPushButton* m_btnStartStop = nullptr;
+    QPushButton* m_btnPauseResume = nullptr;
     QLabel* m_labelStateCaption = nullptr;
     QLabel* m_labelState = nullptr;
     QLabel* m_labelPreview = nullptr;
