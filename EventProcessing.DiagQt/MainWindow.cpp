@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include <QAction>
+#include <QActionGroup>
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QFileDialog>
@@ -10,6 +12,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
+#include <QMenuBar>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSlider>
@@ -118,114 +122,112 @@ void MainWindow::BuildUi()
 {
     auto* root = new QVBoxLayout(this);
 
-    // --- Source ---
-    auto* sourceBox = new QGroupBox(QStringLiteral("Source"), this);
-    auto* sourceLayout = new QGridLayout(sourceBox);
+    // --- Settings menu (English/Korean) ---
+    // QWidget(비 QMainWindow)에도 QLayout::setMenuBar()로 메뉴바를 얹을 수 있다.
+    auto* menuBar = new QMenuBar(this);
+    m_menuSettings = menuBar->addMenu(QString());
+    m_menuLanguage = m_menuSettings->addMenu(QString());
 
-    m_radioLive = new QRadioButton(QStringLiteral("Live camera"), sourceBox);
-    m_radioRaw = new QRadioButton(QStringLiteral("RAW file"), sourceBox);
-    m_editRawPath = new QLineEdit(sourceBox);
-    m_btnBrowseRaw = new QPushButton(QStringLiteral("Browse..."), sourceBox);
+    m_actionLangEnglish = m_menuLanguage->addAction(QStringLiteral("English"));
+    m_actionLangKorean = m_menuLanguage->addAction(QStringLiteral("한국어"));
+    m_actionLangEnglish->setCheckable(true);
+    m_actionLangKorean->setCheckable(true);
+    m_actionLangEnglish->setChecked(true);
+
+    auto* langGroup = new QActionGroup(this);
+    langGroup->addAction(m_actionLangEnglish);
+    langGroup->addAction(m_actionLangKorean);
+
+    connect(m_actionLangEnglish, &QAction::triggered, this, [this]() { SetLanguage(AppLanguage::English); });
+    connect(m_actionLangKorean, &QAction::triggered, this, [this]() { SetLanguage(AppLanguage::Korean); });
+
+    root->setMenuBar(menuBar);
+
+    // --- Source ---
+    m_boxSource = new QGroupBox(this);
+    auto* sourceLayout = new QGridLayout(m_boxSource);
+
+    m_radioLive = new QRadioButton(m_boxSource);
+    m_radioRaw = new QRadioButton(m_boxSource);
+    m_editRawPath = new QLineEdit(m_boxSource);
+    m_btnBrowseRaw = new QPushButton(m_boxSource);
 
     sourceLayout->addWidget(m_radioLive, 0, 0);
     sourceLayout->addWidget(m_radioRaw, 0, 1);
     sourceLayout->addWidget(m_editRawPath, 1, 0, 1, 2);
     sourceLayout->addWidget(m_btnBrowseRaw, 1, 2);
 
-    root->addWidget(sourceBox);
+    root->addWidget(m_boxSource);
 
     // --- Output ---
-    auto* outputBox = new QGroupBox(QStringLiteral("Output"), this);
-    auto* outputLayout = new QHBoxLayout(outputBox);
+    m_boxOutput = new QGroupBox(this);
+    auto* outputLayout = new QHBoxLayout(m_boxOutput);
 
-    m_editOutputDir = new QLineEdit(outputBox);
-    m_btnBrowseOutput = new QPushButton(QStringLiteral("Browse..."), outputBox);
+    m_editOutputDir = new QLineEdit(m_boxOutput);
+    m_btnBrowseOutput = new QPushButton(m_boxOutput);
 
     outputLayout->addWidget(m_editOutputDir);
     outputLayout->addWidget(m_btnBrowseOutput);
 
-    root->addWidget(outputBox);
+    root->addWidget(m_boxOutput);
 
     // --- Shot trigger params ---
-    auto* paramBox = new QGroupBox(QStringLiteral("Shot Trigger"), this);
-    auto* paramLayout = new QGridLayout(paramBox);
+    m_boxShotTrigger = new QGroupBox(this);
+    auto* paramLayout = new QGridLayout(m_boxShotTrigger);
 
-    m_editReadySec = new QLineEdit(paramBox);
-    m_editPreCaptureSec = new QLineEdit(paramBox);
-    m_editPostCaptureSec = new QLineEdit(paramBox);
-    m_editStablePx = new QLineEdit(paramBox);
-    m_editShotSpeed = new QLineEdit(paramBox);
-    m_editDirConsistentFrames = new QLineEdit(paramBox);
-    m_editMaxDirDeviationDeg = new QLineEdit(paramBox);
-    m_editMissToleranceMs = new QLineEdit(paramBox);
-    m_editWindowUs = new QLineEdit(paramBox);
+    m_editReadySec = new QLineEdit(m_boxShotTrigger);
+    m_editPreCaptureSec = new QLineEdit(m_boxShotTrigger);
+    m_editPostCaptureSec = new QLineEdit(m_boxShotTrigger);
+    m_editStablePx = new QLineEdit(m_boxShotTrigger);
+    m_editShotSpeed = new QLineEdit(m_boxShotTrigger);
+    m_editDirConsistentFrames = new QLineEdit(m_boxShotTrigger);
+    m_editMaxDirDeviationDeg = new QLineEdit(m_boxShotTrigger);
+    m_editMissToleranceMs = new QLineEdit(m_boxShotTrigger);
+    m_editWindowUs = new QLineEdit(m_boxShotTrigger);
 
-    m_editReadySec->setToolTip(QStringLiteral(
-        "How long (seconds) the ball must stay still at the same spot\n"
-        "before the state machine enters READY."));
-    m_editPreCaptureSec->setToolTip(QStringLiteral(
-        "How many seconds of buffered frames BEFORE the Impact frame\n"
-        "to include when saving the Trajectory (TRJCT) capture."));
-    m_editPostCaptureSec->setToolTip(QStringLiteral(
-        "How many seconds AFTER the Impact frame to keep saving frames\n"
-        "during Trajectory (TRJCT), before returning to SEARCHING."));
-    m_editStablePx->setToolTip(QStringLiteral(
-        "Maximum center-point jitter (pixels) still counted as \"stationary\"\n"
-        "while in READY. Also the threshold used to detect the first frame\n"
-        "the ball leaves that spot (the start of a possible shot)."));
-    m_editShotSpeed->setToolTip(QStringLiteral(
-        "Minimum center-point speed (pixels/second) a movement must reach,\n"
-        "in addition to direction consistency, to count toward confirming\n"
-        "Impact."));
-    m_editDirConsistentFrames->setToolTip(QStringLiteral(
-        "How many consecutive direction comparisons must stay within\n"
-        "\"Max direction deviation\" before a movement is confirmed as a real\n"
-        "shot (Impact) rather than zigzag noise."));
-    m_editMaxDirDeviationDeg->setToolTip(QStringLiteral(
-        "Maximum angle (degrees) allowed between consecutive movement\n"
-        "vectors while confirming a shot. A bigger change is treated as\n"
-        "zigzag/noise, which resets back to SEARCHING."));
-    m_editMissToleranceMs->setToolTip(QStringLiteral(
-        "How long (milliseconds) a brief ball-detection dropout is tolerated\n"
-        "without resetting the state. A stationary ball produces very few\n"
-        "events, so detection can blink out for a moment even though the\n"
-        "ball hasn't actually moved."));
-    m_editWindowUs->setToolTip(QStringLiteral(
-        "Event-accumulation window length (microseconds): how often a new\n"
-        "frame is built and the ball position is re-evaluated."));
+    m_labelReadySec = new QLabel(m_boxShotTrigger);
+    m_labelPreCaptureSec = new QLabel(m_boxShotTrigger);
+    m_labelPostCaptureSec = new QLabel(m_boxShotTrigger);
+    m_labelStablePx = new QLabel(m_boxShotTrigger);
+    m_labelShotSpeed = new QLabel(m_boxShotTrigger);
+    m_labelDirConsistentFrames = new QLabel(m_boxShotTrigger);
+    m_labelMaxDirDeviationDeg = new QLabel(m_boxShotTrigger);
+    m_labelMissToleranceMs = new QLabel(m_boxShotTrigger);
+    m_labelWindowUs = new QLabel(m_boxShotTrigger);
 
-    paramLayout->addWidget(new QLabel(QStringLiteral("Ready (sec)")), 0, 0);
+    paramLayout->addWidget(m_labelReadySec, 0, 0);
     paramLayout->addWidget(m_editReadySec, 0, 1);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Pre-capture (sec)")), 0, 2);
+    paramLayout->addWidget(m_labelPreCaptureSec, 0, 2);
     paramLayout->addWidget(m_editPreCaptureSec, 0, 3);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Post-capture (sec)")), 0, 4);
+    paramLayout->addWidget(m_labelPostCaptureSec, 0, 4);
     paramLayout->addWidget(m_editPostCaptureSec, 0, 5);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Stable move (px)")), 1, 0);
+    paramLayout->addWidget(m_labelStablePx, 1, 0);
     paramLayout->addWidget(m_editStablePx, 1, 1);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Shot speed (px/s)")), 1, 2);
+    paramLayout->addWidget(m_labelShotSpeed, 1, 2);
     paramLayout->addWidget(m_editShotSpeed, 1, 3);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Direction consistent frames")), 1, 4);
+    paramLayout->addWidget(m_labelDirConsistentFrames, 1, 4);
     paramLayout->addWidget(m_editDirConsistentFrames, 1, 5);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Max direction deviation (deg)")), 2, 0);
+    paramLayout->addWidget(m_labelMaxDirDeviationDeg, 2, 0);
     paramLayout->addWidget(m_editMaxDirDeviationDeg, 2, 1);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Miss tolerance (ms)")), 2, 2);
+    paramLayout->addWidget(m_labelMissToleranceMs, 2, 2);
     paramLayout->addWidget(m_editMissToleranceMs, 2, 3);
-    paramLayout->addWidget(new QLabel(QStringLiteral("Window (us)")), 2, 4);
+    paramLayout->addWidget(m_labelWindowUs, 2, 4);
     paramLayout->addWidget(m_editWindowUs, 2, 5);
 
-    root->addWidget(paramBox);
+    root->addWidget(m_boxShotTrigger);
 
     // --- Controls ---
     auto* controlLayout = new QHBoxLayout();
-    m_btnStartPause = new QPushButton(QStringLiteral("Start"), this);
-    m_btnStop = new QPushButton(QStringLiteral("Stop"), this);
+    m_btnStartPause = new QPushButton(this);
+    m_btnStop = new QPushButton(this);
+    m_labelStateCaption = new QLabel(this);
     m_labelState = new QLabel(QStringLiteral("IDLE"), this);
     m_labelState->setStyleSheet(QStringLiteral("font-weight: bold;"));
 
     controlLayout->addWidget(m_btnStartPause);
     controlLayout->addWidget(m_btnStop);
     controlLayout->addStretch();
-    controlLayout->addWidget(new QLabel(QStringLiteral("State:"), this));
+    controlLayout->addWidget(m_labelStateCaption);
     controlLayout->addWidget(m_labelState);
 
     root->addLayout(controlLayout);
@@ -265,6 +267,8 @@ void MainWindow::BuildUi()
     connect(m_btnBrowseOutput, &QPushButton::clicked, this, &MainWindow::onBrowseOutputClicked);
     connect(m_sliderPosition, &QSlider::sliderMoved, this, &MainWindow::onSliderMoved);
     connect(m_sliderPosition, &QSlider::sliderReleased, this, &MainWindow::onSliderReleased);
+
+    RetranslateUi();
 }
 
 ShotTriggerConfig MainWindow::ReadConfigFromUI() const
@@ -303,22 +307,145 @@ void MainWindow::UpdateRunButtons()
     switch (m_runState)
     {
     case RunState::Idle:
-        m_btnStartPause->setText(QStringLiteral("Start"));
+        m_btnStartPause->setText(Tr(QStringLiteral("Start"), QStringLiteral("시작")));
         m_btnStartPause->setEnabled(true);
         m_btnStop->setEnabled(false);
         break;
     case RunState::Running:
-        m_btnStartPause->setText(QStringLiteral("Pause"));
+        m_btnStartPause->setText(Tr(QStringLiteral("Pause"), QStringLiteral("일시정지")));
         m_btnStartPause->setEnabled(true);
         m_btnStop->setEnabled(true);
         break;
     case RunState::Paused:
         // 다시 누르면 이어서 재개(Start/Resume)한다는 뜻으로, Idle과 같은 "Start" 라벨을 쓴다.
-        m_btnStartPause->setText(QStringLiteral("Start"));
+        m_btnStartPause->setText(Tr(QStringLiteral("Start"), QStringLiteral("시작")));
         m_btnStartPause->setEnabled(true);
         m_btnStop->setEnabled(true);
         break;
     }
+}
+
+QString MainWindow::Tr(const QString& en, const QString& ko) const
+{
+    return m_language == AppLanguage::Korean ? ko : en;
+}
+
+void MainWindow::SetLanguage(AppLanguage lang)
+{
+    if (m_language == lang)
+    {
+        return;
+    }
+
+    m_language = lang;
+    RetranslateUi();
+}
+
+void MainWindow::RetranslateUi()
+{
+    setWindowTitle(QStringLiteral("EventProcessing.DiagQt"));
+
+    m_menuSettings->setTitle(Tr(QStringLiteral("Settings"), QStringLiteral("설정")));
+    m_menuLanguage->setTitle(Tr(QStringLiteral("Language"), QStringLiteral("언어")));
+    // 언어 이름 자체(English/한국어)는 관례상 항상 그 언어로 표시하고 번역하지 않는다.
+
+    m_boxSource->setTitle(Tr(QStringLiteral("Source"), QStringLiteral("입력 소스")));
+    m_radioLive->setText(Tr(QStringLiteral("Live camera"), QStringLiteral("라이브 카메라")));
+    m_radioRaw->setText(Tr(QStringLiteral("RAW file"), QStringLiteral("RAW 파일")));
+    m_btnBrowseRaw->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
+
+    m_boxOutput->setTitle(Tr(QStringLiteral("Output"), QStringLiteral("출력")));
+    m_btnBrowseOutput->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
+
+    m_boxShotTrigger->setTitle(Tr(QStringLiteral("Shot Trigger"), QStringLiteral("샷 트리거")));
+
+    m_labelReadySec->setText(Tr(QStringLiteral("Ready (sec)"), QStringLiteral("정지 유지 시간 (초)")));
+    m_labelPreCaptureSec->setText(Tr(QStringLiteral("Pre-capture (sec)"), QStringLiteral("사전 저장 시간 (초)")));
+    m_labelPostCaptureSec->setText(Tr(QStringLiteral("Post-capture (sec)"), QStringLiteral("사후 저장 시간 (초)")));
+    m_labelStablePx->setText(Tr(QStringLiteral("Stable move (px)"), QStringLiteral("허용 흔들림 (px)")));
+    m_labelShotSpeed->setText(Tr(QStringLiteral("Shot speed (px/s)"), QStringLiteral("샷 속도 (px/s)")));
+    m_labelDirConsistentFrames->setText(Tr(QStringLiteral("Direction consistent frames"), QStringLiteral("방향 일관성 확인 구간 수")));
+    m_labelMaxDirDeviationDeg->setText(Tr(QStringLiteral("Max direction deviation (deg)"), QStringLiteral("최대 방향 편차 (도)")));
+    m_labelMissToleranceMs->setText(Tr(QStringLiteral("Miss tolerance (ms)"), QStringLiteral("검출 유실 허용 시간 (ms)")));
+    m_labelWindowUs->setText(Tr(QStringLiteral("Window (us)"), QStringLiteral("처리 윈도우 (us)")));
+
+    m_editReadySec->setToolTip(Tr(
+        QStringLiteral(
+            "How long (seconds) the ball must stay still at the same spot\n"
+            "before the state machine enters READY."),
+        QStringLiteral(
+            "공이 같은 위치에서 이 시간(초) 이상 멈춰 있어야\n"
+            "READY 상태로 전환됩니다.")));
+    m_editPreCaptureSec->setToolTip(Tr(
+        QStringLiteral(
+            "How many seconds of buffered frames BEFORE the Impact frame\n"
+            "to include when saving the Trajectory (TRJCT) capture."),
+        QStringLiteral(
+            "Impact 프레임 이전 몇 초 분량의 버퍼링된 프레임을\n"
+            "Trajectory(TRJCT) 저장에 포함할지 지정합니다.")));
+    m_editPostCaptureSec->setToolTip(Tr(
+        QStringLiteral(
+            "How many seconds AFTER the Impact frame to keep saving frames\n"
+            "during Trajectory (TRJCT), before returning to SEARCHING."),
+        QStringLiteral(
+            "Impact 프레임 이후 몇 초 동안 Trajectory(TRJCT) 상태로\n"
+            "프레임을 계속 저장한 뒤 SEARCHING으로 복귀할지 지정합니다.")));
+    m_editStablePx->setToolTip(Tr(
+        QStringLiteral(
+            "Maximum center-point jitter (pixels) still counted as \"stationary\"\n"
+            "while in READY. Also the threshold used to detect the first frame\n"
+            "the ball leaves that spot (the start of a possible shot)."),
+        QStringLiteral(
+            "READY 상태에서 \"정지\"로 인정할 최대 중심점 흔들림(픽셀)입니다.\n"
+            "또한 공이 그 위치를 벗어난 첫 프레임(샷 시작 후보)을\n"
+            "판단하는 기준이기도 합니다.")));
+    m_editShotSpeed->setToolTip(Tr(
+        QStringLiteral(
+            "Minimum center-point speed (pixels/second) a movement must reach,\n"
+            "in addition to direction consistency, to count toward confirming\n"
+            "Impact."),
+        QStringLiteral(
+            "방향 일관성과 별개로, 이동이 Impact 확정에 반영되려면\n"
+            "최소한 이 이상의 중심점 이동 속도(픽셀/초)가 필요합니다.")));
+    m_editDirConsistentFrames->setToolTip(Tr(
+        QStringLiteral(
+            "How many consecutive direction comparisons must stay within\n"
+            "\"Max direction deviation\" before a movement is confirmed as a real\n"
+            "shot (Impact) rather than zigzag noise."),
+        QStringLiteral(
+            "잡음/지그재그가 아니라 실제 샷(Impact)으로 확정하려면,\n"
+            "연속된 방향 비교가 \"최대 방향 편차\" 이내로 몇 구간\n"
+            "연속돼야 하는지를 지정합니다.")));
+    m_editMaxDirDeviationDeg->setToolTip(Tr(
+        QStringLiteral(
+            "Maximum angle (degrees) allowed between consecutive movement\n"
+            "vectors while confirming a shot. A bigger change is treated as\n"
+            "zigzag/noise, which resets back to SEARCHING."),
+        QStringLiteral(
+            "샷을 확정하는 동안 연속된 이동 벡터 사이에 허용하는\n"
+            "최대 각도(도)입니다. 이보다 크게 꺾이면 지그재그/잡음으로\n"
+            "간주해 SEARCHING으로 리셋됩니다.")));
+    m_editMissToleranceMs->setToolTip(Tr(
+        QStringLiteral(
+            "How long (milliseconds) a brief ball-detection dropout is tolerated\n"
+            "without resetting the state. A stationary ball produces very few\n"
+            "events, so detection can blink out for a moment even though the\n"
+            "ball hasn't actually moved."),
+        QStringLiteral(
+            "짧은 공 검출 유실을 상태 리셋 없이 허용하는 시간(밀리초)입니다.\n"
+            "정지된 공은 이벤트가 거의 없어 실제로는 움직이지 않았어도\n"
+            "한순간 검출이 끊길 수 있습니다.")));
+    m_editWindowUs->setToolTip(Tr(
+        QStringLiteral(
+            "Event-accumulation window length (microseconds): how often a new\n"
+            "frame is built and the ball position is re-evaluated."),
+        QStringLiteral(
+            "이벤트 누적 윈도우 길이(마이크로초): 새 프레임을 만들고\n"
+            "공 위치를 다시 평가하는 주기입니다.")));
+
+    m_labelStateCaption->setText(Tr(QStringLiteral("State:"), QStringLiteral("상태:")));
+
+    UpdateRunButtons();
 }
 
 void MainWindow::DrawFrame(const cv::Mat& bgrFrame)
@@ -400,7 +527,7 @@ void MainWindow::SeekTo(lli timestampUs)
 
     if (!m_stream.Seek(clamped))
     {
-        AppendLog(QStringLiteral("Seek failed"));
+        AppendLog(Tr(QStringLiteral("Seek failed"), QStringLiteral("탐색 실패")));
         return;
     }
 
@@ -477,7 +604,9 @@ void MainWindow::FlushPreRollBuffer(lli impactUs)
 
     m_preRollBuffer.clear();
 
-    AppendLog(QStringLiteral("IMPACT - trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
+    AppendLog(Tr(
+        QStringLiteral("IMPACT - trajectory capture started (%1 pre-roll frame(s))"),
+        QStringLiteral("IMPACT - 궤적 저장 시작 (사전 프레임 %1개)")).arg(savedCount));
 }
 
 void MainWindow::onStartPauseClicked()
@@ -534,7 +663,9 @@ void MainWindow::StartStream()
 
     if (!live && rawPathStd.empty())
     {
-        AppendLog(QStringLiteral("Please choose a RAW file, or select 'Live camera'."));
+        AppendLog(Tr(
+            QStringLiteral("Please choose a RAW file, or select 'Live camera'."),
+            QStringLiteral("RAW 파일을 선택하거나 'Live camera'를 선택하세요.")));
         return;
     }
 
@@ -557,7 +688,7 @@ void MainWindow::StartStream()
 
     if (!ok)
     {
-        QString msg = QStringLiteral("Failed to start stream");
+        QString msg = Tr(QStringLiteral("Failed to start stream"), QStringLiteral("스트림 시작 실패"));
         const std::string& err = m_stream.LastError();
         if (!err.empty())
         {
@@ -573,7 +704,9 @@ void MainWindow::StartStream()
     m_runState = RunState::Running;
     UpdateRunButtons();
     m_labelState->setText(QStringLiteral("SEARCHING"));
-    AppendLog(live ? QStringLiteral("Started (live camera) - recording") : QStringLiteral("Started (RAW playback)"));
+    AppendLog(live
+        ? Tr(QStringLiteral("Started (live camera) - recording"), QStringLiteral("시작됨 (라이브 카메라) - 녹화 중"))
+        : Tr(QStringLiteral("Started (RAW playback)"), QStringLiteral("시작됨 (RAW 재생)")));
 }
 
 void MainWindow::PauseStream()
@@ -588,7 +721,9 @@ void MainWindow::PauseStream()
         // 카메라/미리보기는 그대로 흐르게 둔다(끼어든 상황이 지나가는 걸 볼 수 있도록). ShotTrigger
         // 갱신과 프레임 저장(녹화)만 건너뛴다 - OnFrameReady에서 m_processingPaused를 확인해 처리.
         m_processingPaused = true;
-        AppendLog(QStringLiteral("PAUSED - live preview continues, recording suspended"));
+        AppendLog(Tr(
+            QStringLiteral("PAUSED - live preview continues, recording suspended"),
+            QStringLiteral("일시정지됨 - 미리보기는 계속되고 녹화만 중단됨")));
     }
     else
     {
@@ -596,11 +731,11 @@ void MainWindow::PauseStream()
         // 멈춘 그 자리에 그대로 남는다.
         if (!m_stream.Pause())
         {
-            AppendLog(QStringLiteral("Pause failed"));
+            AppendLog(Tr(QStringLiteral("Pause failed"), QStringLiteral("일시정지 실패")));
             return;
         }
         m_processingPaused = true;
-        AppendLog(QStringLiteral("PAUSED - playback frozen"));
+        AppendLog(Tr(QStringLiteral("PAUSED - playback frozen"), QStringLiteral("일시정지됨 - 재생 화면 정지")));
     }
 
     m_runState = RunState::Paused;
@@ -618,7 +753,7 @@ void MainWindow::ResumeStream()
     {
         if (!m_stream.Resume())
         {
-            AppendLog(QStringLiteral("Resume failed"));
+            AppendLog(Tr(QStringLiteral("Resume failed"), QStringLiteral("재개 실패")));
             return;
         }
     }
@@ -627,8 +762,8 @@ void MainWindow::ResumeStream()
     m_runState = RunState::Running;
     UpdateRunButtons();
     AppendLog(m_liveMode
-        ? QStringLiteral("RESUMED - recording")
-        : QStringLiteral("RESUMED - playback"));
+        ? Tr(QStringLiteral("RESUMED - recording"), QStringLiteral("재개됨 - 녹화 중"))
+        : Tr(QStringLiteral("RESUMED - playback"), QStringLiteral("재개됨 - 재생 중")));
 }
 
 void MainWindow::onStopClicked()
@@ -638,7 +773,7 @@ void MainWindow::onStopClicked()
         return;
     }
 
-    StopStream(QStringLiteral("Stopped"));
+    StopStream(Tr(QStringLiteral("Stopped"), QStringLiteral("정지됨")));
 }
 
 void MainWindow::onPollStreamState()
@@ -653,7 +788,9 @@ void MainWindow::onPollStreamState()
         // RAW 파일이 끝까지 재생되어 LiveEventStream이 스스로 멈춘 경우. m_stream.Stop()은
         // 이미 멈춘 스트림에 대해서도 안전하게 호출할 수 있고(워커 스레드 join 보장),
         // Stop 버튼을 누른 것과 동일하게 UI 상태를 정리한다.
-        StopStream(QStringLiteral("Playback finished (reached end of RAW file)"));
+        StopStream(Tr(
+            QStringLiteral("Playback finished (reached end of RAW file)"),
+            QStringLiteral("재생 완료 (RAW 파일 끝에 도달)")));
         return;
     }
 
@@ -697,9 +834,9 @@ void MainWindow::onBrowseRawClicked()
 {
     const QString path = QFileDialog::getOpenFileName(
         this,
-        QStringLiteral("Select RAW file"),
+        Tr(QStringLiteral("Select RAW file"), QStringLiteral("RAW 파일 선택")),
         QString(),
-        QStringLiteral("Metavision RAW (*.raw);;All Files (*)"));
+        Tr(QStringLiteral("Metavision RAW (*.raw);;All Files (*)"), QStringLiteral("Metavision RAW (*.raw);;모든 파일 (*)")));
 
     if (!path.isEmpty())
     {
@@ -710,7 +847,7 @@ void MainWindow::onBrowseRawClicked()
 
 void MainWindow::onBrowseOutputClicked()
 {
-    const QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("Select output folder"));
+    const QString dir = QFileDialog::getExistingDirectory(this, Tr(QStringLiteral("Select output folder"), QStringLiteral("출력 폴더 선택")));
 
     if (!dir.isEmpty())
     {
@@ -791,7 +928,9 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
 
     if (su.justFinishedTrajectory)
     {
-        AppendLog(QStringLiteral("Trajectory capture finished: %1 frame(s) saved to %2")
+        AppendLog(Tr(
+            QStringLiteral("Trajectory capture finished: %1 frame(s) saved to %2"),
+            QStringLiteral("궤적 저장 완료: %1개 프레임을 %2에 저장함"))
             .arg(m_captureFrameIndex)
             .arg(m_currentCaptureDir));
         FinishCaptureSave();

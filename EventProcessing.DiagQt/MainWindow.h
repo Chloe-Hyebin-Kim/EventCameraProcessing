@@ -12,10 +12,13 @@
 #include <memory>
 
 QT_BEGIN_NAMESPACE
+class QAction;
+class QGroupBox;
 class QKeyEvent;
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QMenu;
 class QPushButton;
 class QRadioButton;
 class QSlider;
@@ -64,12 +67,28 @@ private:
         Paused,
     };
 
+    // 설정(Settings) 메뉴 > Language에서 고르는 UI 표시 언어. 별도 Qt Linguist(.ts/.qm) 빌드
+    // 없이, 문자열마다 영어/한국어 쌍을 코드에 직접 두고 Tr()로 골라 쓰는 가벼운 방식이다.
+    enum class AppLanguage
+    {
+        English,
+        Korean,
+    };
+
     void BuildUi();
     eventcore::ShotTriggerConfig ReadConfigFromUI() const;
     void AppendLog(const QString& msg);
     void UpdateStateLabel(eventcore::ShotState state);
     void UpdateRunButtons();
     void DrawFrame(const cv::Mat& bgrFrame);
+
+    // 현재 m_language에 맞는 쪽을 돌려준다. UI 문자열은 모두 이걸 통해서 얻는다.
+    QString Tr(const QString& en, const QString& ko) const;
+    void SetLanguage(AppLanguage lang);
+    // m_language가 바뀔 때마다(그리고 최초 BuildUi() 끝에서 한 번) 모든 위젯의 표시 텍스트를
+    // 다시 채운다. 버튼/라벨/툴팁/메뉴 제목 등 위젯 생성 시점의 리터럴 텍스트는 두지 않고,
+    // 여기서만 실제 문구를 정한다.
+    void RetranslateUi();
     void StartStream();
     void PauseStream();
     void ResumeStream();
@@ -95,6 +114,7 @@ private:
     eventcore::ShotTriggerConfig m_activeConfig;
     bool m_running = false;
     RunState m_runState = RunState::Idle;
+    AppLanguage m_language = AppLanguage::English;
     bool m_liveMode = false;
 
     // Live 카메라 모드에서만 쓰인다: Pause 동안 카메라/미리보기는 계속 흐르게 두고(끼어든 상황이
@@ -126,12 +146,34 @@ private:
     QPixmap m_previewPixmap;
 
     // UI
+    // 설정 메뉴 (BuildUi()가 root 레이아웃에 QLayout::setMenuBar()로 얹는다 - QMainWindow가
+    // 아니어도 위젯 하나짜리 앱에 메뉴바를 둘 수 있다).
+    QMenu* m_menuSettings = nullptr;
+    QMenu* m_menuLanguage = nullptr;
+    QAction* m_actionLangEnglish = nullptr;
+    QAction* m_actionLangKorean = nullptr;
+
+    QGroupBox* m_boxSource = nullptr;
+    QGroupBox* m_boxOutput = nullptr;
+    QGroupBox* m_boxShotTrigger = nullptr;
+
     QRadioButton* m_radioLive = nullptr;
     QRadioButton* m_radioRaw = nullptr;
     QLineEdit* m_editRawPath = nullptr;
     QPushButton* m_btnBrowseRaw = nullptr;
     QLineEdit* m_editOutputDir = nullptr;
     QPushButton* m_btnBrowseOutput = nullptr;
+
+    QLabel* m_labelReadySec = nullptr;
+    QLabel* m_labelPreCaptureSec = nullptr;
+    QLabel* m_labelPostCaptureSec = nullptr;
+    QLabel* m_labelStablePx = nullptr;
+    QLabel* m_labelShotSpeed = nullptr;
+    QLabel* m_labelDirConsistentFrames = nullptr;
+    QLabel* m_labelMaxDirDeviationDeg = nullptr;
+    QLabel* m_labelMissToleranceMs = nullptr;
+    QLabel* m_labelWindowUs = nullptr;
+
     QLineEdit* m_editReadySec = nullptr;
     QLineEdit* m_editPreCaptureSec = nullptr;
     QLineEdit* m_editPostCaptureSec = nullptr;
@@ -143,6 +185,7 @@ private:
     QLineEdit* m_editWindowUs = nullptr;
     QPushButton* m_btnStartPause = nullptr;
     QPushButton* m_btnStop = nullptr;
+    QLabel* m_labelStateCaption = nullptr;
     QLabel* m_labelState = nullptr;
     QLabel* m_labelPreview = nullptr;
     QListWidget* m_listLog = nullptr;
