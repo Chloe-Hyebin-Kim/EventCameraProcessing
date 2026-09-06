@@ -4,6 +4,8 @@
 #include <QActionGroup>
 #include <QCloseEvent>
 #include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -18,6 +20,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSlider>
+#include <QTextBrowser>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -927,7 +930,12 @@ void MainWindow::onShowAboutLicense()
     // 법적/연락처 정보라 의역하지 않음). 정식 라이선스가 아직 지정되지 않았고 저장소에 LICENSE
     // 파일이 없으므로, 없는 사실(라이선스 종류, 웹사이트 등)을 지어내는 대신 실제로 확인 가능한
     // 내용만 채운다: 번들된 서드파티 SDK의 실제 라이선스 파일 경로, 실제 GitHub 저장소 주소 등.
-    const QString text = QStringLiteral(
+    //
+    // QMessageBox 대신 QTextBrowser를 쓴다: setOpenExternalLinks(true)가 공개 API라 Website/Bug
+    // Report/Email 링크를 실제로 클릭해서 브라우저/메일 클라이언트로 이동시킬 수 있다(QMessageBox로
+    // 이걸 하려면 내부 전용 객체 이름("qt_msgbox_label")에 findChild로 접근해야 해서 더 불안정하다).
+    const QString html = QStringLiteral(
+        "<pre style=\"font-family:monospace;\">"
         "======================================================================\n"
         " PRODUCT NAME : Event Camera Processor\n"
         " VERSION      : Build %1 (%2)\n"
@@ -955,17 +963,35 @@ void MainWindow::onShowAboutLicense()
         "     LGPLv3 / GPLv3, or commercial, depending on your Qt install\n"
         "\n"
         " CONTACT / SUPPORT :\n"
-        " - Email      : dev5igner@snu.ac.kr\n"
+        " - Email      : <a href=\"mailto:dev5igner@snu.ac.kr\">dev5igner@snu.ac.kr</a>\n"
         " - Tel        : +82-010-2008-2026\n"
         " - Address    : 1 Gwanak-ro, Gwanak-gu, Seoul, Republic of Korea\n"
-        " - Website    : https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing\n"
-        " - Bug Report : https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing/issues\n"
-        "======================================================================")
+        " - Website    : <a href=\"https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing\">"
+        "https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing</a>\n"
+        " - Bug Report : <a href=\"https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing/issues\">"
+        "https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing/issues</a>\n"
+        "======================================================================"
+        "</pre>")
         .arg(QStringLiteral(EVENTCORE_GIT_COMMIT_HASH))
         .arg(QStringLiteral(EVENTCORE_BUILD_DATE))
         .arg(QDate::currentDate().year());
 
-    QMessageBox::information(this, Tr(QStringLiteral("License"), QStringLiteral("라이센스")), text);
+    QDialog dialog(this);
+    dialog.setWindowTitle(Tr(QStringLiteral("License"), QStringLiteral("라이센스")));
+
+    auto* browser = new QTextBrowser(&dialog);
+    browser->setOpenExternalLinks(true);
+    browser->setHtml(html);
+
+    auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->addWidget(browser);
+    layout->addWidget(buttonBox);
+
+    dialog.resize(600, 480);
+    dialog.exec();
 }
 
 void MainWindow::onSliderMoved(int value)
