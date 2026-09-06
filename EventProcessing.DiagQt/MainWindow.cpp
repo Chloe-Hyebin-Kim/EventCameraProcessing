@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include "Utf8Path.h"
+
 #include <QAction>
 #include <QActionGroup>
 #include <QCloseEvent>
@@ -60,14 +62,25 @@ namespace
     // 좌우 화살표 키 1회 입력당 이동하는 시간(1초).
     constexpr lli kArrowSeekStepUs = 1000000;
 
-    // QString::toStdString()은 항상 UTF-8로 변환하지만, Windows의 파일 시스템 API와 Metavision
-    // SDK는 시스템 코드페이지(예: 한글 Windows의 CP949)를 기대한다. 경로에 비ASCII 문자(한글
-    // 폴더/파일명 등)가 있으면 UTF-8로 넘겼을 때 깨진 경로가 전달되어 파일을 못 열 수 있다
-    // (MFC 버전에서 CT2A로 동일한 문제를 피했던 것과 같은 이유). toLocal8Bit()으로 시스템
-    // 코드페이지에 맞게 변환한다(Linux 등에서는 보통 로케일이 이미 UTF-8이라 문제없음).
-    std::string ToNativePath(const QString& path)
+    // QString::toStdString()은 항상 UTF-8을 돌려주는데, Windows의 std::filesystem::path(const
+    // std::string&) 생성자와 OpenCV의 cv::imwrite() 등은 그 바이트열을 UTF-8이 아니라 시스템
+    // ANSI 코드페이지로 해석한다. 경로에 한글 등 비ASCII 문자가 있으면 실제로는 존재하지 않는
+    // 엉뚱한 경로로 해석되어 파일을 못 찾거나 못 여는 원인이 된다. Utf8ToPath()
+    // (EventProcessing.Core/Utf8Path.h - LiveEventStream::Start()가 RAW 파일을 열 때 쓰는 것과
+    // 동일한 변환)로 UTF-8 -> UTF-16 -> path로 변환해 이 문제를 피한다(Linux에서는 경로를
+    // 그대로 UTF-8 바이트로 다루므로 별다른 변환 없이 통과함).
+    //
+    // ToUtf8()은 RAW 파일 경로처럼 그대로 다른 API(LiveEventStream::Start)에 넘겨서 그쪽에서
+    // 똑같이 Utf8ToPath()로 변환하게 할 문자열에 쓴다 - 여기서 먼저 native 인코딩으로 바꿔
+    // 넘기면 그쪽의 Utf8ToPath()가 그 native 바이트를 UTF-8로 잘못 재해석해서 오히려 깨진다.
+    std::string ToUtf8(const QString& path)
     {
-        return path.toLocal8Bit().toStdString();
+        return path.toStdString();
+    }
+
+    std::filesystem::path ToNativePath(const QString& path)
+    {
+        return eventcore::Utf8ToPath(ToUtf8(path));
     }
 }
 
@@ -629,7 +642,7 @@ void MainWindow::SaveCaptureFrame(const cv::Mat& bgrFrame)
         .arg(m_currentCaptureDir)
         .arg(m_captureFrameIndex, 4, 10, QChar('0'));
 
-    cv::imwrite(ToNativePath(filename), bgrFrame);
+    cv::imwrite(ToNativePath(filename).string(), bgrFrame);
 
     ++m_captureFrameIndex;
 }
@@ -733,7 +746,9 @@ void MainWindow::StartStream()
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
 
     const bool live = m_radioLive->isChecked();
-    const std::string rawPathStd = ToNativePath(rawPath);
+    // LiveEventStream::Start()가 이 문자열을 Utf8ToPath()로 변환하므로(LiveEventStream.cpp),
+    // 여기서는 native 인코딩으로 바꾸지 않고 UTF-8 그대로 넘긴다.
+    const std::string rawPathStd = ToUtf8(rawPath);
 
     if (!live && rawPathStd.empty())
     {
