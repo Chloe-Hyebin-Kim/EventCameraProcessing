@@ -71,7 +71,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_editMissToleranceMs->setText(QStringLiteral("150"));
     m_editWindowUs->setText(QStringLiteral("10000"));
 
-    m_btnStop->setEnabled(false);
+    UpdateRunButtons();
     m_labelState->setText(QStringLiteral("IDLE"));
 
     setWindowTitle(QStringLiteral("EventProcessing.DiagQt"));
@@ -183,12 +183,12 @@ void MainWindow::BuildUi()
 
     // --- Controls ---
     auto* controlLayout = new QHBoxLayout();
-    m_btnStart = new QPushButton(QStringLiteral("Start"), this);
+    m_btnStartPause = new QPushButton(QStringLiteral("Start"), this);
     m_btnStop = new QPushButton(QStringLiteral("Stop"), this);
     m_labelState = new QLabel(QStringLiteral("IDLE"), this);
     m_labelState->setStyleSheet(QStringLiteral("font-weight: bold;"));
 
-    controlLayout->addWidget(m_btnStart);
+    controlLayout->addWidget(m_btnStartPause);
     controlLayout->addWidget(m_btnStop);
     controlLayout->addStretch();
     controlLayout->addWidget(new QLabel(QStringLiteral("State:"), this));
@@ -225,7 +225,7 @@ void MainWindow::BuildUi()
 
     root->addLayout(bodyLayout, 1);
 
-    connect(m_btnStart, &QPushButton::clicked, this, &MainWindow::onStartClicked);
+    connect(m_btnStartPause, &QPushButton::clicked, this, &MainWindow::onStartPauseClicked);
     connect(m_btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
     connect(m_btnBrowseRaw, &QPushButton::clicked, this, &MainWindow::onBrowseRawClicked);
     connect(m_btnBrowseOutput, &QPushButton::clicked, this, &MainWindow::onBrowseOutputClicked);
@@ -262,6 +262,29 @@ void MainWindow::AppendLog(const QString& msg)
 void MainWindow::UpdateStateLabel(ShotState state)
 {
     m_labelState->setText(FormatShotState(state));
+}
+
+void MainWindow::UpdateRunButtons()
+{
+    switch (m_runState)
+    {
+    case RunState::Idle:
+        m_btnStartPause->setText(QStringLiteral("Start"));
+        m_btnStartPause->setEnabled(true);
+        m_btnStop->setEnabled(false);
+        break;
+    case RunState::Running:
+        m_btnStartPause->setText(QStringLiteral("Pause"));
+        m_btnStartPause->setEnabled(true);
+        m_btnStop->setEnabled(true);
+        break;
+    case RunState::Paused:
+        // 다시 누르면 이어서 재개(Start/Resume)한다는 뜻으로, Idle과 같은 "Start" 라벨을 쓴다.
+        m_btnStartPause->setText(QStringLiteral("Start"));
+        m_btnStartPause->setEnabled(true);
+        m_btnStop->setEnabled(true);
+        break;
+    }
 }
 
 void MainWindow::DrawFrame(const cv::Mat& bgrFrame)
@@ -423,9 +446,25 @@ void MainWindow::FlushPreRollBuffer(lli impactUs)
     AppendLog(QStringLiteral("IMPACT - trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
 }
 
-void MainWindow::onStartClicked()
+void MainWindow::onStartPauseClicked()
 {
-    if (m_running)
+    switch (m_runState)
+    {
+    case RunState::Idle:
+        StartStream();
+        break;
+    case RunState::Running:
+        PauseStream();
+        break;
+    case RunState::Paused:
+        ResumeStream();
+        break;
+    }
+}
+
+void MainWindow::StartStream()
+{
+    if (m_runState != RunState::Idle)
     {
         return;
     }
@@ -495,15 +534,72 @@ void MainWindow::onStartClicked()
     }
 
     m_running = true;
-    m_btnStart->setEnabled(false);
-    m_btnStop->setEnabled(true);
+    m_liveMode = live;
+    m_processingPaused = false;
+    m_runState = RunState::Running;
+    UpdateRunButtons();
     m_labelState->setText(QStringLiteral("SEARCHING"));
-    AppendLog(live ? QStringLiteral("Started (live camera)") : QStringLiteral("Started (RAW playback)"));
+    AppendLog(live ? QStringLiteral("Started (live camera) - recording") : QStringLiteral("Started (RAW playback)"));
+}
+
+void MainWindow::PauseStream()
+{
+    if (m_runState != RunState::Running)
+    {
+        return;
+    }
+
+    if (m_liveMode)
+    {
+        // 카메라/미리보기는 그대로 흐르게 둔다(끼어든 상황이 지나가는 걸 볼 수 있도록). ShotTrigger
+        // 갱신과 프레임 저장(녹화)만 건너뛴다 - OnFrameReady에서 m_processingPaused를 확인해 처리.
+        m_processingPaused = true;
+        AppendLog(QStringLiteral("PAUSED - live preview continues, recording suspended"));
+    }
+    else
+    {
+        // RAW 재생 자체를 멈춰서(카메라 정지) 더 이상 새 프레임이 오지 않게 한다 -> 화면이
+        // 멈춘 그 자리에 그대로 남는다.
+        if (!m_stream.Pause())
+        {
+            AppendLog(QStringLiteral("Pause failed"));
+            return;
+        }
+        m_processingPaused = true;
+        AppendLog(QStringLiteral("PAUSED - playback frozen"));
+    }
+
+    m_runState = RunState::Paused;
+    UpdateRunButtons();
+}
+
+void MainWindow::ResumeStream()
+{
+    if (m_runState != RunState::Paused)
+    {
+        return;
+    }
+
+    if (!m_liveMode)
+    {
+        if (!m_stream.Resume())
+        {
+            AppendLog(QStringLiteral("Resume failed"));
+            return;
+        }
+    }
+
+    m_processingPaused = false;
+    m_runState = RunState::Running;
+    UpdateRunButtons();
+    AppendLog(m_liveMode
+        ? QStringLiteral("RESUMED - recording")
+        : QStringLiteral("RESUMED - playback"));
 }
 
 void MainWindow::onStopClicked()
 {
-    if (!m_running)
+    if (m_runState == RunState::Idle)
     {
         return;
     }
@@ -544,9 +640,10 @@ void MainWindow::StopStream(const QString& logMessage)
 {
     m_stream.Stop();
     m_running = false;
+    m_processingPaused = false;
+    m_runState = RunState::Idle;
+    UpdateRunButtons();
 
-    m_btnStart->setEnabled(true);
-    m_btnStop->setEnabled(false);
     m_labelState->setText(QStringLiteral("IDLE"));
     m_gotFirstFrame = false;
     m_seekRangeKnown = false;
@@ -554,6 +651,11 @@ void MainWindow::StopStream(const QString& logMessage)
     m_sliderPosition->setValue(0);
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
     m_preRollBuffer.clear();
+
+    // 처음(까만 화면)으로 되돌린다.
+    m_previewPixmap = QPixmap();
+    m_labelPreview->setPixmap(QPixmap());
+
     AppendLog(logMessage);
 }
 
@@ -608,6 +710,15 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
     m_gotFirstFrame = true;
 
     DrawFrame(msg->frame);
+
+    if (m_processingPaused)
+    {
+        // Live 모드는 카메라를 세우지 않으므로 pause 중에도 이 콜백이 계속 들어온다 - 화면은
+        // 이미 위에서 갱신했으니(끼어든 상황을 볼 수 있게), 트리거 갱신/저장(녹화)만 건너뛴다.
+        // RAW 모드는 m_stream.Pause()가 카메라 자체를 세워서 보통 여기로 오지도 않지만, pause
+        // 호출과 경합하며 이미 큐에 들어와 있던 콜백이 뒤늦게 도착하는 경우를 대비한 방어.
+        return;
+    }
 
     // 사용자가 슬라이더를 드래그하는 중에는 재생 위치가 그 값을 덮어쓰지 않도록 한다.
     if (m_seekRangeKnown && !m_sliderPosition->isSliderDown())

@@ -198,6 +198,7 @@ namespace eventcore
         // move-assign할 때 여전히 joinable한 스레드가 남아있어 std::terminate()가 호출된다
         // (재생이 끝난 뒤 다른 RAW로 다시 Start했을 때 크래시하는 원인이었음).
         m_running = false;
+        m_paused = false;
 
         if (m_windowThread.joinable())
         {
@@ -211,6 +212,75 @@ namespace eventcore
         catch (...)
         {
         }
+    }
+
+    bool LiveEventStream::Pause()
+    {
+        if (!m_running || m_paused)
+        {
+            return false;
+        }
+
+        // WindowLoop 스레드는 join하지 않고 그대로 둔다: m_paused만 세우면 다음 루프에서
+        // 스스로 대기 상태로 들어가고, m_running은 그대로 true라 자연 종료(EOF) 처리 경로와
+        // 헷갈리지 않는다.
+        m_paused = true;
+
+        try
+        {
+            m_camera.stop();
+        }
+        catch (...)
+        {
+            // 카메라가 멈추지 않아도(예: 이미 EOF로 멈춰 있던 경우) pause 자체는 유지한다.
+        }
+
+        return true;
+    }
+
+    bool LiveEventStream::Resume()
+    {
+        if (!m_running || !m_paused)
+        {
+            return false;
+        }
+
+        bool started = false;
+
+        try
+        {
+            started = m_camera.start();
+        }
+        catch (...)
+        {
+            started = false;
+        }
+
+        if (!started)
+        {
+            return false;
+        }
+
+        // 탐색 가능한 소스(RAW 파일)라면 멈췄던 시각으로 되돌려서, pause 동안 흐른 실제 시간만큼
+        // 앞으로 건너뛰지 않고 그 자리에서 이어서 재생되게 한다. 라이브 카메라는 애초에 이 함수로
+        // pause하지 않으므로(호출부에서 라이브는 카메라를 세우지 않는 별도 경로를 씀) 보통 seek
+        // 불가능 소스라 이 블록이 실행되지 않는다.
+        if (IsSeekable())
+        {
+            SafeCallBool([this]()
+            {
+                return m_camera.offline_streaming_control().seek(m_lastProcessedUs.load());
+            });
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(m_bufferMutex);
+            m_buffer.clear();
+        }
+
+        m_paused = false;
+
+        return true;
     }
 
     bool LiveEventStream::IsRunning() const
@@ -282,8 +352,21 @@ namespace eventcore
     {
         lli runningClockUs = 0;
 
-        while (m_running && m_camera.is_running())
+        while (m_running)
         {
+            if (m_paused)
+            {
+                // Pause()가 카메라를 세워 뒀다. 스레드는 죽이지 않고 짧게 자며 대기하다가,
+                // Resume()이 m_paused를 내리거나 Stop()이 m_running을 내리면 빠져나온다.
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                continue;
+            }
+
+            if (!m_camera.is_running())
+            {
+                break;
+            }
+
             std::this_thread::sleep_for(std::chrono::microseconds(windowUs));
 
             std::vector<Event> batch;
@@ -295,6 +378,7 @@ namespace eventcore
             const lli batchStart = batch.empty() ? runningClockUs : batch.front().t_us;
             const lli batchEnd = batch.empty() ? (runningClockUs + windowUs) : (batch.back().t_us + 1);
             runningClockUs = batchEnd;
+            m_lastProcessedUs = batchEnd;
 
             const EventProcessingResult result = EventProcessor::Process(batch, m_width, m_height, batchStart, batchEnd - batchStart);
 

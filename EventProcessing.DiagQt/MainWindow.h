@@ -45,7 +45,7 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
-    void onStartClicked();
+    void onStartPauseClicked();
     void onStopClicked();
     void onBrowseRawClicked();
     void onBrowseOutputClicked();
@@ -54,11 +54,25 @@ private slots:
     void onSliderReleased();
 
 private:
+    // Start/Pause는 버튼 하나를 같이 쓴다(눌린 순간의 m_runState에 따라 동작이 갈림).
+    // Idle에서 누르면 StartStream(), Running에서 누르면 PauseStream(), Paused에서 누르면
+    // ResumeStream()이 호출된다. Stop은 별도 버튼으로, 항상 처음(IDLE, 까만 화면)으로 되돌린다.
+    enum class RunState
+    {
+        Idle,
+        Running,
+        Paused,
+    };
+
     void BuildUi();
     eventcore::ShotTriggerConfig ReadConfigFromUI() const;
     void AppendLog(const QString& msg);
     void UpdateStateLabel(eventcore::ShotState state);
+    void UpdateRunButtons();
     void DrawFrame(const cv::Mat& bgrFrame);
+    void StartStream();
+    void PauseStream();
+    void ResumeStream();
     void StartCaptureSave();
     void SaveCaptureFrame(const cv::Mat& bgrFrame);
     void FinishCaptureSave();
@@ -80,6 +94,14 @@ private:
     eventcore::ShotTrigger m_trigger;
     eventcore::ShotTriggerConfig m_activeConfig;
     bool m_running = false;
+    RunState m_runState = RunState::Idle;
+    bool m_liveMode = false;
+
+    // Live 카메라 모드에서만 쓰인다: Pause 동안 카메라/미리보기는 계속 흐르게 두고(끼어든 상황이
+    // 지나가는 걸 볼 수 있게), ShotTrigger 갱신과 프레임 저장(녹화)만 건너뛴다. RAW 모드의 Pause는
+    // m_stream.Pause()로 재생 자체를 멈추므로 이 플래그와 무관하게 콜백이 아예 오지 않는다.
+    bool m_processingPaused = false;
+
     QTimer* m_pollTimer = nullptr;
 
     // Impact 확정 이전 프레임들을 preCaptureSeconds만큼 보관해 두는 링 버퍼. Impact가 확정되면
@@ -119,7 +141,7 @@ private:
     QLineEdit* m_editMaxDirDeviationDeg = nullptr;
     QLineEdit* m_editMissToleranceMs = nullptr;
     QLineEdit* m_editWindowUs = nullptr;
-    QPushButton* m_btnStart = nullptr;
+    QPushButton* m_btnStartPause = nullptr;
     QPushButton* m_btnStop = nullptr;
     QLabel* m_labelState = nullptr;
     QLabel* m_labelPreview = nullptr;
