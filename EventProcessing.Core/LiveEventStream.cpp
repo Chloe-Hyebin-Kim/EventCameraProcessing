@@ -8,6 +8,7 @@
 
 #include <metavision/sdk/base/events/event_cd.h>
 #include <metavision/sdk/stream/offline_streaming_control.h>
+#include <metavision/hal/facilities/i_ll_biases.h>
 
 #if defined(_MSC_VER)
 #include <excpt.h>
@@ -348,6 +349,67 @@ namespace eventcore
         {
             return m_camera.offline_streaming_control().seek(timestampUs);
         });
+    }
+
+    std::vector<BiasSetting> LiveEventStream::GetBiases() const
+    {
+        std::vector<BiasSetting> result;
+
+        if (!m_running)
+        {
+            return result;
+        }
+
+        // Camera::get_facility<T>()는 포인터가 아니라 참조를 반환하며, 해당 파실리티가 없는
+        // 소스(RAW 파일 재생 등)에서는 CameraException(UnsupportedFeature)을 던진다.
+        try
+        {
+            const Metavision::I_LL_Biases& biases = m_camera.get_facility<Metavision::I_LL_Biases>();
+            const std::map<std::string, int> allBiases = biases.get_all_biases();
+
+            for (const auto& [name, value] : allBiases)
+            {
+                BiasSetting setting;
+                setting.name = name;
+                setting.value = value;
+
+                Metavision::LL_Bias_Info info;
+                if (biases.get_bias_info(name, info))
+                {
+                    const std::pair<int, int> range = info.get_bias_range();
+                    setting.minValue = range.first;
+                    setting.maxValue = range.second;
+                    setting.description = info.get_description();
+                    setting.modifiable = info.is_modifiable();
+                }
+
+                result.push_back(std::move(setting));
+            }
+        }
+        catch (...)
+        {
+            result.clear();
+        }
+
+        return result;
+    }
+
+    bool LiveEventStream::SetBias(const std::string& biasName, int value)
+    {
+        if (!m_running)
+        {
+            return false;
+        }
+
+        try
+        {
+            Metavision::I_LL_Biases& biases = m_camera.get_facility<Metavision::I_LL_Biases>();
+            return biases.set(biasName, value);
+        }
+        catch (...)
+        {
+            return false;
+        }
     }
 
     void LiveEventStream::WindowLoop(lli windowUs, FrameCallback callback)

@@ -10,9 +10,11 @@
 
 #include <deque>
 #include <memory>
+#include <vector>
 
 QT_BEGIN_NAMESPACE
 class QAction;
+class QFormLayout;
 class QGroupBox;
 class QKeyEvent;
 class QLabel;
@@ -23,6 +25,7 @@ class QPushButton;
 class QRadioButton;
 class QSlider;
 class QTimer;
+class QWidget;
 QT_END_NAMESPACE
 
 struct FrameMessage
@@ -103,6 +106,12 @@ private:
     void PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg);
     void FlushPreRollBuffer(eventcore::lli impactUs);
 
+    // 라이브 카메라가 성공적으로 시작된 뒤 m_stream.GetBiases()로 얻은 bias 목록으로 슬라이더
+    // 한 줄씩 채운다(RAW 모드나 시작 전에는 호출하지 않음 - Not available 안내만 표시).
+    void PopulateBiasControls();
+    // 슬라이더들을 비우고 "사용 불가" 안내로 되돌린다(Stop, 또는 RAW 모드로 시작할 때).
+    void ClearBiasControls();
+
     // LiveEventStream의 콜백은 워커 스레드에서 호출된다. 캡처한 프레임은 힙에 올려
     // QMetaObject::invokeMethod(..., Qt::QueuedConnection)로 UI 스레드에 마샬링해서 처리한다.
     void OnFrameReady(std::shared_ptr<FrameMessage> msg);
@@ -171,6 +180,22 @@ private:
     QGroupBox* m_boxSource = nullptr;
     QGroupBox* m_boxOutput = nullptr;
     QGroupBox* m_boxShotTrigger = nullptr;
+
+    // Camera Bias (Metavision HAL I_LL_Biases). 라이브 카메라가 실제로 열려 있을 때만 값이 있으므로,
+    // BuildUi() 시점에는 "사용 불가" 라벨만 보이고, StartStream()이 라이브로 성공하면
+    // PopulateBiasControls()가 이 폼을 실제 bias 슬라이더들로 채운다.
+    QGroupBox* m_boxBias = nullptr;
+    QFormLayout* m_biasFormLayout = nullptr;
+    QLabel* m_labelBiasUnavailable = nullptr;
+
+    struct BiasControlRow
+    {
+        QString biasName;
+        QWidget* container = nullptr; // slider + value label을 담는 한 행. 부모는 m_boxBias.
+        QSlider* slider = nullptr;
+        QLabel* valueLabel = nullptr;
+    };
+    std::vector<BiasControlRow> m_biasRows;
 
     QRadioButton* m_radioLive = nullptr;
     QRadioButton* m_radioRaw = nullptr;
