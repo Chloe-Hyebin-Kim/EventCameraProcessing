@@ -1,29 +1,42 @@
 set(EVENTCORE_SOURCES
     BallDetector.cpp
+	CircleFit.cpp
     CsvEventSource.cpp
     EventAccumulator.cpp
-    EventFilter.cpp
+    EventBallFinder.cpp
+	EventFilter.cpp
     EventLoader.cpp
     EventProcessing.Core.cpp
     EventProcessor.cpp
-    EventSourceFactory.cpp
+    EventRingBuffer.cpp
+	EventSourceFactory.cpp
     EventVisualizer.cpp
+	RobustBallDetector.cpp
+	ShotLogger.cpp
+	ShotRecorder.cpp
     ShotTrigger.cpp
     pch.cpp
 )
 
 set(EVENTCORE_HEADERS
     BallDetector.h
+	CircleFit.h
     CsvEventSource.h
     Event.h
     EventAccumulator.h
+	EventBallFinder.h
     EventFilter.h
     EventLoader.h
     EventProcessor.h
+	EventRingBuffer.h
     EventSourceFactory.h
     EventVisualizer.h
     IEventSource.h
+	RobustBallDetector.h
+	ShotLogger.h
+	ShotRecorder.h
     ShotTrigger.h
+	Utf8Path.h
     framework.h
     pch.h
 )

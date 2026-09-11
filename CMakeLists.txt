@@ -1,3 +1,7 @@
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 cmake_minimum_required(VERSION 3.16)
 project(EventCameraProcessing CXX)
 
@@ -251,6 +255,7 @@ endfunction()
 
 add_subdirectory(EventProcessing.Core)
 add_subdirectory(EventProcessing.Console)
+add_subdirectory(EventProcessing.Bench)
 
 if(EVENTCORE_HAVE_METAVISION)
     add_subdirectory(EventProcessing.DiagQt)
