@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMap>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -82,6 +83,32 @@ namespace
     std::filesystem::path ToNativePath(const QString& path)
     {
         return eventcore::Utf8ToPath(ToUtf8(path));
+    }
+
+    // IMX636/Metavision의 표준 bias 6종에 대한 한국어 설명. 실제 연결된 카메라/펌웨어가
+    // LL_Bias_Info::get_description()으로 보고하는 원문 그대로의 번역이 아니라(그 정확한 원문은
+    // 이 네트워크 환경에서 Prophesee 공식 문서를 확인할 수 없어 검증하지 못함), 공개적으로 널리
+    // 알려진 IMX636 bias 동작 방식을 바탕으로 직접 작성한 설명이다. 이 표에 없는 bias 이름은
+    // HAL이 보고한 영어 원문을 그대로 보여준다(임의로 지어내지 않음).
+    QString KoreanBiasDescription(const QString& biasName)
+    {
+        static const QMap<QString, QString> kDescriptions = {
+            { QStringLiteral("bias_diff"),
+              QStringLiteral("이벤트 감지의 공통 기준 레벨. bias_diff_on/off는 이 기준을 중심으로 한 오프셋으로 동작함.") },
+            { QStringLiteral("bias_diff_off"),
+              QStringLiteral("밝기 감소(OFF 이벤트) 감지 문턱값. 값을 낮출수록 더 민감해짐(작은 변화에도 이벤트 발생).") },
+            { QStringLiteral("bias_diff_on"),
+              QStringLiteral("밝기 증가(ON 이벤트) 감지 문턱값. 값을 높일수록 더 민감해짐(작은 변화에도 이벤트 발생).") },
+            { QStringLiteral("bias_fo"),
+              QStringLiteral("포토리시버(photoreceptor)의 대역폭(로우패스 필터). 낮출수록 빠른 밝기 변화에 더 민감해지지만 노이즈도 함께 증가함.") },
+            { QStringLiteral("bias_hpf"),
+              QStringLiteral("하이패스 필터 컷오프. 조명 깜빡임 등 느리게(저주파로) 변하는 밝기 변화를 걸러내는 정도를 조절함.") },
+            { QStringLiteral("bias_refr"),
+              QStringLiteral("리프랙토리(불응) 기간. 한 픽셀이 이벤트를 낸 뒤 다시 이벤트를 낼 수 있을 때까지의 최소 시간으로, 높일수록 이벤트 레이트가 줄어듦.") },
+        };
+
+        const auto it = kDescriptions.find(biasName);
+        return it != kDescriptions.end() ? it.value() : QString();
     }
 }
 
@@ -454,6 +481,18 @@ void MainWindow::RetranslateUi()
     m_labelBiasUnavailable->setText(Tr(
         QStringLiteral("Not available (Live camera only, after Start)"),
         QStringLiteral("사용 불가 (라이브 카메라로 시작한 뒤에만 사용 가능)")));
+
+    // 이미 채워진 bias 행이 있다면(언어를 바꿀 때) 설명 툴팁도 새 언어에 맞게 다시 적용한다.
+    for (const BiasControlRow& row : m_biasRows)
+    {
+        const QString tooltip = BiasTooltipFor(row);
+        row.container->setToolTip(tooltip);
+        row.slider->setToolTip(tooltip);
+        if (row.nameLabel)
+        {
+            row.nameLabel->setToolTip(tooltip);
+        }
+    }
 
     m_labelReadySec->setText(Tr(QStringLiteral("Ready (sec)"), QStringLiteral("정지 유지 시간 (초)")));
     m_labelPreCaptureSec->setText(Tr(QStringLiteral("Pre-capture (sec)"), QStringLiteral("사전 저장 시간 (초)")));
@@ -956,8 +995,9 @@ void MainWindow::PopulateBiasControls()
 
     m_labelBiasUnavailable->setVisible(false);
 
-    // Bias 이름/설명은 Metavision HAL이 카메라에서 직접 보고하는 하드웨어 용어라 로그와 마찬가지로
-    // 항상 영어 그대로 둔다(임의로 번역하지 않음).
+    // Bias 이름 자체는 Metavision HAL이 보고하는 하드웨어 용어라 로그와 마찬가지로 항상 영어
+    // 그대로 둔다(임의로 번역하지 않음). 설명(툴팁)은 언어 설정에 따라 한국어/영어로 갈아 끼운다
+    // (BiasTooltipFor() 참고) - 아래에서는 두 언어의 설명을 row에 채워 두기만 한다.
     for (const eventcore::BiasSetting& bias : biases)
     {
         const QString biasName = QString::fromStdString(bias.name);
@@ -978,12 +1018,6 @@ void MainWindow::PopulateBiasControls()
         rowLayout->addWidget(slider, 1);
         rowLayout->addWidget(valueLabel);
 
-        const QString tooltip = bias.description.empty()
-            ? biasName
-            : QString::fromStdString(bias.description);
-        container->setToolTip(tooltip);
-        slider->setToolTip(tooltip);
-
         connect(slider, &QSlider::valueChanged, this, [this, biasName, valueLabel](int value)
         {
             valueLabel->setText(QString::number(value));
@@ -995,21 +1029,36 @@ void MainWindow::PopulateBiasControls()
 
         m_biasFormLayout->addRow(biasName, container);
 
-        // 이름 라벨에도 같은 설명 툴팁을 달아, 슬라이더뿐 아니라 이름에 마우스를 올려도
-        // 설명이 뜨게 한다. addRow(QString, QWidget*)가 내부적으로 만든 라벨은
-        // labelForField()로만 접근할 수 있다.
-        if (QWidget* nameLabel = m_biasFormLayout->labelForField(container))
-        {
-            nameLabel->setToolTip(tooltip);
-        }
-
         BiasControlRow row;
         row.biasName = biasName;
+        row.englishDescription = bias.description.empty() ? biasName : QString::fromStdString(bias.description);
+        row.koreanDescription = KoreanBiasDescription(biasName);
         row.container = container;
         row.slider = slider;
         row.valueLabel = valueLabel;
+        // addRow(QString, QWidget*)가 내부적으로 만든 이름 라벨은 labelForField()로만 접근할 수
+        // 있다 - 슬라이더뿐 아니라 이름 위에 마우스를 올려도 같은 설명이 뜨게 하기 위함.
+        row.nameLabel = m_biasFormLayout->labelForField(container);
+
+        const QString tooltip = BiasTooltipFor(row);
+        container->setToolTip(tooltip);
+        slider->setToolTip(tooltip);
+        if (row.nameLabel)
+        {
+            row.nameLabel->setToolTip(tooltip);
+        }
+
         m_biasRows.push_back(row);
     }
+}
+
+QString MainWindow::BiasTooltipFor(const BiasControlRow& row) const
+{
+    if (m_language == AppLanguage::Korean && !row.koreanDescription.isEmpty())
+    {
+        return row.koreanDescription;
+    }
+    return row.englishDescription;
 }
 
 void MainWindow::onBrowseRawClicked()

@@ -191,11 +191,17 @@ private:
     struct BiasControlRow
     {
         QString biasName;
+        QString englishDescription; // HAL이 보고한 원문(그대로 fallback으로도 씀).
+        QString koreanDescription;  // 알려진 표준 bias 이름에 대해서만 채워짐(비어 있으면 영어로 대체).
         QWidget* container = nullptr; // slider + value label을 담는 한 행. 부모는 m_boxBias.
         QSlider* slider = nullptr;
         QLabel* valueLabel = nullptr;
+        QWidget* nameLabel = nullptr; // QFormLayout::labelForField()로 얻은, 행의 이름 라벨.
     };
     std::vector<BiasControlRow> m_biasRows;
+
+    // 현재 m_language에 맞춰 row에 붙일 툴팁 문구를 고른다(한국어 번역이 없는 bias는 영어로 대체).
+    QString BiasTooltipFor(const BiasControlRow& row) const;
 
     QRadioButton* m_radioLive = nullptr;
     QRadioButton* m_radioRaw = nullptr;
