@@ -9,6 +9,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileDialog>
+#include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -270,6 +271,18 @@ void MainWindow::BuildUi()
 
     root->addWidget(m_boxShotTrigger);
 
+    // --- Camera bias (Live camera only; populated after a successful Start()) ---
+    m_boxBias = new QGroupBox(this);
+    auto* biasOuterLayout = new QVBoxLayout(m_boxBias);
+
+    m_labelBiasUnavailable = new QLabel(m_boxBias);
+    biasOuterLayout->addWidget(m_labelBiasUnavailable);
+
+    m_biasFormLayout = new QFormLayout();
+    biasOuterLayout->addLayout(m_biasFormLayout);
+
+    root->addWidget(m_boxBias);
+
     // --- Controls ---
     auto* controlLayout = new QHBoxLayout();
     m_btnStartStop = new QPushButton(this);
@@ -436,6 +449,11 @@ void MainWindow::RetranslateUi()
     m_btnBrowseOutput->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
 
     m_boxShotTrigger->setTitle(Tr(QStringLiteral("Shot Trigger"), QStringLiteral("샷 트리거")));
+
+    m_boxBias->setTitle(Tr(QStringLiteral("Camera Bias"), QStringLiteral("카메라 Bias")));
+    m_labelBiasUnavailable->setText(Tr(
+        QStringLiteral("Not available (Live camera only, after Start)"),
+        QStringLiteral("사용 불가 (라이브 카메라로 시작한 뒤에만 사용 가능)")));
 
     m_labelReadySec->setText(Tr(QStringLiteral("Ready (sec)"), QStringLiteral("정지 유지 시간 (초)")));
     m_labelPreCaptureSec->setText(Tr(QStringLiteral("Pre-capture (sec)"), QStringLiteral("사전 저장 시간 (초)")));
@@ -794,6 +812,15 @@ void MainWindow::StartStream()
     AppendLog(live
         ? QStringLiteral("Started (live camera) - recording")
         : QStringLiteral("Started (RAW playback)"));
+
+    if (live)
+    {
+        PopulateBiasControls();
+    }
+    else
+    {
+        ClearBiasControls();
+    }
 }
 
 void MainWindow::PauseStream()
@@ -895,12 +922,86 @@ void MainWindow::StopStream(const QString& logMessage)
     m_sliderPosition->setValue(0);
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
     m_preRollBuffer.clear();
+    ClearBiasControls();
 
     // 처음(까만 화면)으로 되돌린다.
     m_previewPixmap = QPixmap();
     m_labelPreview->setPixmap(QPixmap());
 
     AppendLog(logMessage);
+}
+
+void MainWindow::ClearBiasControls()
+{
+    for (const BiasControlRow& row : m_biasRows)
+    {
+        // QFormLayout::removeRow(QWidget*)는 그 행의 라벨/필드 위젯을 모두 삭제한다
+        // (row.container 자식인 slider/valueLabel도 함께 정리됨).
+        m_biasFormLayout->removeRow(row.container);
+    }
+    m_biasRows.clear();
+    m_labelBiasUnavailable->setVisible(true);
+}
+
+void MainWindow::PopulateBiasControls()
+{
+    ClearBiasControls();
+
+    const std::vector<eventcore::BiasSetting> biases = m_stream.GetBiases();
+    if (biases.empty())
+    {
+        // I_LL_Biases 파실리티가 없는 소스(또는 아직 준비되지 않음) - "사용 불가" 안내만 남긴다.
+        return;
+    }
+
+    m_labelBiasUnavailable->setVisible(false);
+
+    // Bias 이름/설명은 Metavision HAL이 카메라에서 직접 보고하는 하드웨어 용어라 로그와 마찬가지로
+    // 항상 영어 그대로 둔다(임의로 번역하지 않음).
+    for (const eventcore::BiasSetting& bias : biases)
+    {
+        const QString biasName = QString::fromStdString(bias.name);
+
+        auto* container = new QWidget(m_boxBias);
+        auto* rowLayout = new QHBoxLayout(container);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+
+        auto* slider = new QSlider(Qt::Horizontal, container);
+        slider->setRange(bias.minValue, bias.maxValue);
+        slider->setValue(bias.value);
+        slider->setEnabled(bias.modifiable);
+
+        auto* valueLabel = new QLabel(QString::number(bias.value), container);
+        valueLabel->setMinimumWidth(48);
+        valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+        rowLayout->addWidget(slider, 1);
+        rowLayout->addWidget(valueLabel);
+
+        const QString tooltip = bias.description.empty()
+            ? biasName
+            : QString::fromStdString(bias.description);
+        container->setToolTip(tooltip);
+        slider->setToolTip(tooltip);
+
+        connect(slider, &QSlider::valueChanged, this, [this, biasName, valueLabel](int value)
+        {
+            valueLabel->setText(QString::number(value));
+            if (!m_stream.SetBias(biasName.toStdString(), value))
+            {
+                AppendLog(QStringLiteral("Failed to set bias '%1' to %2").arg(biasName).arg(value));
+            }
+        });
+
+        m_biasFormLayout->addRow(biasName, container);
+
+        BiasControlRow row;
+        row.biasName = biasName;
+        row.container = container;
+        row.slider = slider;
+        row.valueLabel = valueLabel;
+        m_biasRows.push_back(row);
+    }
 }
 
 void MainWindow::onBrowseRawClicked()

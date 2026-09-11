@@ -305,6 +305,8 @@ RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인�
 - **Settings**: `Language`에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 메뉴 문구, 파일 대화상자 등 화면에 보이는 UI 문구가 즉시 다시 그려짐(재시작 불필요). 단, 로그 패널(`AppendLog`) 메시지와 `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 상태 코드는 언어 설정과 무관하게 항상 영어로 고정됨.
 - **About**: `Version`은 정식 버전 번호 체계가 없어 빌드 시점의 git 커밋 해시와 날짜를 대신 보여줌(`EventProcessing.DiagQt/CMakeLists.txt`에서 컴파일 시 주입). `License`는 제품명/버전/저작권/라이선스 조항/서드파티 라이선스/연락처를 한 화면에 보여주는 About 형식 텍스트임 - 정식 오픈소스 라이선스가 아직 지정되지 않았고 저장소에 LICENSE 파일이 없다는 점을 그대로 명시하고, 실제로 확인 가능한 사실(번들된 Prophesee-window/Prophesee-linux·HDF5 SDK의 실제 라이선스 파일 경로, 실제 GitHub 저장소·이슈 트래커 주소, 서울대학교 공학전문대학원 김혜빈 연락처)만 채움(가상의 라이선스 종류나 웹사이트를 지어내지 않음). Website/Bug Report/Email은 `QTextBrowser`(`setOpenExternalLinks(true)`) 기반 다이얼로그라 실제 클릭하면 기본 브라우저/메일 클라이언트로 이동함. 이 블록은 로그와 마찬가지로 언어 설정과 무관하게 항상 영어 원문임.
 
+**Camera Bias** 그룹박스: Live camera가 실제로 열려 있을 때만(`Start` 성공 후) 채워짐 - Metavision HAL의 `I_LL_Biases` 파실리티(`Camera::get_facility<I_LL_Biases>()`)에서 `get_all_biases()`로 IMX636의 현재 bias 목록(`bias_diff`, `bias_diff_off`, `bias_diff_on`, `bias_fo`, `bias_hpf`, `bias_refr` 등, 카메라/펌웨어에 따라 다를 수 있음)을 읽어와 bias마다 슬라이더 한 줄씩 동적으로 생성함. 슬라이더 범위는 `LL_Bias_Info::get_bias_range()`(권장 범위, `DeviceConfig::biases_range_check_bypass`를 켜지 않는 한), 슬라이더를 움직이면 즉시 `I_LL_Biases::set()`으로 카메라에 반영됨. `LL_Bias_Info::is_modifiable()`이 false인 bias는 슬라이더가 비활성화된 채로 현재 값만 표시함. RAW 파일 재생이나(파실리티 자체가 없음) Stop 상태에서는 "Not available" 안내만 표시되고 슬라이더는 모두 비워짐. Bias 이름/설명 문구는 하드웨어가 보고하는 그대로(로그와 마찬가지로 언어 설정과 무관하게 항상 영어)임.
+
 ---
 
 ## Dependencies
@@ -772,6 +774,8 @@ Feature Contrast 저하
 ```
 
 등의 문제가 발생할 수 있음.
+
+`EventProcessing.DiagQt`의 **Camera Bias** 그룹박스(Live camera 모드, Start 이후)에서 Metavision HAL `I_LL_Biases`를 통해 bias를 실시간으로 조절하며 확인할 수 있지만, 어떤 값이 실제 촬영 환경에 적절한지는 여전히 경험적으로 찾아야 함.
 
 실제 촬영 환경에서 다음 요소에 대한 반복 실험 필요.
 

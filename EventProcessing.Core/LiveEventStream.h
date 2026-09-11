@@ -16,6 +16,18 @@
 
 namespace eventcore
 {
+    // Metavision HAL의 I_LL_Biases 파실리티가 노출하는 bias 하나의 현재 값과 메타데이터.
+    // (파실리티가 없는 소스, 예: RAW 파일 재생에서는 GetBiases()가 빈 벡터를 반환한다.)
+    struct BiasSetting
+    {
+        std::string name;
+        int value = 0;
+        int minValue = 0;
+        int maxValue = 0;
+        std::string description;
+        bool modifiable = false;
+    };
+
     // 실시간 라이브 카메라 또는 RAW 파일의 실시간(real_time_playback) 재생 스트림.
     // windowUs 간격(대략적인 화면 갱신 주기)마다 그 사이 수신된 이벤트를 EventProcessor::Process로
     // 누적/분석해 콜백으로 전달한다.
@@ -68,6 +80,15 @@ namespace eventcore
         // 지정한 시각으로 탐색한다(슬라이더 이동, 좌우 화살표 키를 이용한 되감기/앞으로 감기 등).
         // IsSeekable()이 true일 때만 성공한다.
         bool Seek(lli timestampUs);
+
+        // 현재 연결된 소스의 모든 bias(diff/diff_off/diff_on/fo/hpf/refr 등) 값과 메타데이터를
+        // 가져온다. 소스가 I_LL_Biases 파실리티를 제공하지 않으면(RAW 파일 재생 등) 빈 벡터를
+        // 반환한다. 라이브 카메라에서만 의미가 있다.
+        std::vector<BiasSetting> GetBiases() const;
+
+        // 지정한 bias 값을 설정한다. I_LL_Biases 파실리티가 없거나 해당 bias가 modifiable하지
+        // 않으면 false를 반환한다.
+        bool SetBias(const std::string& biasName, int value);
 
         int Width() const { return m_width; }
         int Height() const { return m_height; }
