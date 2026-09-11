@@ -23,12 +23,38 @@ target_link_libraries(EventProcessing.DiagQt PRIVATE
     ${_qt_widgets_target}
 )
 
+# 정식 버전 번호 체계가 아직 없어서, 정보(About) > 버전 메뉴에는 대신 빌드 시점의 git 커밋
+# 해시와 날짜를 넣는다 - 실행 파일이 소스의 어느 시점에서 빌드됐는지 실제로 검증 가능한 값.
+set(_git_rev_parse_result 1)
+find_package(Git QUIET)
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE EVENTCORE_GIT_COMMIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _git_rev_parse_result
+    )
+endif()
+if(NOT EVENTCORE_GIT_COMMIT_HASH OR NOT _git_rev_parse_result EQUAL 0)
+    set(EVENTCORE_GIT_COMMIT_HASH "unknown")
+endif()
+
+string(TIMESTAMP EVENTCORE_BUILD_DATE "%Y-%m-%d")
+
+target_compile_definitions(EventProcessing.DiagQt PRIVATE
+    EVENTCORE_GIT_COMMIT_HASH="${EVENTCORE_GIT_COMMIT_HASH}"
+    EVENTCORE_BUILD_DATE="${EVENTCORE_BUILD_DATE}"
+)
+
 set_target_properties(EventProcessing.DiagQt PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
 
 eventcore_copy_windows_runtime_deps(EventProcessing.DiagQt)
+eventcore_copy_linux_runtime_deps(EventProcessing.DiagQt)
 
 # Qt DLL(및 platform 플러그인 등)은 windeployqt로 배포한다. 개발 중 실행 파일을 바로
 # 실행해보고 싶다면 Qt bin\ 디렉터리를 PATH에 추가하거나 아래를 수동 실행한다:

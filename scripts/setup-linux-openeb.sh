@@ -2,12 +2,20 @@
 # Prophesee OpenEB(Metavision SDK의 오픈소스 에디션)를 Linux에서 소스로 클론/빌드/설치한다.
 #
 # 왜 바이너리를 리포에 번들하지 않고 스크립트로 빌드하나:
+<<<<<<< HEAD
 #   Windows(Prophesee_window/)는 배포판이 하나(MSVC x64)라 미리 빌드된 바이너리를 그대로 커밋해도 되지만,
+=======
+#   Windows(Prophesee-window/)는 배포판이 하나(MSVC x64)라 미리 빌드된 바이너리를 그대로 커밋해도 되지만,
+>>>>>>> claude/qt-linux-support-tpo2n2
 #   연구실 Linux 머신들은 배포판/버전이 제각각이라 미리 빌드된 바이너리 하나로는 다 커버할 수 없다.
 #   반면 소스 빌드는 (빌드 의존 패키지만 깔려 있으면) 어떤 배포판에서도 동작한다.
 #
 # 왜 5.2.0인가:
+<<<<<<< HEAD
 #   Windows에 번들된 Prophesee_window/의 Metavision SDK도 5.2.0이다(Prophesee_window/include/metavision/sdk/version.h).
+=======
+#   Windows에 번들된 Prophesee-window/의 Metavision SDK도 5.2.0이다(Prophesee-window/include/metavision/sdk/version.h).
+>>>>>>> claude/qt-linux-support-tpo2n2
 #   버전을 맞춰야 같은 RAW/HDF5 파일을 Windows/Linux 양쪽에서 동일하게 읽고 쓸 수 있다.
 #
 # 사용법:
@@ -73,9 +81,15 @@ fi
 
 BUILD_DIR="$SRC_DIR/build"
 echo "==> [3/6] Configuring (Release, tests off) into ${BUILD_DIR}..."
+# COMPILE_PYTHON3_BINDINGS=OFF: EventCameraProcessing only uses the C++ SDK (base/core/stream),
+# never the Python bindings. Leaving it ON (OpenEB's default) requires pybind11 >= 2.7, which is
+# newer than what apt ships on some distros (e.g. pybind11 2.4.3 on Ubuntu 20.04/focal) - that
+# version mismatch makes the configure step fail outright. Turning it off sidesteps the pybind11
+# requirement entirely, and we don't lose anything we actually need.
 cmake -S "$SRC_DIR" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_TESTING=OFF \
+    -DCOMPILE_PYTHON3_BINDINGS=OFF \
     -DCMAKE_INSTALL_PREFIX="$PREFIX"
 
 echo "==> [4/6] Building with ${JOBS} parallel jobs (OpenEB is large - this can take a while)..."
@@ -84,6 +98,11 @@ cmake --build "$BUILD_DIR" --config Release -- -j "$JOBS"
 echo "==> [5/6] Installing to ${PREFIX}..."
 if [[ "$INSTALL_MODE" == "system" ]]; then
     sudo cmake --build "$BUILD_DIR" --target install
+    # Installing .so files into /usr/local/lib doesn't make the dynamic linker aware of them by
+    # itself - ldconfig has to re-scan and refresh /etc/ld.so.cache, or every OpenEB-linked binary
+    # fails at startup with "error while loading shared libraries: libmetavision_sdk_core.so.5:
+    # cannot open shared object file" even though the build itself succeeded fine.
+    sudo ldconfig
 else
     mkdir -p "$PREFIX"
     cmake --build "$BUILD_DIR" --target install
@@ -102,10 +121,13 @@ echo ""
 echo "Done - OpenEB ${OPENEB_VERSION} installed to ${PREFIX}."
 if [[ "$INSTALL_MODE" != "system" ]]; then
     echo ""
-    echo "You installed to a non-system prefix, so CMake won't find it automatically."
-    echo "Add this to your shell profile (~/.bashrc or ~/.profile), then open a new shell:"
+    echo "You installed to a non-system prefix, so CMake won't find it automatically at configure"
+    echo "time, and the dynamic linker won't find it at runtime either (no ldconfig for non-system"
+    echo "prefixes). Add both of these to your shell profile (~/.bashrc or ~/.profile), then open a"
+    echo "new shell:"
     echo ""
     echo "  export CMAKE_PREFIX_PATH=\"$PREFIX:\$CMAKE_PREFIX_PATH\""
+    echo "  export LD_LIBRARY_PATH=\"$PREFIX/lib:\$LD_LIBRARY_PATH\""
     echo ""
 fi
 echo "Now (re)configure EventCameraProcessing - if it was already configured without Metavision SDK,"

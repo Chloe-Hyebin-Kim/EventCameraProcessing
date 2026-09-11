@@ -10,3 +10,4 @@ set_target_properties(EventProcessing.Console PROPERTIES
 )
 
 eventcore_copy_windows_runtime_deps(EventProcessing.Console)
+eventcore_copy_linux_runtime_deps(EventProcessing.Console)
