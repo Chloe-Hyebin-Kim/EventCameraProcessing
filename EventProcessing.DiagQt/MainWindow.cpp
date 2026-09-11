@@ -995,6 +995,14 @@ void MainWindow::PopulateBiasControls()
 
         m_biasFormLayout->addRow(biasName, container);
 
+        // 이름 라벨에도 같은 설명 툴팁을 달아, 슬라이더뿐 아니라 이름에 마우스를 올려도
+        // 설명이 뜨게 한다. addRow(QString, QWidget*)가 내부적으로 만든 라벨은
+        // labelForField()로만 접근할 수 있다.
+        if (QWidget* nameLabel = m_biasFormLayout->labelForField(container))
+        {
+            nameLabel->setToolTip(tooltip);
+        }
+
         BiasControlRow row;
         row.biasName = biasName;
         row.container = container;
