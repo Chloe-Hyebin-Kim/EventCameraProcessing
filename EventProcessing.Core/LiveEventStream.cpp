@@ -425,6 +425,32 @@ namespace eventcore
         }
     }
 
+    CameraInfo LiveEventStream::GetCameraInfo() const
+    {
+        CameraInfo info;
+
+        if (!m_running)
+        {
+            return info;
+        }
+
+        try
+        {
+            const Metavision::CameraConfiguration& config = m_camera.get_camera_configuration();
+            info.serialNumber = config.serial_number;
+            info.integrator = config.integrator;
+            info.pluginName = config.plugin_name;
+
+            info.generationName = m_camera.generation().name();
+        }
+        catch (...)
+        {
+            // 정보 조회 중 예외가 나면(소스가 아직 준비 안 됨 등) 얻은 만큼만 돌려준다.
+        }
+
+        return info;
+    }
+
     void LiveEventStream::WindowLoop(lli windowUs, FrameCallback callback)
     {
         lli runningClockUs = 0;

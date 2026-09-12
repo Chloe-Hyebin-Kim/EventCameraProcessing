@@ -400,6 +400,19 @@ void MainWindow::BuildUi()
     connect(m_radioLive, &QRadioButton::toggled, this, [this](bool checked) { if (checked) m_actionModeLive->setChecked(true); });
     connect(m_radioRaw, &QRadioButton::toggled, this, [this](bool checked) { if (checked) m_actionModeRaw->setChecked(true); });
 
+    // 모드가 바뀌면 소스 텍스트 박스(RAW 경로 <-> 카메라 식별자)를 갈아 끼운다.
+    connect(m_radioLive, &QRadioButton::toggled, this, &MainWindow::onSourceModeToggled);
+
+    // RAW 모드에서 사용자가 경로를 직접 입력하면 m_rawFilePath 백업도 같이 최신화한다
+    // (textEdited는 프로그램적 setText에는 반응하지 않으므로 무한 루프 걱정이 없다).
+    connect(m_editRawPath, &QLineEdit::textEdited, this, [this](const QString& text)
+    {
+        if (!m_radioLive->isChecked())
+        {
+            m_rawFilePath = text;
+        }
+    });
+
     // File > Open File / Set Output Path는 각각 기존 Browse... 버튼과 완전히 같은 동작을 한다.
     connect(m_actionOpenFile, &QAction::triggered, this, &MainWindow::onBrowseRawClicked);
     connect(m_actionSetOutputPath, &QAction::triggered, this, &MainWindow::onBrowseOutputClicked);
@@ -502,6 +515,8 @@ void MainWindow::RetranslateUi()
     m_radioLive->setText(Tr(QStringLiteral("Live camera"), QStringLiteral("라이브 카메라")));
     m_radioRaw->setText(Tr(QStringLiteral("RAW file"), QStringLiteral("RAW 파일")));
     m_btnBrowseRaw->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
+    // 소스 박스의 안내 문구/카메라 식별자 라벨도 새 언어로 다시 채운다.
+    UpdateSourceBox();
 
     m_boxOutput->setTitle(Tr(QStringLiteral("Output"), QStringLiteral("출력")));
     m_btnBrowseOutput->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
@@ -883,6 +898,9 @@ void MainWindow::StartStream()
     {
         ClearBiasControls();
     }
+
+    // Live 모드면 이제 카메라가 열렸으니 소스 박스에 식별자(시리얼 번호 등)를 채운다.
+    UpdateSourceBox();
 }
 
 void MainWindow::PauseStream()
@@ -985,6 +1003,10 @@ void MainWindow::StopStream(const QString& logMessage)
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
     m_preRollBuffer.clear();
     ClearBiasControls();
+
+    // 연결이 끊겼으니 소스 박스도 갱신한다(Live 모드면 카메라 식별자 -> 안내 문구로 복귀,
+    // RAW 모드면 마지막 파일 경로 복원). m_running은 위에서 이미 false로 내려간 상태.
+    UpdateSourceBox();
 
     // 처음(까만 화면)으로 되돌린다.
     m_previewPixmap = QPixmap();
@@ -1163,8 +1185,83 @@ void MainWindow::onBrowseRawClicked()
 
     if (!path.isEmpty())
     {
-        m_editRawPath->setText(path);
+        // m_rawFilePath를 먼저 갱신해 둔다: 아래 setChecked(true)가 RAW 모드로 전환하면서
+        // onSourceModeToggled -> UpdateSourceBox()로 이 값을 박스에 복원하기 때문. 이미 RAW
+        // 모드였다면 toggle 신호가 안 나므로 setText로 직접 표시도 해 준다.
+        m_rawFilePath = path;
         m_radioRaw->setChecked(true);
+        m_editRawPath->setText(path);
+    }
+}
+
+void MainWindow::onSourceModeToggled(bool liveChecked)
+{
+    if (liveChecked)
+    {
+        // 라이브로 전환하기 직전, 박스에 보이던 RAW 경로를 기억해 둔다(라이브 동안에는 카메라
+        // 식별자를 대신 표시하므로 박스 내용이 덮어써짐).
+        m_rawFilePath = m_editRawPath->text();
+    }
+    UpdateSourceBox();
+}
+
+QString MainWindow::FormatCameraIdentifier() const
+{
+    // 라이브 카메라로 실제 연결되어 있을 때만 식별자를 만들 수 있다.
+    if (!(m_running && m_liveMode))
+    {
+        return QString();
+    }
+
+    const eventcore::CameraInfo info = m_stream.GetCameraInfo();
+
+    const QString serial = QString::fromStdString(info.serialNumber);
+
+    // 시리얼 라벨은 UI 문구라 언어 설정을 따르고, 값 자체는 하드웨어가 보고한 그대로 둔다.
+    QString id = serial.isEmpty()
+        ? Tr(QStringLiteral("(serial number unavailable)"), QStringLiteral("(시리얼 번호 없음)"))
+        : Tr(QStringLiteral("Serial: %1"), QStringLiteral("시리얼: %1")).arg(serial);
+
+    QStringList extras;
+    if (!info.integrator.empty())
+    {
+        extras << QString::fromStdString(info.integrator);
+    }
+    if (!info.generationName.empty())
+    {
+        extras << QStringLiteral("Gen %1").arg(QString::fromStdString(info.generationName));
+    }
+    if (!extras.isEmpty())
+    {
+        id += QStringLiteral(" (%1)").arg(extras.join(QStringLiteral(", ")));
+    }
+
+    return id;
+}
+
+void MainWindow::UpdateSourceBox()
+{
+    const bool live = m_radioLive->isChecked();
+
+    if (live)
+    {
+        // Live 모드: 사용자가 경로를 입력할 대상이 아니라 카메라 정보를 보여주는 자리이므로
+        // 읽기 전용 + Browse 비활성화. 연결(Start)되면 식별자, 아니면 안내 문구만.
+        m_editRawPath->setReadOnly(true);
+        m_btnBrowseRaw->setEnabled(false);
+        m_editRawPath->setText(FormatCameraIdentifier());
+        m_editRawPath->setPlaceholderText(Tr(
+            QStringLiteral("Camera identifier appears here once connected (press Start)"),
+            QStringLiteral("연결되면 카메라 식별자가 여기에 표시됩니다 (Start 누르기)")));
+    }
+    else
+    {
+        m_editRawPath->setReadOnly(false);
+        m_btnBrowseRaw->setEnabled(true);
+        m_editRawPath->setText(m_rawFilePath);
+        m_editRawPath->setPlaceholderText(Tr(
+            QStringLiteral("Select a RAW file..."),
+            QStringLiteral("RAW 파일을 선택하세요...")));
     }
 }
 

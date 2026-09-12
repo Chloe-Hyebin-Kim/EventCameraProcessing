@@ -28,6 +28,17 @@ namespace eventcore
         bool modifiable = false;
     };
 
+    // 현재 열려 있는 소스(라이브 카메라 또는 RAW 파일을 녹화한 원본 카메라)의 식별 정보.
+    // Metavision::CameraConfiguration에서 그대로 가져온다. RAW 재생 시에도 파일에 기록된 원본
+    // 카메라 정보가 들어 있을 수 있다. 스트림이 열려 있지 않으면 모든 필드가 비어 있다.
+    struct CameraInfo
+    {
+        std::string serialNumber;    // 카메라 고유 시리얼 번호(고유 식별자)
+        std::string generationName;  // 센서 세대 이름(예: "4.1")
+        std::string integrator;      // 통합사(제조사) 이름
+        std::string pluginName;      // 이 카메라를 연 HAL 플러그인 이름
+    };
+
     // 실시간 라이브 카메라 또는 RAW 파일의 실시간(real_time_playback) 재생 스트림.
     // windowUs 간격(대략적인 화면 갱신 주기)마다 그 사이 수신된 이벤트를 EventProcessor::Process로
     // 누적/분석해 콜백으로 전달한다.
@@ -89,6 +100,10 @@ namespace eventcore
         // 지정한 bias 값을 설정한다. I_LL_Biases 파실리티가 없거나 해당 bias가 modifiable하지
         // 않으면 false를 반환한다.
         bool SetBias(const std::string& biasName, int value);
+
+        // 현재 열려 있는 소스의 식별 정보(시리얼 번호 등)를 가져온다. 스트림이 열려 있지 않거나
+        // 정보를 얻지 못하면 모든 필드가 빈 CameraInfo를 반환한다.
+        CameraInfo GetCameraInfo() const;
 
         int Width() const { return m_width; }
         int Height() const { return m_height; }

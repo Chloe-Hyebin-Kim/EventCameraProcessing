@@ -299,6 +299,10 @@ RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인�
 - **Pause 동작 - RAW 파일**(영상 재생 중일 때): 재생 자체를 그 자리에서 멈춰(카메라를 정지) 화면이 멈춘 프레임 그대로 남음. `Resume`을 누르면 멈췄던 바로 그 시각으로 seek해서 이어서 재생함(멈춰 있던 시간만큼 건너뛰지 않음).
 - **Pause 동작 - Live Camera**: `Start`는 녹화 시작, `Stop`은 녹화 종료. `Pause`는 녹화 종료가 아니라 녹화만 잠시 중지하는 것으로, 카메라와 미리보기 화면은 계속 흘러서 끼어든 상황이 지나가는 걸 볼 수 있고, ShotTrigger 갱신과 프레임 저장만 건너뜀. `Resume`을 누르면 그 시점부터 다시 녹화를 재개함.
 
+**Source(입력 소스) 그룹의 텍스트 박스**는 모드에 따라 역할이 다름:
+- **RAW file 모드**: 편집 가능. 선택한 RAW 파일 경로를 표시/입력함(기존 동작).
+- **Live camera 모드**: 읽기 전용(Browse... 버튼도 비활성화). `Start`로 카메라가 실제로 연결되면 그 카메라의 고유 식별자를 표시함 - `Camera::get_camera_configuration()`의 `serial_number`(고유번호)를 우선 표시하고, `integrator`(제조/통합사)와 `Camera::generation().name()`(센서 세대)이 있으면 괄호로 덧붙임. 연결 전에는 "연결되면 카메라 식별자가 표시됩니다" 안내 문구만 보임. `Stop`하면 다시 안내 문구로 돌아가고, RAW 모드로 전환하면 마지막으로 고르던 RAW 경로가 복원됨. (참고: EVK4/IMX636은 이 SDK 경로에서 MAC 주소 대신 시리얼 번호가 고유 식별자로 노출됨.)
+
 상단 메뉴바는 **File(파일) - Settings(설정) - About(정보)** 순서로 구성됨.
 
 - **File**: `Mode`(Live camera / RAW file - Source 그룹의 라디오 버튼과 양방향으로 동기화됨), `Open File...`(RAW 파일 찾아보기, 기존 Browse... 버튼과 동일), `Set Output Path...`(산출물 폴더 찾아보기, 기존 Browse... 버튼과 동일). Start/Pause/Stop은 메뉴로 옮기지 않고 버튼으로만 둠.

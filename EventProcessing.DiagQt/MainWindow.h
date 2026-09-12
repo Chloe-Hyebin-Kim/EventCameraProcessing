@@ -60,6 +60,8 @@ private slots:
     void onSliderReleased();
     void onShowAboutVersion();
     void onShowAboutLicense();
+    // Live/RAW 모드 라디오가 바뀔 때. 소스 텍스트 박스를 모드에 맞게 갈아 끼운다.
+    void onSourceModeToggled(bool liveChecked);
 
 private:
     // 버튼 두 개, 각각 두 가지 역할을 겸한다:
@@ -85,6 +87,13 @@ private:
     // Camera Bias 슬라이더 한 행의 위젯들(아래 private 멤버 목록에 전체 정의가 있음) -
     // CreateBiasRow()/ApplyBiasTooltip() 등 이 밑의 메서드 선언들이 먼저 참조하므로 전방 선언.
     struct BiasControlRow;
+
+    // 소스 텍스트 박스(m_editRawPath)를 현재 모드/연결 상태에 맞게 갱신한다:
+    // - RAW 모드: 편집 가능, 마지막으로 고른 RAW 파일 경로를 표시.
+    // - Live 모드: 읽기 전용. 연결(Start)되면 카메라 식별자, 아니면 안내 문구.
+    void UpdateSourceBox();
+    // 현재 연결된 카메라의 식별 문자열(시리얼 번호 + 세대/통합사)을 만든다. 연결 안 됐으면 빈 문자열.
+    QString FormatCameraIdentifier() const;
 
     void BuildUi();
     eventcore::ShotTriggerConfig ReadConfigFromUI() const;
@@ -229,6 +238,9 @@ private:
     QRadioButton* m_radioRaw = nullptr;
     QLineEdit* m_editRawPath = nullptr;
     QPushButton* m_btnBrowseRaw = nullptr;
+    // Live 모드에서는 소스 박스가 카메라 식별자를 대신 보여주므로, RAW 모드로 돌아왔을 때
+    // 복원할 수 있도록 마지막으로 고른 RAW 파일 경로를 따로 기억해 둔다.
+    QString m_rawFilePath;
     QLineEdit* m_editOutputDir = nullptr;
     QPushButton* m_btnBrowseOutput = nullptr;
 
