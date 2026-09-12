@@ -215,6 +215,19 @@ namespace eventcore
         catch (...)
         {
         }
+
+        // m_camera.stop()은 이벤트 스트리밍만 멈출 뿐, 이 Camera 객체는 그대로 살아 있어서
+        // 내부 장치(USB) 핸들을 계속 점유한다. 그 상태로 다시 Start()하면 Camera::from_first_available()가
+        // (대입보다 우변이 먼저 평가되므로 아직 예전 핸들이 살아있는 채로) 장치를 열지 못해
+        // "camera not found / not accessible"로 실패한다. 빈 Camera로 move-대입해 기존 객체를
+        // 파괴(=장치 핸들 해제)시켜서, Start->Stop->Start가 정상 동작하게 한다.
+        try
+        {
+            m_camera = Metavision::Camera();
+        }
+        catch (...)
+        {
+        }
     }
 
     bool LiveEventStream::Pause()

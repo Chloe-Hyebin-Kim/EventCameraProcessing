@@ -82,6 +82,10 @@ private:
         Korean,
     };
 
+    // Camera Bias 슬라이더 한 행의 위젯들(아래 private 멤버 목록에 전체 정의가 있음) -
+    // CreateBiasRow()/ApplyBiasTooltip() 등 이 밑의 메서드 선언들이 먼저 참조하므로 전방 선언.
+    struct BiasControlRow;
+
     void BuildUi();
     eventcore::ShotTriggerConfig ReadConfigFromUI() const;
     void AppendLog(const QString& msg);
@@ -106,10 +110,23 @@ private:
     void PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg);
     void FlushPreRollBuffer(eventcore::lli impactUs);
 
-    // 라이브 카메라가 성공적으로 시작된 뒤 m_stream.GetBiases()로 얻은 bias 목록으로 슬라이더
-    // 한 줄씩 채운다(RAW 모드나 시작 전에는 호출하지 않음 - Not available 안내만 표시).
+    // 앱 시작 시 한 번, IMX636의 알려진 표준 bias 6종에 대해 비활성화된 슬라이더 행을 미리
+    // 만들어 둔다(연결 전이라 실제 값/범위를 모르므로 자리표시자 상태). BuildUi()에서 호출.
+    void SeedBiasPlaceholders();
+    // biasName 하나에 대한 슬라이더 행(컨테이너+슬라이더+값 라벨)을 새로 만들어 폼에 추가하고
+    // 돌려준다(m_biasRows에 넣는 건 호출부 책임). dynamic=true는 알려진 6종에 없는, 실제 연결된
+    // 카메라가 보고한 추가 bias용(연결 해제 시 제거 대상)이라는 표시.
+    BiasControlRow CreateBiasRow(const QString& biasName, bool dynamic);
+    // row의 현재 언어 설명에 맞는 툴팁을 슬라이더/컨테이너/이름 라벨에 다시 적용한다.
+    void ApplyBiasTooltip(const BiasControlRow& row);
+    // 연결 상태(m_biasConnected)와 현재 언어에 맞춰 안내 라벨 문구를 갱신한다.
+    void UpdateBiasStatusLabel();
+
+    // 라이브 카메라가 성공적으로 시작된 뒤 m_stream.GetBiases()로 얻은 실제 값/범위로 기존
+    // placeholder 행들을 갱신하고 활성화한다(알려진 6종에 없는 이름은 새 행을 동적으로 추가).
     void PopulateBiasControls();
-    // 슬라이더들을 비우고 "사용 불가" 안내로 되돌린다(Stop, 또는 RAW 모드로 시작할 때).
+    // 알려진 6종 행은 비활성화 + 자리표시자 상태로 되돌리고(삭제하지 않음), 동적으로 추가됐던
+    // 행만 제거한다(Stop, 또는 RAW 모드로 시작할 때).
     void ClearBiasControls();
 
     // LiveEventStream의 콜백은 워커 스레드에서 호출된다. 캡처한 프레임은 힙에 올려
@@ -181,21 +198,32 @@ private:
     QGroupBox* m_boxOutput = nullptr;
     QGroupBox* m_boxShotTrigger = nullptr;
 
-    // Camera Bias (Metavision HAL I_LL_Biases). 라이브 카메라가 실제로 열려 있을 때만 값이 있으므로,
-    // BuildUi() 시점에는 "사용 불가" 라벨만 보이고, StartStream()이 라이브로 성공하면
-    // PopulateBiasControls()가 이 폼을 실제 bias 슬라이더들로 채운다.
+    // Camera Bias (Metavision HAL I_LL_Biases). IMX636의 알려진 표준 bias 6종은 앱 시작 시부터
+    // 비활성화된 자리표시자 슬라이더로 항상 보이고(SeedBiasPlaceholders()), 라이브 카메라가
+    // 성공적으로 시작되면 PopulateBiasControls()가 실제 값/범위로 갱신하며 활성화한다.
     QGroupBox* m_boxBias = nullptr;
     QFormLayout* m_biasFormLayout = nullptr;
     QLabel* m_labelBiasUnavailable = nullptr;
+    // 라이브 카메라가 현재 연결되어 bias 값이 실제 하드웨어를 반영 중인지(false면 자리표시자).
+    bool m_biasConnected = false;
 
     struct BiasControlRow
     {
         QString biasName;
+        QString englishDescription; // HAL이 보고한 원문(연결 전에는 알려진 bias에 대한 일반 설명으로 대체).
+        QString koreanDescription;  // 알려진 표준 bias 이름에 대해서만 채워짐(비어 있으면 영어로 대체).
         QWidget* container = nullptr; // slider + value label을 담는 한 행. 부모는 m_boxBias.
         QSlider* slider = nullptr;
         QLabel* valueLabel = nullptr;
+        QWidget* nameLabel = nullptr; // QFormLayout::labelForField()로 얻은, 행의 이름 라벨.
+        // true면 알려진 6종에 없는, 실제 연결된 카메라가 보고한 추가 bias 행 - 연결 해제 시
+        // 비활성화만 하는 게 아니라 아예 제거한다(false인 6종 고정 행은 항상 남아 있음).
+        bool dynamic = false;
     };
     std::vector<BiasControlRow> m_biasRows;
+
+    // 현재 m_language에 맞춰 row에 붙일 툴팁 문구를 고른다(한국어 번역이 없는 bias는 영어로 대체).
+    QString BiasTooltipFor(const BiasControlRow& row) const;
 
     QRadioButton* m_radioLive = nullptr;
     QRadioButton* m_radioRaw = nullptr;
