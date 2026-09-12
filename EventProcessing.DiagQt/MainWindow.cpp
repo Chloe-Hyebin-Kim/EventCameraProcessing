@@ -9,6 +9,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileDialog>
+#include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -16,6 +17,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMap>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -81,6 +83,59 @@ namespace
     std::filesystem::path ToNativePath(const QString& path)
     {
         return eventcore::Utf8ToPath(ToUtf8(path));
+    }
+
+    // IMX636의 알려진 표준 bias 6종 - 앱 시작 시부터 이 순서로 비활성화된 자리표시자 슬라이더를
+    // 만들어 둔다(SeedBiasPlaceholders()). 실제 연결된 카메라가 이 중 일부만 보고하거나(펌웨어에
+    // 따라 다를 수 있음) 이 목록에 없는 이름을 보고하면, 후자는 별도의 동적 행으로 추가된다.
+    const QStringList& KnownBiasNames()
+    {
+        static const QStringList names = {
+            QStringLiteral("bias_diff"),
+            QStringLiteral("bias_diff_off"),
+            QStringLiteral("bias_diff_on"),
+            QStringLiteral("bias_fo"),
+            QStringLiteral("bias_hpf"),
+            QStringLiteral("bias_refr"),
+        };
+        return names;
+    }
+
+    struct BiasDescriptionPair
+    {
+        QString en;
+        QString ko;
+    };
+
+    // 위 6종에 대해 직접 작성한 영어/한국어 설명. 실제 연결된 카메라/펌웨어가
+    // LL_Bias_Info::get_description()으로 보고하는 원문 그대로의 (번역)이 아니라(그 정확한 원문은
+    // 이 네트워크 환경에서 Prophesee 공식 문서를 확인할 수 없어 검증하지 못했고, 번들 SDK
+    // 헤더/플러그인 바이너리에서도 찾지 못함), 공개적으로 널리 알려진 IMX636 bias 동작 방식을
+    // 바탕으로 직접 작성한 설명이다. 연결 전 자리표시자 툴팁으로도 쓰이고, 연결 후에는 HAL이
+    // 실제 영어 설명을 보고하면 English 쪽만 그걸로 덮어쓴다(한국어는 이 표를 계속 씀).
+    const QMap<QString, BiasDescriptionPair>& KnownBiasDescriptions()
+    {
+        static const QMap<QString, BiasDescriptionPair> table = {
+            { QStringLiteral("bias_diff"), {
+                QStringLiteral("Common reference level for event detection; bias_diff_on/off act as offsets around this baseline."),
+                QStringLiteral("이벤트 감지의 공통 기준 레벨. bias_diff_on/off는 이 기준을 중심으로 한 오프셋으로 동작함.") } },
+            { QStringLiteral("bias_diff_off"), {
+                QStringLiteral("OFF-event (brightness decrease) detection threshold. Lower values make it more sensitive."),
+                QStringLiteral("밝기 감소(OFF 이벤트) 감지 문턱값. 값을 낮출수록 더 민감해짐(작은 변화에도 이벤트 발생).") } },
+            { QStringLiteral("bias_diff_on"), {
+                QStringLiteral("ON-event (brightness increase) detection threshold. Higher values make it more sensitive."),
+                QStringLiteral("밝기 증가(ON 이벤트) 감지 문턱값. 값을 높일수록 더 민감해짐(작은 변화에도 이벤트 발생).") } },
+            { QStringLiteral("bias_fo"), {
+                QStringLiteral("Photoreceptor bandwidth (low-pass filter). Lower values react faster to brightness changes but add more noise."),
+                QStringLiteral("포토리시버(photoreceptor)의 대역폭(로우패스 필터). 낮출수록 빠른 밝기 변화에 더 민감해지지만 노이즈도 함께 증가함.") } },
+            { QStringLiteral("bias_hpf"), {
+                QStringLiteral("High-pass filter cutoff, controlling how much slow (low-frequency) brightness change (e.g. flicker) is filtered out."),
+                QStringLiteral("하이패스 필터 컷오프. 조명 깜빡임 등 느리게(저주파로) 변하는 밝기 변화를 걸러내는 정도를 조절함.") } },
+            { QStringLiteral("bias_refr"), {
+                QStringLiteral("Refractory period: minimum time before a pixel can fire another event after one. Higher values reduce the event rate."),
+                QStringLiteral("리프랙토리(불응) 기간. 한 픽셀이 이벤트를 낸 뒤 다시 이벤트를 낼 수 있을 때까지의 최소 시간으로, 높일수록 이벤트 레이트가 줄어듦.") } },
+        };
+        return table;
     }
 }
 
@@ -270,6 +325,22 @@ void MainWindow::BuildUi()
 
     root->addWidget(m_boxShotTrigger);
 
+    // --- Camera bias (Live camera only; populated after a successful Start()) ---
+    m_boxBias = new QGroupBox(this);
+    auto* biasOuterLayout = new QVBoxLayout(m_boxBias);
+
+    m_labelBiasUnavailable = new QLabel(m_boxBias);
+    biasOuterLayout->addWidget(m_labelBiasUnavailable);
+
+    m_biasFormLayout = new QFormLayout();
+    biasOuterLayout->addLayout(m_biasFormLayout);
+
+    root->addWidget(m_boxBias);
+
+    // 연결 전에도 IMX636의 표준 bias 6종을 비활성화된 자리표시자 슬라이더로 바로 보여준다
+    // (Live camera가 실제로 연결되면 PopulateBiasControls()가 실제 값으로 채우고 활성화함).
+    SeedBiasPlaceholders();
+
     // --- Controls ---
     auto* controlLayout = new QHBoxLayout();
     m_btnStartStop = new QPushButton(this);
@@ -436,6 +507,15 @@ void MainWindow::RetranslateUi()
     m_btnBrowseOutput->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
 
     m_boxShotTrigger->setTitle(Tr(QStringLiteral("Shot Trigger"), QStringLiteral("샷 트리거")));
+
+    m_boxBias->setTitle(Tr(QStringLiteral("Camera Bias"), QStringLiteral("카메라 Bias")));
+    UpdateBiasStatusLabel();
+
+    // 이미 채워진 bias 행이 있다면(언어를 바꿀 때) 설명 툴팁도 새 언어에 맞게 다시 적용한다.
+    for (const BiasControlRow& row : m_biasRows)
+    {
+        ApplyBiasTooltip(row);
+    }
 
     m_labelReadySec->setText(Tr(QStringLiteral("Ready (sec)"), QStringLiteral("정지 유지 시간 (초)")));
     m_labelPreCaptureSec->setText(Tr(QStringLiteral("Pre-capture (sec)"), QStringLiteral("사전 저장 시간 (초)")));
@@ -794,6 +874,15 @@ void MainWindow::StartStream()
     AppendLog(live
         ? QStringLiteral("Started (live camera) - recording")
         : QStringLiteral("Started (RAW playback)"));
+
+    if (live)
+    {
+        PopulateBiasControls();
+    }
+    else
+    {
+        ClearBiasControls();
+    }
 }
 
 void MainWindow::PauseStream()
@@ -895,12 +984,173 @@ void MainWindow::StopStream(const QString& logMessage)
     m_sliderPosition->setValue(0);
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
     m_preRollBuffer.clear();
+    ClearBiasControls();
 
     // 처음(까만 화면)으로 되돌린다.
     m_previewPixmap = QPixmap();
     m_labelPreview->setPixmap(QPixmap());
 
     AppendLog(logMessage);
+}
+
+MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bool dynamic)
+{
+    auto* container = new QWidget(m_boxBias);
+    auto* rowLayout = new QHBoxLayout(container);
+    rowLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto* slider = new QSlider(Qt::Horizontal, container);
+    auto* valueLabel = new QLabel(QStringLiteral("--"), container);
+    valueLabel->setMinimumWidth(48);
+    valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+    rowLayout->addWidget(slider, 1);
+    rowLayout->addWidget(valueLabel);
+
+    connect(slider, &QSlider::valueChanged, this, [this, biasName, valueLabel](int value)
+    {
+        valueLabel->setText(QString::number(value));
+        if (!m_stream.SetBias(biasName.toStdString(), value))
+        {
+            AppendLog(QStringLiteral("Failed to set bias '%1' to %2").arg(biasName).arg(value));
+        }
+    });
+
+    m_biasFormLayout->addRow(biasName, container);
+
+    BiasControlRow row;
+    row.biasName = biasName;
+    // 아직 연결 전이라 HAL 원문 설명이 없으므로, 알려진 이름이면 우리가 작성한 일반 설명으로
+    // 채워 둔다(연결 후 PopulateBiasControls()가 HAL 원문이 있으면 영어 쪽만 덮어씀).
+    const BiasDescriptionPair known = KnownBiasDescriptions().value(biasName, BiasDescriptionPair{ biasName, QString() });
+    row.englishDescription = known.en;
+    row.koreanDescription = known.ko;
+    row.container = container;
+    row.slider = slider;
+    row.valueLabel = valueLabel;
+    // addRow(QString, QWidget*)가 내부적으로 만든 이름 라벨은 labelForField()로만 접근할 수
+    // 있다 - 슬라이더뿐 아니라 이름 위에 마우스를 올려도 같은 설명이 뜨게 하기 위함.
+    row.nameLabel = m_biasFormLayout->labelForField(container);
+    row.dynamic = dynamic;
+
+    return row;
+}
+
+void MainWindow::ApplyBiasTooltip(const BiasControlRow& row)
+{
+    const QString tooltip = BiasTooltipFor(row);
+    row.container->setToolTip(tooltip);
+    row.slider->setToolTip(tooltip);
+    if (row.nameLabel)
+    {
+        row.nameLabel->setToolTip(tooltip);
+    }
+}
+
+QString MainWindow::BiasTooltipFor(const BiasControlRow& row) const
+{
+    if (m_language == AppLanguage::Korean && !row.koreanDescription.isEmpty())
+    {
+        return row.koreanDescription;
+    }
+    return row.englishDescription;
+}
+
+void MainWindow::UpdateBiasStatusLabel()
+{
+    m_labelBiasUnavailable->setText(m_biasConnected
+        ? Tr(QStringLiteral("Connected - showing live values from the camera."),
+             QStringLiteral("연결됨 - 카메라의 실제 값을 표시 중."))
+        : Tr(QStringLiteral("Not connected - showing default IMX636 bias placeholders."),
+             QStringLiteral("연결 안 됨 - 기본 IMX636 bias 값(자리표시자)을 표시 중.")));
+}
+
+void MainWindow::SeedBiasPlaceholders()
+{
+    for (const QString& biasName : KnownBiasNames())
+    {
+        BiasControlRow row = CreateBiasRow(biasName, /*dynamic=*/false);
+        row.slider->setEnabled(false);
+        ApplyBiasTooltip(row);
+        m_biasRows.push_back(row);
+    }
+}
+
+void MainWindow::ClearBiasControls()
+{
+    m_biasConnected = false;
+    UpdateBiasStatusLabel();
+
+    // 알려진 6종(dynamic=false)은 삭제하지 않고 자리표시자로 되돌리기만 한다. 실제 연결된
+    // 카메라가 보고했던, 목록에 없던 추가 행(dynamic=true)만 제거한다 - 다음에 다른 카메라가
+    // 연결되면 그 bias 목록이 다를 수 있으므로 남겨 둘 이유가 없다.
+    std::vector<BiasControlRow> kept;
+    for (const BiasControlRow& row : m_biasRows)
+    {
+        if (row.dynamic)
+        {
+            m_biasFormLayout->removeRow(row.container);
+            continue;
+        }
+
+        row.slider->blockSignals(true);
+        row.slider->setEnabled(false);
+        row.slider->blockSignals(false);
+        row.valueLabel->setText(QStringLiteral("--"));
+        kept.push_back(row);
+    }
+    m_biasRows = std::move(kept);
+}
+
+void MainWindow::PopulateBiasControls()
+{
+    const std::vector<eventcore::BiasSetting> biases = m_stream.GetBiases();
+    if (biases.empty())
+    {
+        // I_LL_Biases 파실리티가 없는 소스(또는 이 카메라/펌웨어가 지원하지 않음) - 자리표시자
+        // 상태로 되돌린다(알려진 6종 슬라이더 자체는 계속 보이되 비활성화됨).
+        ClearBiasControls();
+        return;
+    }
+
+    m_biasConnected = true;
+    UpdateBiasStatusLabel();
+
+    for (const eventcore::BiasSetting& bias : biases)
+    {
+        const QString biasName = QString::fromStdString(bias.name);
+
+        auto it = std::find_if(m_biasRows.begin(), m_biasRows.end(),
+            [&biasName](const BiasControlRow& row) { return row.biasName == biasName; });
+
+        BiasControlRow* row = nullptr;
+        if (it != m_biasRows.end())
+        {
+            row = &(*it);
+        }
+        else
+        {
+            // 알려진 6종에 없는 이름 - 이 카메라/펌웨어가 보고한 추가 bias용 행을 새로 만든다.
+            m_biasRows.push_back(CreateBiasRow(biasName, /*dynamic=*/true));
+            row = &m_biasRows.back();
+        }
+
+        row->slider->blockSignals(true);
+        row->slider->setRange(bias.minValue, bias.maxValue);
+        row->slider->setValue(bias.value);
+        row->slider->setEnabled(bias.modifiable);
+        row->slider->blockSignals(false);
+        row->valueLabel->setText(QString::number(bias.value));
+
+        // HAL이 실제 영어 설명을 보고했다면(비어 있지 않다면) 그 원문으로 덮어쓴다 - 연결 전
+        // 자리표시자로 채워 뒀던 우리 설명보다 이쪽이 진짜 출처 있는 정보이므로 우선한다.
+        if (!bias.description.empty())
+        {
+            row->englishDescription = QString::fromStdString(bias.description);
+        }
+
+        ApplyBiasTooltip(*row);
+    }
 }
 
 void MainWindow::onBrowseRawClicked()

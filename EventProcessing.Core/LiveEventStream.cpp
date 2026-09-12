@@ -8,6 +8,7 @@
 
 #include <metavision/sdk/base/events/event_cd.h>
 #include <metavision/sdk/stream/offline_streaming_control.h>
+#include <metavision/hal/facilities/i_ll_biases.h>
 
 #if defined(_MSC_VER)
 #include <excpt.h>
@@ -214,6 +215,19 @@ namespace eventcore
         catch (...)
         {
         }
+
+        // m_camera.stop()은 이벤트 스트리밍만 멈출 뿐, 이 Camera 객체는 그대로 살아 있어서
+        // 내부 장치(USB) 핸들을 계속 점유한다. 그 상태로 다시 Start()하면 Camera::from_first_available()가
+        // (대입보다 우변이 먼저 평가되므로 아직 예전 핸들이 살아있는 채로) 장치를 열지 못해
+        // "camera not found / not accessible"로 실패한다. 빈 Camera로 move-대입해 기존 객체를
+        // 파괴(=장치 핸들 해제)시켜서, Start->Stop->Start가 정상 동작하게 한다.
+        try
+        {
+            m_camera = Metavision::Camera();
+        }
+        catch (...)
+        {
+        }
     }
 
     bool LiveEventStream::Pause()
@@ -348,6 +362,67 @@ namespace eventcore
         {
             return m_camera.offline_streaming_control().seek(timestampUs);
         });
+    }
+
+    std::vector<BiasSetting> LiveEventStream::GetBiases() const
+    {
+        std::vector<BiasSetting> result;
+
+        if (!m_running)
+        {
+            return result;
+        }
+
+        // Camera::get_facility<T>()는 포인터가 아니라 참조를 반환하며, 해당 파실리티가 없는
+        // 소스(RAW 파일 재생 등)에서는 CameraException(UnsupportedFeature)을 던진다.
+        try
+        {
+            const Metavision::I_LL_Biases& biases = m_camera.get_facility<Metavision::I_LL_Biases>();
+            const std::map<std::string, int> allBiases = biases.get_all_biases();
+
+            for (const auto& [name, value] : allBiases)
+            {
+                BiasSetting setting;
+                setting.name = name;
+                setting.value = value;
+
+                Metavision::LL_Bias_Info info;
+                if (biases.get_bias_info(name, info))
+                {
+                    const std::pair<int, int> range = info.get_bias_range();
+                    setting.minValue = range.first;
+                    setting.maxValue = range.second;
+                    setting.description = info.get_description();
+                    setting.modifiable = info.is_modifiable();
+                }
+
+                result.push_back(std::move(setting));
+            }
+        }
+        catch (...)
+        {
+            result.clear();
+        }
+
+        return result;
+    }
+
+    bool LiveEventStream::SetBias(const std::string& biasName, int value)
+    {
+        if (!m_running)
+        {
+            return false;
+        }
+
+        try
+        {
+            Metavision::I_LL_Biases& biases = m_camera.get_facility<Metavision::I_LL_Biases>();
+            return biases.set(biasName, value);
+        }
+        catch (...)
+        {
+            return false;
+        }
     }
 
     void LiveEventStream::WindowLoop(lli windowUs, FrameCallback callback)
