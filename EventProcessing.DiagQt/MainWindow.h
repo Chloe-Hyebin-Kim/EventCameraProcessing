@@ -156,6 +156,10 @@ private:
     AppLanguage m_language = AppLanguage::English;
     bool m_liveMode = false;
 
+    // 마지막으로 로그에 남긴 샷 상태. 매 프레임 ShotTrigger가 돌려주는 상태가 이 값과 다르면
+    // 상태 전이로 보고 로그에 한 줄 남긴다(READY뿐 아니라 SEARCHING/IMPACT/TRJCT 전이 모두).
+    eventcore::ShotState m_lastLoggedState = eventcore::ShotState::Searching;
+
     // Live 카메라 모드에서만 쓰인다: Pause 동안 카메라/미리보기는 계속 흐르게 두고(끼어든 상황이
     // 지나가는 걸 볼 수 있게), ShotTrigger 갱신과 프레임 저장(녹화)만 건너뛴다. RAW 모드의 Pause는
     // m_stream.Pause()로 재생 자체를 멈추므로 이 플래그와 무관하게 콜백이 아예 오지 않는다.

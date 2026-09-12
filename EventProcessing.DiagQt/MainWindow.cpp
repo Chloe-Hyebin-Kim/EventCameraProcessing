@@ -777,7 +777,7 @@ void MainWindow::FlushPreRollBuffer(lli impactUs)
 
     m_preRollBuffer.clear();
 
-    AppendLog(QStringLiteral("IMPACT - trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
+    AppendLog(QStringLiteral("Trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
 }
 
 void MainWindow::onStartStopClicked()
@@ -828,6 +828,7 @@ void MainWindow::StartStream()
 
     m_activeConfig = ReadConfigFromUI();
     m_trigger = ShotTrigger(m_activeConfig);
+    m_lastLoggedState = ShotState::Searching;  // 새 실행은 트리거 초기 상태(Searching)에서 시작
     m_capturingNow = false;
     m_captureFrameIndex = 0;
     m_preRollBuffer.clear();
@@ -1002,6 +1003,7 @@ void MainWindow::StopStream(const QString& logMessage)
     m_sliderPosition->setValue(0);
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
     m_preRollBuffer.clear();
+    m_lastLoggedState = ShotState::Searching;
     ClearBiasControls();
 
     // 연결이 끊겼으니 소스 박스도 갱신한다(Live 모드면 카메라 식별자 -> 안내 문구로 복귀,
@@ -1404,16 +1406,21 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
     const ShotUpdateResult su = m_trigger.Update(msg->ball, msg->windowStartUs);
     UpdateStateLabel(su.state);
 
+    // 상태가 바뀔 때마다 전이를 로그에 남긴다(SEARCHING/READY/IMPACT/TRJCT 모두). 로그는 언어
+    // 설정과 무관하게 항상 영어 상태 코드로 남긴다.
+    if (su.state != m_lastLoggedState)
+    {
+        AppendLog(QStringLiteral("State: %1 -> %2")
+            .arg(FormatShotState(m_lastLoggedState))
+            .arg(FormatShotState(su.state)));
+        m_lastLoggedState = su.state;
+    }
+
     // Trajectory 상태(TRJCT)에 들어가기 전까지의 모든 프레임은 Impact가 언제 확정될지 몰라도
     // 미리 링 버퍼에 쌓아 둔다. Impact가 확정되면 이 버퍼에서 preCaptureSeconds 분량을 저장한다.
     if (su.state != ShotState::Trajectory)
     {
         PushPreRollFrame(msg);
-    }
-
-    if (su.justEnteredReady)
-    {
-        AppendLog(QStringLiteral("READY"));
     }
 
     if (su.justTriggered)
