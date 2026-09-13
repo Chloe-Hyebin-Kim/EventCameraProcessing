@@ -127,10 +127,12 @@ private:
     // 앱 시작 시 한 번, IMX636의 알려진 표준 bias 6종에 대해 비활성화된 슬라이더 행을 미리
     // 만들어 둔다(연결 전이라 실제 값/범위를 모르므로 자리표시자 상태). BuildUi()에서 호출.
     void SeedBiasPlaceholders();
-    // biasName 하나에 대한 슬라이더 행(컨테이너+슬라이더+값 라벨)을 새로 만들어 폼에 추가하고
+    // biasName 하나에 대한 슬라이더 행(컨테이너+슬라이더+값 라벨)을 지정한 열(form)에 추가하고
     // 돌려준다(m_biasRows에 넣는 건 호출부 책임). dynamic=true는 알려진 6종에 없는, 실제 연결된
     // 카메라가 보고한 추가 bias용(연결 해제 시 제거 대상)이라는 표시.
-    BiasControlRow CreateBiasRow(const QString& biasName, bool dynamic);
+    BiasControlRow CreateBiasRow(const QString& biasName, bool dynamic, QFormLayout* form);
+    // bias 이름을 어느 열(form)에 둘지 결정한다(왼쪽: diff/diff_off/diff_on, 그 외: 오른쪽).
+    QFormLayout* FormColumnForBias(const QString& biasName) const;
     // row의 현재 언어 설명에 맞는 툴팁을 슬라이더/컨테이너/이름 라벨에 다시 적용한다.
     void ApplyBiasTooltip(const BiasControlRow& row);
     // 연결 상태(m_biasConnected)와 현재 언어에 맞춰 안내 라벨 문구를 갱신한다.
@@ -222,7 +224,10 @@ private:
     // 비활성화된 자리표시자 슬라이더로 항상 보이고(SeedBiasPlaceholders()), 라이브 카메라가
     // 성공적으로 시작되면 PopulateBiasControls()가 실제 값/범위로 갱신하며 활성화한다.
     QGroupBox* m_boxBias = nullptr;
-    QFormLayout* m_biasFormLayout = nullptr;
+    // bias 슬라이더를 2열로 배치한다: 왼쪽 열(bias_diff/off/on), 오른쪽 열(bias_fo/hpf/refr).
+    // 알려진 6종 밖의 이름(다른 센서/펌웨어)은 오른쪽 열에 이어 붙인다.
+    QFormLayout* m_biasFormLeft = nullptr;
+    QFormLayout* m_biasFormRight = nullptr;
     QLabel* m_labelBiasUnavailable = nullptr;
     // 현재 bias 조합을 .bias 파일로 저장/불러오기(연결 중일 때만 활성화).
     QPushButton* m_btnSaveBias = nullptr;
@@ -245,6 +250,7 @@ private:
         QSlider* slider = nullptr;
         QLabel* valueLabel = nullptr;
         QWidget* nameLabel = nullptr; // QFormLayout::labelForField()로 얻은, 행의 이름 라벨.
+        QFormLayout* form = nullptr;  // 이 행이 속한 열(왼쪽/오른쪽 form). removeRow/labelForField에 사용.
         // true면 알려진 6종에 없는, 실제 연결된 카메라가 보고한 추가 bias 행 - 연결 해제 시
         // 비활성화만 하는 게 아니라 아예 제거한다(false인 6종 고정 행은 항상 남아 있음).
         bool dynamic = false;

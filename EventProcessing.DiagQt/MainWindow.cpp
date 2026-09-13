@@ -339,8 +339,14 @@ void MainWindow::BuildUi()
     m_labelBiasUnavailable = new QLabel(m_boxBias);
     biasOuterLayout->addWidget(m_labelBiasUnavailable);
 
-    m_biasFormLayout = new QFormLayout();
-    biasOuterLayout->addLayout(m_biasFormLayout);
+    // 2열 배치: 왼쪽 열(bias_diff/off/on)과 오른쪽 열(bias_fo/hpf/refr)을 나란히 둔다.
+    auto* biasColumnsLayout = new QHBoxLayout();
+    m_biasFormLeft = new QFormLayout();
+    m_biasFormRight = new QFormLayout();
+    biasColumnsLayout->addLayout(m_biasFormLeft, 1);
+    biasColumnsLayout->addSpacing(24);
+    biasColumnsLayout->addLayout(m_biasFormRight, 1);
+    biasOuterLayout->addLayout(biasColumnsLayout);
 
     // bias 조합 저장/불러오기 버튼(연결 중일 때만 활성화).
     auto* biasFileLayout = new QHBoxLayout();
@@ -1040,7 +1046,19 @@ void MainWindow::StopStream(const QString& logMessage)
     AppendLog(logMessage);
 }
 
-MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bool dynamic)
+QFormLayout* MainWindow::FormColumnForBias(const QString& biasName) const
+{
+    // 왼쪽 열: bias_diff / bias_diff_off / bias_diff_on. 그 외(fo/hpf/refr 및 알려지지 않은
+    // 이름)는 오른쪽 열.
+    static const QStringList kColumn1 = {
+        QStringLiteral("bias_diff"),
+        QStringLiteral("bias_diff_off"),
+        QStringLiteral("bias_diff_on"),
+    };
+    return kColumn1.contains(biasName) ? m_biasFormLeft : m_biasFormRight;
+}
+
+MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bool dynamic, QFormLayout* form)
 {
     auto* container = new QWidget(m_boxBias);
     auto* rowLayout = new QHBoxLayout(container);
@@ -1066,7 +1084,7 @@ MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bo
         }
     });
 
-    m_biasFormLayout->addRow(biasName, container);
+    form->addRow(biasName, container);
 
     BiasControlRow row;
     row.biasName = biasName;
@@ -1080,7 +1098,8 @@ MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bo
     row.valueLabel = valueLabel;
     // addRow(QString, QWidget*)가 내부적으로 만든 이름 라벨은 labelForField()로만 접근할 수
     // 있다 - 슬라이더뿐 아니라 이름 위에 마우스를 올려도 같은 설명이 뜨게 하기 위함.
-    row.nameLabel = m_biasFormLayout->labelForField(container);
+    row.nameLabel = form->labelForField(container);
+    row.form = form;
     row.dynamic = dynamic;
 
     return row;
@@ -1129,7 +1148,7 @@ void MainWindow::SeedBiasPlaceholders()
 {
     for (const QString& biasName : KnownBiasNames())
     {
-        BiasControlRow row = CreateBiasRow(biasName, /*dynamic=*/false);
+        BiasControlRow row = CreateBiasRow(biasName, /*dynamic=*/false, FormColumnForBias(biasName));
         row.slider->setEnabled(false);
         ApplyBiasTooltip(row);
         m_biasRows.push_back(row);
@@ -1149,7 +1168,7 @@ void MainWindow::ClearBiasControls()
     {
         if (row.dynamic)
         {
-            m_biasFormLayout->removeRow(row.container);
+            row.form->removeRow(row.container);
             continue;
         }
 
@@ -1191,7 +1210,7 @@ void MainWindow::PopulateBiasControls(bool applySaved)
         else
         {
             // 알려진 6종에 없는 이름 - 이 카메라/펌웨어가 보고한 추가 bias용 행을 새로 만든다.
-            m_biasRows.push_back(CreateBiasRow(biasName, /*dynamic=*/true));
+            m_biasRows.push_back(CreateBiasRow(biasName, /*dynamic=*/true, FormColumnForBias(biasName)));
             row = &m_biasRows.back();
         }
 
