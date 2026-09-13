@@ -6,6 +6,8 @@
 #include "LiveEventStream.h"
 #include "ShotTrigger.h"
 
+#include <QMap>
+#include <QString>
 #include <QWidget>
 
 #include <deque>
@@ -219,6 +221,12 @@ private:
     QLabel* m_labelBiasUnavailable = nullptr;
     // 라이브 카메라가 현재 연결되어 bias 값이 실제 하드웨어를 반영 중인지(false면 자리표시자).
     bool m_biasConnected = false;
+
+    // 프로그램이 실행되는 동안(종료 전까지) 기억할 bias 값. Start->Stop->Start를 반복해도
+    // 여기 있는 값이 유지되어, 카메라를 다시 열 때 그대로 다시 적용된다(디스크에 저장하지 않으므로
+    // 프로그램을 종료하면 사라짐). 앱 시작 시 bias_diff/off/on/fo의 기본값이 미리 들어 있고,
+    // 사용자가 슬라이더를 움직이면 그 값으로 갱신된다.
+    QMap<QString, int> m_savedBiasValues;
 
     struct BiasControlRow
     {

@@ -156,6 +156,13 @@ MainWindow::MainWindow(QWidget* parent)
     m_editMissToleranceMs->setText(QStringLiteral("150"));
     m_editWindowUs->setText(QStringLiteral("10000"));
 
+    // bias 기본값(연결 시 카메라에 적용됨). 사용자가 슬라이더로 바꾸면 이 값이 갱신되어,
+    // 프로그램이 켜져 있는 동안 Start/Stop을 반복해도 마지막 값이 유지된다.
+    m_savedBiasValues[QStringLiteral("bias_diff")] = -30;
+    m_savedBiasValues[QStringLiteral("bias_diff_off")] = -15;
+    m_savedBiasValues[QStringLiteral("bias_diff_on")] = -5;
+    m_savedBiasValues[QStringLiteral("bias_fo")] = 20;
+
     UpdateRunButtons();
     m_labelState->setText(QStringLiteral("IDLE"));
 
@@ -1034,6 +1041,9 @@ MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bo
     connect(slider, &QSlider::valueChanged, this, [this, biasName, valueLabel](int value)
     {
         valueLabel->setText(QString::number(value));
+        // 사용자가 바꾼 값을 기억해 둔다(다음 Start 때 이 값으로 다시 적용됨). 이 핸들러는
+        // 사용자 조작에서만 불린다 - 프로그램적 setValue는 blockSignals로 막아 두므로.
+        m_savedBiasValues[biasName] = value;
         if (!m_stream.SetBias(biasName.toStdString(), value))
         {
             AppendLog(QStringLiteral("Failed to set bias '%1' to %2").arg(biasName).arg(value));
@@ -1159,12 +1169,32 @@ void MainWindow::PopulateBiasControls()
             row = &m_biasRows.back();
         }
 
+        // 표시/적용할 값 결정: 이 bias에 대해 기억해 둔 값(기본값 또는 사용자가 마지막으로 바꾼
+        // 값)이 있고 수정 가능한 bias라면 그 값을 카메라 범위 안으로 clamp해서 카메라에 적용한다.
+        // 기억해 둔 값이 없으면 카메라가 현재 보고한 값을 그대로 쓴다.
+        int targetValue = bias.value;
+        const auto savedIt = m_savedBiasValues.find(biasName);
+        if (bias.modifiable && savedIt != m_savedBiasValues.end())
+        {
+            targetValue = std::clamp(savedIt.value(), bias.minValue, bias.maxValue);
+            if (targetValue != bias.value)
+            {
+                if (!m_stream.SetBias(bias.name, targetValue))
+                {
+                    // 적용 실패 시(범위 밖 등) 카메라가 실제로 들고 있는 값으로 되돌린다.
+                    targetValue = bias.value;
+                }
+            }
+            // 기억 값도 실제 적용된 값으로 맞춰 둔다(clamp/실패 반영).
+            m_savedBiasValues[biasName] = targetValue;
+        }
+
         row->slider->blockSignals(true);
         row->slider->setRange(bias.minValue, bias.maxValue);
-        row->slider->setValue(bias.value);
+        row->slider->setValue(targetValue);
         row->slider->setEnabled(bias.modifiable);
         row->slider->blockSignals(false);
-        row->valueLabel->setText(QString::number(bias.value));
+        row->valueLabel->setText(QString::number(targetValue));
 
         // HAL이 실제 영어 설명을 보고했다면(비어 있지 않다면) 그 원문으로 덮어쓴다 - 연결 전
         // 자리표시자로 채워 뒀던 우리 설명보다 이쪽이 진짜 출처 있는 정보이므로 우선한다.
