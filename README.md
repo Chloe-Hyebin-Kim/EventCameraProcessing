@@ -315,6 +315,8 @@ RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인�
 
 **기본값 & 값 기억**: 앱 시작 시 `bias_diff = -30`, `bias_diff_off = -15`, `bias_diff_on = -5`, `bias_fo = 20`이 기본값으로 지정되어, Live camera를 처음 연결하면 이 값들이 카메라 범위 안으로 clamp되어 자동 적용됨(`bias_hpf`/`bias_refr`은 기본값 없이 카메라가 보고한 현재 값을 사용). 사용자가 슬라이더로 값을 바꾸면 그 값을 프로그램이 메모리에 기억해 두므로, **프로그램을 종료하지 않는 한** Start->Stop->Start를 반복해도 마지막으로 설정한 값이 카메라를 다시 열 때 그대로 재적용됨(`m_savedBiasValues`). 디스크에 저장하지는 않으므로 프로그램을 완전히 종료하면 다시 위 기본값으로 돌아감. 수정 불가능한(`is_modifiable()==false`) bias에는 기억 값을 적용하지 않고 카메라 보고 값만 표시함.
 
+**Bias 저장/불러오기**: 그룹박스 아래 `Save Bias...`/`Load Bias...` 버튼으로 현재 bias 조합을 Metavision 표준 `.bias` 파일로 저장하거나(`I_LL_Biases::save_to_file`), 파일에서 읽어 카메라에 적용할 수 있음(`I_LL_Biases::load_from_file`). 두 버튼은 카메라가 실제 연결되어 있을 때만 활성화됨. 불러오면 파일의 값이 카메라에 적용된 뒤 슬라이더가 그 값으로 갱신되고, 그 값이 이후 Start/Stop에도 유지되도록 기억 값으로 채택됨. 경로에 한글 등 비ASCII 문자가 있어도 `Utf8ToPath()`로 처리됨. 저장/불러오기 성공·실패는 로그에 남음(항상 영어).
+
 Bias **이름**(`bias_diff_on` 등)은 하드웨어가 보고하는 그대로 언어 설정과 무관하게 항상 영어임. 슬라이더/이름에 마우스를 올리면 뜨는 **설명 툴팁**은 언어 설정을 따름 - 영어일 때는 `LL_Bias_Info::get_description()`이 보고한 원문을 그대로 보여주고, 한국어일 때는 `MainWindow.cpp`의 `KoreanBiasDescription()`에 있는, IMX636 표준 bias 6종(`bias_diff`/`bias_diff_off`/`bias_diff_on`/`bias_fo`/`bias_hpf`/`bias_refr`)에 대해 직접 작성한 한국어 설명으로 바뀜. **주의**: 이 한국어 설명은 HAL이 보고하는 원문 문자열을 그대로 번역한 것이 아니라(그 정확한 원문은 네트워크 제약으로 Prophesee 공식 문서에서 확인하지 못함), 공개적으로 널리 알려진 IMX636 bias 동작 방식을 바탕으로 직접 작성한 것임. 이 표에 없는 bias 이름은 한국어 모드에서도 영어 원문 설명을 그대로 보여줌(임의로 지어내지 않음).
 
 ---

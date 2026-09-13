@@ -342,6 +342,20 @@ void MainWindow::BuildUi()
     m_biasFormLayout = new QFormLayout();
     biasOuterLayout->addLayout(m_biasFormLayout);
 
+    // bias 조합 저장/불러오기 버튼(연결 중일 때만 활성화).
+    auto* biasFileLayout = new QHBoxLayout();
+    m_btnSaveBias = new QPushButton(m_boxBias);
+    m_btnLoadBias = new QPushButton(m_boxBias);
+    m_btnSaveBias->setEnabled(false);
+    m_btnLoadBias->setEnabled(false);
+    biasFileLayout->addStretch();
+    biasFileLayout->addWidget(m_btnSaveBias);
+    biasFileLayout->addWidget(m_btnLoadBias);
+    biasOuterLayout->addLayout(biasFileLayout);
+
+    connect(m_btnSaveBias, &QPushButton::clicked, this, &MainWindow::onSaveBiasClicked);
+    connect(m_btnLoadBias, &QPushButton::clicked, this, &MainWindow::onLoadBiasClicked);
+
     root->addWidget(m_boxBias);
 
     // 연결 전에도 IMX636의 표준 bias 6종을 비활성화된 자리표시자 슬라이더로 바로 보여준다
@@ -531,6 +545,8 @@ void MainWindow::RetranslateUi()
     m_boxShotTrigger->setTitle(Tr(QStringLiteral("Shot Trigger"), QStringLiteral("샷 트리거")));
 
     m_boxBias->setTitle(Tr(QStringLiteral("Camera Bias"), QStringLiteral("카메라 Bias")));
+    m_btnSaveBias->setText(Tr(QStringLiteral("Save Bias..."), QStringLiteral("Bias 저장...")));
+    m_btnLoadBias->setText(Tr(QStringLiteral("Load Bias..."), QStringLiteral("Bias 불러오기...")));
     UpdateBiasStatusLabel();
 
     // 이미 채워진 bias 행이 있다면(언어를 바꿀 때) 설명 툴팁도 새 언어에 맞게 다시 적용한다.
@@ -1097,6 +1113,16 @@ void MainWindow::UpdateBiasStatusLabel()
              QStringLiteral("연결됨 - 카메라의 실제 값을 표시 중."))
         : Tr(QStringLiteral("Not connected - showing default IMX636 bias placeholders."),
              QStringLiteral("연결 안 됨 - 기본 IMX636 bias 값(자리표시자)을 표시 중.")));
+
+    // 저장/불러오기는 카메라가 실제 연결되어 있을 때만 의미가 있다.
+    if (m_btnSaveBias)
+    {
+        m_btnSaveBias->setEnabled(m_biasConnected);
+    }
+    if (m_btnLoadBias)
+    {
+        m_btnLoadBias->setEnabled(m_biasConnected);
+    }
 }
 
 void MainWindow::SeedBiasPlaceholders()
@@ -1136,7 +1162,7 @@ void MainWindow::ClearBiasControls()
     m_biasRows = std::move(kept);
 }
 
-void MainWindow::PopulateBiasControls()
+void MainWindow::PopulateBiasControls(bool applySaved)
 {
     const std::vector<eventcore::BiasSetting> biases = m_stream.GetBiases();
     if (biases.empty())
@@ -1169,24 +1195,29 @@ void MainWindow::PopulateBiasControls()
             row = &m_biasRows.back();
         }
 
-        // 표시/적용할 값 결정: 이 bias에 대해 기억해 둔 값(기본값 또는 사용자가 마지막으로 바꾼
-        // 값)이 있고 수정 가능한 bias라면 그 값을 카메라 범위 안으로 clamp해서 카메라에 적용한다.
-        // 기억해 둔 값이 없으면 카메라가 현재 보고한 값을 그대로 쓴다.
+        // 표시/적용할 값 결정.
         int targetValue = bias.value;
-        const auto savedIt = m_savedBiasValues.find(biasName);
-        if (bias.modifiable && savedIt != m_savedBiasValues.end())
+        if (bias.modifiable)
         {
-            targetValue = std::clamp(savedIt.value(), bias.minValue, bias.maxValue);
-            if (targetValue != bias.value)
+            const auto savedIt = m_savedBiasValues.find(biasName);
+            if (applySaved && savedIt != m_savedBiasValues.end())
             {
-                if (!m_stream.SetBias(bias.name, targetValue))
+                // 기억해 둔 값(기본값 또는 사용자가 마지막으로 바꾼 값)을 카메라 범위 안으로
+                // clamp해서 카메라에 적용한다.
+                targetValue = std::clamp(savedIt.value(), bias.minValue, bias.maxValue);
+                if (targetValue != bias.value && !m_stream.SetBias(bias.name, targetValue))
                 {
                     // 적용 실패 시(범위 밖 등) 카메라가 실제로 들고 있는 값으로 되돌린다.
                     targetValue = bias.value;
                 }
+                m_savedBiasValues[biasName] = targetValue;
             }
-            // 기억 값도 실제 적용된 값으로 맞춰 둔다(clamp/실패 반영).
-            m_savedBiasValues[biasName] = targetValue;
+            else if (!applySaved)
+            {
+                // .bias 파일 로드 직후 등: 카메라에 이미 반영된 값을 그대로 반영하고, 기억 값도
+                // 그 값으로 채택한다(다음 Start 때 로드된 값이 유지되도록).
+                m_savedBiasValues[biasName] = targetValue;
+            }
         }
 
         row->slider->blockSignals(true);
@@ -1223,6 +1254,72 @@ void MainWindow::onBrowseRawClicked()
         m_rawFilePath = path;
         m_radioRaw->setChecked(true);
         m_editRawPath->setText(path);
+    }
+}
+
+void MainWindow::onSaveBiasClicked()
+{
+    if (!m_biasConnected)
+    {
+        return;
+    }
+
+    QString path = QFileDialog::getSaveFileName(
+        this,
+        Tr(QStringLiteral("Save bias file"), QStringLiteral("Bias 파일 저장")),
+        QStringLiteral("camera.bias"),
+        Tr(QStringLiteral("Metavision bias (*.bias);;All Files (*)"), QStringLiteral("Metavision bias (*.bias);;모든 파일 (*)")));
+
+    if (path.isEmpty())
+    {
+        return;
+    }
+
+    // 확장자를 안 붙였으면 .bias를 붙여 준다.
+    if (!path.endsWith(QStringLiteral(".bias"), Qt::CaseInsensitive))
+    {
+        path += QStringLiteral(".bias");
+    }
+
+    if (m_stream.SaveBiasesToFile(ToUtf8(path)))
+    {
+        AppendLog(QStringLiteral("Saved bias file: %1").arg(path));
+    }
+    else
+    {
+        AppendLog(QStringLiteral("Failed to save bias file: %1").arg(path));
+    }
+}
+
+void MainWindow::onLoadBiasClicked()
+{
+    if (!m_biasConnected)
+    {
+        return;
+    }
+
+    const QString path = QFileDialog::getOpenFileName(
+        this,
+        Tr(QStringLiteral("Load bias file"), QStringLiteral("Bias 파일 불러오기")),
+        QString(),
+        Tr(QStringLiteral("Metavision bias (*.bias);;All Files (*)"), QStringLiteral("Metavision bias (*.bias);;모든 파일 (*)")));
+
+    if (path.isEmpty())
+    {
+        return;
+    }
+
+    if (m_stream.LoadBiasesFromFile(ToUtf8(path)))
+    {
+        // 파일 값이 카메라에 이미 적용됐으니, 기억 값을 덮어쓰지 말고 카메라 현재 값을 그대로
+        // 슬라이더에 반영한다(applySaved=false). 이렇게 하면 로드한 값이 기억 값이 되어 이후
+        // Start/Stop에도 유지된다.
+        PopulateBiasControls(/*applySaved=*/false);
+        AppendLog(QStringLiteral("Loaded bias file: %1").arg(path));
+    }
+    else
+    {
+        AppendLog(QStringLiteral("Failed to load bias file: %1").arg(path));
     }
 }
 

@@ -101,6 +101,14 @@ namespace eventcore
         // 않으면 false를 반환한다.
         bool SetBias(const std::string& biasName, int value);
 
+        // 현재 카메라의 모든 bias를 .bias 파일로 저장한다(I_LL_Biases::save_to_file). 성공 시 true.
+        // path는 UTF-8 인코딩(한글 등 비ASCII 경로도 허용). 파실리티가 없거나 실패하면 false.
+        bool SaveBiasesToFile(const std::string& utf8Path);
+
+        // .bias 파일에서 bias를 읽어 카메라에 적용한다(I_LL_Biases::load_from_file). 성공 시 true.
+        // path는 UTF-8 인코딩. 파실리티가 없거나 파일이 없거나 실패하면 false.
+        bool LoadBiasesFromFile(const std::string& utf8Path);
+
         // 현재 열려 있는 소스의 식별 정보(시리얼 번호 등)를 가져온다. 스트림이 열려 있지 않거나
         // 정보를 얻지 못하면 모든 필드가 빈 CameraInfo를 반환한다.
         CameraInfo GetCameraInfo() const;

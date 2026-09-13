@@ -64,6 +64,9 @@ private slots:
     void onShowAboutLicense();
     // Live/RAW 모드 라디오가 바뀔 때. 소스 텍스트 박스를 모드에 맞게 갈아 끼운다.
     void onSourceModeToggled(bool liveChecked);
+    // 현재 카메라 bias 조합을 .bias 파일로 저장 / 파일에서 불러와 적용.
+    void onSaveBiasClicked();
+    void onLoadBiasClicked();
 
 private:
     // 버튼 두 개, 각각 두 가지 역할을 겸한다:
@@ -135,7 +138,9 @@ private:
 
     // 라이브 카메라가 성공적으로 시작된 뒤 m_stream.GetBiases()로 얻은 실제 값/범위로 기존
     // placeholder 행들을 갱신하고 활성화한다(알려진 6종에 없는 이름은 새 행을 동적으로 추가).
-    void PopulateBiasControls();
+    // applySaved=true면 기억해 둔 값(기본값/사용자 변경분)을 카메라에 적용, false면 카메라가
+    // 현재 들고 있는 값을 그대로 반영만 하고 기억 값도 그 값으로 맞춘다(.bias 로드 직후 등).
+    void PopulateBiasControls(bool applySaved = true);
     // 알려진 6종 행은 비활성화 + 자리표시자 상태로 되돌리고(삭제하지 않음), 동적으로 추가됐던
     // 행만 제거한다(Stop, 또는 RAW 모드로 시작할 때).
     void ClearBiasControls();
@@ -219,6 +224,9 @@ private:
     QGroupBox* m_boxBias = nullptr;
     QFormLayout* m_biasFormLayout = nullptr;
     QLabel* m_labelBiasUnavailable = nullptr;
+    // 현재 bias 조합을 .bias 파일로 저장/불러오기(연결 중일 때만 활성화).
+    QPushButton* m_btnSaveBias = nullptr;
+    QPushButton* m_btnLoadBias = nullptr;
     // 라이브 카메라가 현재 연결되어 bias 값이 실제 하드웨어를 반영 중인지(false면 자리표시자).
     bool m_biasConnected = false;
 

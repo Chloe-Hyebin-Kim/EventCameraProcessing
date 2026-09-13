@@ -425,6 +425,44 @@ namespace eventcore
         }
     }
 
+    bool LiveEventStream::SaveBiasesToFile(const std::string& utf8Path)
+    {
+        if (!m_running)
+        {
+            return false;
+        }
+
+        try
+        {
+            Metavision::I_LL_Biases& biases = m_camera.get_facility<Metavision::I_LL_Biases>();
+            biases.save_to_file(Utf8ToPath(utf8Path));
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    bool LiveEventStream::LoadBiasesFromFile(const std::string& utf8Path)
+    {
+        if (!m_running)
+        {
+            return false;
+        }
+
+        try
+        {
+            Metavision::I_LL_Biases& biases = m_camera.get_facility<Metavision::I_LL_Biases>();
+            biases.load_from_file(Utf8ToPath(utf8Path));
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
     CameraInfo LiveEventStream::GetCameraInfo() const
     {
         CameraInfo info;
