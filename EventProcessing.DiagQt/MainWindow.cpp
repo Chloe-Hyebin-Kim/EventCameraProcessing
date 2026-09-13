@@ -372,12 +372,14 @@ void MainWindow::BuildUi()
     auto* controlLayout = new QHBoxLayout();
     m_btnStartStop = new QPushButton(this);
     m_btnPauseResume = new QPushButton(this);
+    m_btnRecordSave = new QPushButton(this);
     m_labelStateCaption = new QLabel(this);
     m_labelState = new QLabel(QStringLiteral("IDLE"), this);
     m_labelState->setStyleSheet(QStringLiteral("font-weight: bold;"));
 
     controlLayout->addWidget(m_btnStartStop);
     controlLayout->addWidget(m_btnPauseResume);
+    controlLayout->addWidget(m_btnRecordSave);
     controlLayout->addStretch();
     controlLayout->addWidget(m_labelStateCaption);
     controlLayout->addWidget(m_labelState);
@@ -415,6 +417,7 @@ void MainWindow::BuildUi()
 
     connect(m_btnStartStop, &QPushButton::clicked, this, &MainWindow::onStartStopClicked);
     connect(m_btnPauseResume, &QPushButton::clicked, this, &MainWindow::onPauseResumeClicked);
+    connect(m_btnRecordSave, &QPushButton::clicked, this, &MainWindow::onRecordSaveClicked);
     connect(m_btnBrowseRaw, &QPushButton::clicked, this, &MainWindow::onBrowseRawClicked);
     connect(m_btnBrowseOutput, &QPushButton::clicked, this, &MainWindow::onBrowseOutputClicked);
     connect(m_sliderPosition, &QSlider::sliderMoved, this, &MainWindow::onSliderMoved);
@@ -501,6 +504,14 @@ void MainWindow::UpdateRunButtons()
         m_btnPauseResume->setEnabled(true);
         break;
     }
+
+    // Record/Save 버튼: 녹화 중이면 "Save"(누르면 저장 종료), 아니면 "Record"(누르면 수동 녹화 시작).
+    // 활성화 조건: Live 카메라 모드로 Start된 상태(Running/Paused)일 때만. RAW 재생 모드나 Idle에서는
+    // 수동 녹화가 의미 없으므로 비활성화.
+    m_btnRecordSave->setText(m_manualRecording
+        ? Tr(QStringLiteral("Save"), QStringLiteral("저장"))
+        : Tr(QStringLiteral("Record"), QStringLiteral("녹화")));
+    m_btnRecordSave->setEnabled(m_liveMode && m_runState != RunState::Idle);
 }
 
 QString MainWindow::Tr(const QString& en, const QString& ko) const
@@ -776,6 +787,67 @@ void MainWindow::FinishCaptureSave()
     m_capturingNow = false;
 }
 
+void MainWindow::onRecordSaveClicked()
+{
+    if (m_manualRecording)
+    {
+        StopManualRecord();
+    }
+    else
+    {
+        StartManualRecord();
+    }
+    UpdateRunButtons(); // Record <-> Save 라벨 갱신
+}
+
+void MainWindow::StartManualRecord()
+{
+    // 자동 샷 캡처(shot_*)와 구분되도록 별도 폴더(manual_*)에 저장한다.
+    const QDateTime now = QDateTime::currentDateTime();
+    const QString folder = QStringLiteral("%1/manual_%2")
+        .arg(m_outputDir)
+        .arg(now.toString(QStringLiteral("yyyyMMdd_HHmmss")));
+
+    std::error_code ec;
+    fs::create_directories(ToNativePath(m_outputDir), ec);
+    fs::create_directories(ToNativePath(folder), ec);
+
+    m_manualRecordDir = folder;
+    m_manualRecordFrameIndex = 0;
+    m_manualRecording = true;
+
+    AppendLog(QStringLiteral("Manual recording started: %1").arg(folder));
+}
+
+void MainWindow::SaveManualFrame(const cv::Mat& bgrFrame)
+{
+    if (!m_manualRecording || bgrFrame.empty())
+    {
+        return;
+    }
+
+    const QString filename = QStringLiteral("%1/frame_%2.png")
+        .arg(m_manualRecordDir)
+        .arg(m_manualRecordFrameIndex, 4, 10, QChar('0'));
+
+    cv::imwrite(ToNativePath(filename).string(), bgrFrame);
+
+    ++m_manualRecordFrameIndex;
+}
+
+void MainWindow::StopManualRecord()
+{
+    if (!m_manualRecording)
+    {
+        return;
+    }
+
+    m_manualRecording = false;
+    AppendLog(QStringLiteral("Manual recording saved: %1 frame(s) to %2")
+        .arg(m_manualRecordFrameIndex)
+        .arg(m_manualRecordDir));
+}
+
 void MainWindow::PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg)
 {
     m_preRollBuffer.push_back(msg);
@@ -917,7 +989,7 @@ void MainWindow::StartStream()
     UpdateRunButtons();
     m_labelState->setText(QStringLiteral("SEARCHING"));
     AppendLog(live
-        ? QStringLiteral("Started (live camera) - recording")
+        ? QStringLiteral("Started (live camera) - watching for shots")
         : QStringLiteral("Started (RAW playback)"));
 
     if (live)
@@ -1019,6 +1091,14 @@ void MainWindow::onPollStreamState()
 
 void MainWindow::StopStream(const QString& logMessage)
 {
+    // 수동 녹화 중에 Stop을 누르면, 녹화하던 것을 먼저 저장 처리(종료)하고 스트림을 멈춘다.
+    // 프레임은 실시간으로 이미 디스크에 기록돼 있으므로, 여기서는 녹화를 마무리(로그 남기고
+    // 상태 해제)만 하면 된다.
+    if (m_manualRecording)
+    {
+        StopManualRecord();
+    }
+
     m_stream.Stop();
     m_running = false;
     m_processingPaused = false;
@@ -1548,6 +1628,13 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
         m_sliderPosition->blockSignals(false);
     }
     UpdateTimeLabel(msg->windowStartUs);
+
+    // 수동 녹화 중이면(자동 샷 캡처와 별개로) 매 프레임을 저장한다. pause 중에는 위에서 이미
+    // return하므로 여기 오지 않아, 라이브 pause가 곧 수동 녹화 일시정지가 된다.
+    if (m_manualRecording)
+    {
+        SaveManualFrame(msg->frame);
+    }
 
     const ShotUpdateResult su = m_trigger.Update(msg->ball, msg->windowStartUs);
     UpdateStateLabel(su.state);

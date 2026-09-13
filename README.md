@@ -292,12 +292,13 @@ Impact로 확정된 첫 프레임 기준으로 이전 `preCaptureSeconds`(기본
 
 RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인을 거치므로, Ball로 추정되는 물체(가장 넓은 외곽선)의 중심(초록 점)과 외곽(빨간 원 + 파란 바운딩 박스)이 매 프레임 디버그 이미지에 표시됨.
 
-컨트롤 버튼은 2개: **Start(시작)/Stop(중단)** 토글 버튼과 **Pause(멈춤)/Resume(재개)** 토글 버튼. 각 버튼이 상태에 따라 라벨과 동작이 함께 바뀜(빈 라벨로 남는 경우 없음).
+컨트롤 버튼은 3개: **Start(시작)/Stop(중단)** 토글, **Pause(멈춤)/Resume(재개)** 토글, **Record(녹화)/Save(저장)** 토글. 각 버튼이 상태에 따라 라벨과 동작이 함께 바뀜(빈 라벨로 남는 경우 없음).
 
-- **Start/Stop 버튼**: IDLE일 때 라벨은 `Start`(누르면 시작). Running/Paused일 때는 라벨이 `Stop`으로 바뀌고, 누르면 항상 완전히 종료해 처음(IDLE) 상태로 되돌아감 - 미리보기 화면도 까맣게 초기화됨.
-- **Pause/Resume 버튼**: IDLE일 때는 비활성화(멈출 대상이 없음). Running일 때 라벨은 `Pause`(누르면 일시정지). Paused일 때는 라벨이 `Resume`으로 바뀜(누르면 재개).
+- **Start/Stop 버튼**: IDLE일 때 라벨은 `Start`(누르면 시작). 여기서 "Start"는 Live 모드 기준 "샷 감지 대기 시작"이지 곧바로 통짜 녹화가 아님(로그도 `Started (live camera) - watching for shots`). Running/Paused일 때는 라벨이 `Stop`으로 바뀌고, 누르면 항상 완전히 종료해 처음(IDLE) 상태로 되돌아감 - 미리보기 화면도 까맣게 초기화됨. **수동 녹화(Record) 중에 Stop을 누르면 녹화하던 것을 먼저 저장 마무리하고 종료함.**
+- **Pause/Resume 버튼**: IDLE일 때는 비활성화(Start 상태에서만 활성화). Running일 때 라벨은 `Pause`(누르면 일시정지). Paused일 때는 라벨이 `Resume`으로 바뀜(누르면 재개).
+- **Record/Save 버튼**: **Live 카메라로 Start된 상태(Running/Paused)일 때만 활성화**되고, RAW 재생 모드나 IDLE에서는 비활성화됨. `Record`를 누르면 그 순간부터 매 프레임을 `output/manual_<날짜시각>/`에 계속 저장하기 시작하고 라벨이 `Save`로 바뀜. `Save`(또는 Stop)를 누르면 녹화를 마무리함. 이 수동 녹화는 임팩트 자동 캡처(`shot_*` 폴더)와 독립적으로 동작함.
 - **Pause 동작 - RAW 파일**(영상 재생 중일 때): 재생 자체를 그 자리에서 멈춰(카메라를 정지) 화면이 멈춘 프레임 그대로 남음. `Resume`을 누르면 멈췄던 바로 그 시각으로 seek해서 이어서 재생함(멈춰 있던 시간만큼 건너뛰지 않음).
-- **Pause 동작 - Live Camera**: `Start`는 녹화 시작, `Stop`은 녹화 종료. `Pause`는 녹화 종료가 아니라 녹화만 잠시 중지하는 것으로, 카메라와 미리보기 화면은 계속 흘러서 끼어든 상황이 지나가는 걸 볼 수 있고, ShotTrigger 갱신과 프레임 저장만 건너뜀. `Resume`을 누르면 그 시점부터 다시 녹화를 재개함.
+- **Pause 동작 - Live Camera**: 카메라와 미리보기 화면은 계속 흘러서 끼어든 상황이 지나가는 걸 볼 수 있고, ShotTrigger 갱신과 프레임 저장(자동 샷 캡처 + 수동 녹화)만 잠시 멈춤 = **녹화 일시 정지**. `Resume`을 누르면 그 시점부터 다시 이어감.
 
 **Source(입력 소스) 그룹의 텍스트 박스**는 모드에 따라 역할이 다름:
 - **RAW file 모드**: 편집 가능. 선택한 RAW 파일 경로를 표시/입력함(기존 동작).

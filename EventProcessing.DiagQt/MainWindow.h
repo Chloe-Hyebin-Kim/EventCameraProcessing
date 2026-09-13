@@ -55,6 +55,7 @@ protected:
 private slots:
     void onStartStopClicked();
     void onPauseResumeClicked();
+    void onRecordSaveClicked();
     void onBrowseRawClicked();
     void onBrowseOutputClicked();
     void onPollStreamState();
@@ -120,6 +121,10 @@ private:
     void StartCaptureSave();
     void SaveCaptureFrame(const cv::Mat& bgrFrame);
     void FinishCaptureSave();
+    // 수동 녹화(자동 샷 캡처와 별개). Record 버튼으로 시작, Save 버튼/Stop으로 종료한다.
+    void StartManualRecord();
+    void SaveManualFrame(const cv::Mat& bgrFrame);
+    void StopManualRecord();
     void StopStream(const QString& logMessage);
     void PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg);
     void FlushPreRollBuffer(eventcore::lli impactUs);
@@ -194,6 +199,11 @@ private:
     QString m_currentCaptureDir;
     int m_captureFrameIndex = 0;
     bool m_capturingNow = false;
+
+    // 수동 녹화(Record/Save 버튼) 상태. 자동 샷 캡처(위 m_capturingNow)와 독립적으로 동작한다.
+    bool m_manualRecording = false;
+    QString m_manualRecordDir;
+    int m_manualRecordFrameIndex = 0;
 
     QPixmap m_previewPixmap;
 
@@ -291,6 +301,7 @@ private:
     QLineEdit* m_editWindowUs = nullptr;
     QPushButton* m_btnStartStop = nullptr;
     QPushButton* m_btnPauseResume = nullptr;
+    QPushButton* m_btnRecordSave = nullptr;
     QLabel* m_labelStateCaption = nullptr;
     QLabel* m_labelState = nullptr;
     QLabel* m_labelPreview = nullptr;
