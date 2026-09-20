@@ -336,19 +336,20 @@ void MainWindow::BuildUi()
     m_boxBias = new QGroupBox(this);
     auto* biasOuterLayout = new QVBoxLayout(m_boxBias);
 
+    // 상단 헤더 행: [연결 상태 라벨] .... [Save Bias...] [Load Bias...] 를 한 줄에 둔다.
+    // (저장/불러오기 버튼은 연결 중일 때만 활성화)
     m_labelBiasUnavailable = new QLabel(m_boxBias);
-    biasOuterLayout->addWidget(m_labelBiasUnavailable);
-
-    // bias 조합 저장/불러오기 버튼(연결 중일 때만 활성화). 슬라이더 위에 배치한다.
-    auto* biasFileLayout = new QHBoxLayout();
     m_btnSaveBias = new QPushButton(m_boxBias);
     m_btnLoadBias = new QPushButton(m_boxBias);
     m_btnSaveBias->setEnabled(false);
     m_btnLoadBias->setEnabled(false);
-    biasFileLayout->addStretch();
-    biasFileLayout->addWidget(m_btnSaveBias);
-    biasFileLayout->addWidget(m_btnLoadBias);
-    biasOuterLayout->addLayout(biasFileLayout);
+
+    auto* biasHeaderLayout = new QHBoxLayout();
+    biasHeaderLayout->addWidget(m_labelBiasUnavailable);
+    biasHeaderLayout->addStretch();
+    biasHeaderLayout->addWidget(m_btnSaveBias);
+    biasHeaderLayout->addWidget(m_btnLoadBias);
+    biasOuterLayout->addLayout(biasHeaderLayout);
 
     connect(m_btnSaveBias, &QPushButton::clicked, this, &MainWindow::onSaveBiasClicked);
     connect(m_btnLoadBias, &QPushButton::clicked, this, &MainWindow::onLoadBiasClicked);
