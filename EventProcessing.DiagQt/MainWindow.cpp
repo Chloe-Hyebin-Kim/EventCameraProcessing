@@ -339,16 +339,7 @@ void MainWindow::BuildUi()
     m_labelBiasUnavailable = new QLabel(m_boxBias);
     biasOuterLayout->addWidget(m_labelBiasUnavailable);
 
-    // 2열 배치: 왼쪽 열(bias_diff/off/on)과 오른쪽 열(bias_fo/hpf/refr)을 나란히 둔다.
-    auto* biasColumnsLayout = new QHBoxLayout();
-    m_biasFormLeft = new QFormLayout();
-    m_biasFormRight = new QFormLayout();
-    biasColumnsLayout->addLayout(m_biasFormLeft, 1);
-    biasColumnsLayout->addSpacing(24);
-    biasColumnsLayout->addLayout(m_biasFormRight, 1);
-    biasOuterLayout->addLayout(biasColumnsLayout);
-
-    // bias 조합 저장/불러오기 버튼(연결 중일 때만 활성화).
+    // bias 조합 저장/불러오기 버튼(연결 중일 때만 활성화). 슬라이더 위에 배치한다.
     auto* biasFileLayout = new QHBoxLayout();
     m_btnSaveBias = new QPushButton(m_boxBias);
     m_btnLoadBias = new QPushButton(m_boxBias);
@@ -361,6 +352,15 @@ void MainWindow::BuildUi()
 
     connect(m_btnSaveBias, &QPushButton::clicked, this, &MainWindow::onSaveBiasClicked);
     connect(m_btnLoadBias, &QPushButton::clicked, this, &MainWindow::onLoadBiasClicked);
+
+    // 2열 배치: 왼쪽 열(bias_diff/off/on)과 오른쪽 열(bias_fo/hpf/refr)을 나란히 둔다.
+    auto* biasColumnsLayout = new QHBoxLayout();
+    m_biasFormLeft = new QFormLayout();
+    m_biasFormRight = new QFormLayout();
+    biasColumnsLayout->addLayout(m_biasFormLeft, 1);
+    biasColumnsLayout->addSpacing(24);
+    biasColumnsLayout->addLayout(m_biasFormRight, 1);
+    biasOuterLayout->addLayout(biasColumnsLayout);
 
     root->addWidget(m_boxBias);
 
