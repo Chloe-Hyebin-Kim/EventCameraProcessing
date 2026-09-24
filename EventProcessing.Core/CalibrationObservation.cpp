@@ -41,7 +41,7 @@ namespace eventcore
         }
     }
 
-    bool CalibrationSampleCollector::AddSample(const CheckerboardConfig& config, const CheckerboardDetection& detection, lli timestampUs)
+    bool CalibrationSampleCollector::AddSample(const CheckerboardConfig& config, const CheckerboardDetection& detection, lli timestampUs, const cv::Size& imageSize)
     {
         if (!detection.found)
         {
@@ -78,6 +78,7 @@ namespace eventcore
         if (m_observations.empty())
         {
             m_config = config;
+            m_imageSize = imageSize;
         }
         m_observations.push_back(std::move(obs));
         return true;

@@ -8,6 +8,7 @@
 #include "CalibrationTypes.h"       // CheckerboardConfig (값 반환 헬퍼가 완전한 타입을 필요로 함)
 #include "CheckerboardDetector.h"   // CheckerboardDetection (멤버로 값 보관)
 #include "CalibrationObservation.h" // CalibrationSampleCollector (멤버로 값 보관)
+#include "CameraCalibrator.h"       // CalibrationResult (멤버로 값 보관)
 
 #include <QMap>
 #include <QString>
@@ -110,6 +111,8 @@ private slots:
     void onCaptureSampleClicked();
     void onRemoveLastSampleClicked();
     void onClearSamplesClicked();
+    // 수집된 observation으로 intrinsic calibration(cv::calibrateCamera)을 실행한다.
+    void onRunCalibrationClicked();
 
 private:
     // 버튼 두 개, 각각 두 가지 역할을 겸한다:
@@ -346,11 +349,15 @@ private:
     QLabel* m_labelCbSquareMm = nullptr;
     QLineEdit* m_editCbSquareMm = nullptr;
 
-    // Observation 수집 컨트롤(Phase 3).
+    // Observation 수집 컨트롤(Phase 3) + calibration 실행(Phase 4).
     QPushButton* m_btnCaptureSample = nullptr;
     QPushButton* m_btnRemoveLastSample = nullptr;
     QPushButton* m_btnClearSamples = nullptr;
+    QPushButton* m_btnRunCalibration = nullptr;
     QLabel* m_labelSamples = nullptr;
+
+    // 마지막 calibration 결과(Phase 5 검증 / Phase 6 저장에서 사용). success=false면 아직 없음.
+    eventcore::CalibrationResult m_lastCalibResult;
 
     // Camera Bias (Metavision HAL I_LL_Biases). IMX636의 알려진 표준 bias 6종은 앱 시작 시부터
     // 비활성화된 자리표시자 슬라이더로 항상 보이고(SeedBiasPlaceholders()), 라이브 카메라가

@@ -400,12 +400,14 @@ void MainWindow::BuildUi()
     m_btnCaptureSample = new QPushButton(m_boxCalibration);
     m_btnRemoveLastSample = new QPushButton(m_boxCalibration);
     m_btnClearSamples = new QPushButton(m_boxCalibration);
+    m_btnRunCalibration = new QPushButton(m_boxCalibration);
     m_labelSamples = new QLabel(m_boxCalibration);
 
     auto* calibRow3 = new QHBoxLayout();
     calibRow3->addWidget(m_btnCaptureSample);
     calibRow3->addWidget(m_btnRemoveLastSample);
     calibRow3->addWidget(m_btnClearSamples);
+    calibRow3->addWidget(m_btnRunCalibration);
     calibRow3->addStretch();
     calibRow3->addWidget(m_labelSamples);
     calibOuterLayout->addLayout(calibRow3);
@@ -415,6 +417,7 @@ void MainWindow::BuildUi()
     connect(m_btnCaptureSample, &QPushButton::clicked, this, &MainWindow::onCaptureSampleClicked);
     connect(m_btnRemoveLastSample, &QPushButton::clicked, this, &MainWindow::onRemoveLastSampleClicked);
     connect(m_btnClearSamples, &QPushButton::clicked, this, &MainWindow::onClearSamplesClicked);
+    connect(m_btnRunCalibration, &QPushButton::clicked, this, &MainWindow::onRunCalibrationClicked);
 
     connect(m_checkCalibMode, &QCheckBox::toggled, this, &MainWindow::onCalibrationModeToggled);
     // 누적 시간이 바뀌면 snapshot을 갱신하고, 실행 중 + calibration 모드면 빌더를 새 Δt로 다시 만든다.
@@ -699,6 +702,14 @@ void MainWindow::RetranslateUi()
     m_btnCaptureSample->setText(Tr(QStringLiteral("Capture Sample"), QStringLiteral("샘플 캡처")));
     m_btnRemoveLastSample->setText(Tr(QStringLiteral("Remove Last"), QStringLiteral("마지막 제거")));
     m_btnClearSamples->setText(Tr(QStringLiteral("Clear"), QStringLiteral("전체 삭제")));
+    m_btnRunCalibration->setText(Tr(QStringLiteral("Run Calibration"), QStringLiteral("캘리브레이션 실행")));
+    m_btnRunCalibration->setToolTip(Tr(
+        QStringLiteral("Run intrinsic calibration (cv::calibrateCamera) on the collected\n"
+                       "observations. Needs at least 3 samples; many well-spread poses give\n"
+                       "a better result. Outputs fx, fy, cx, cy, distortion and RMS error."),
+        QStringLiteral("수집된 observation으로 intrinsic calibration(cv::calibrateCamera)을\n"
+                       "실행합니다. 최소 3장이 필요하며, 다양한 pose가 많을수록 좋습니다.\n"
+                       "fx, fy, cx, cy, 왜곡계수, RMS 오차를 출력합니다.")));
     m_btnCaptureSample->setToolTip(Tr(
         QStringLiteral("Save the checkerboard detected in the most recent calibration\n"
                        "image as one calibration observation (objectPoints/imagePoints/\n"
@@ -2104,7 +2115,10 @@ void MainWindow::onCaptureSampleClicked()
         return;
     }
 
-    const bool ok = m_calibSamples.AddSample(cfg, det, frameUs);
+    const cv::Size imageSize = imageCopy.empty()
+        ? cv::Size(m_stream.Width(), m_stream.Height())
+        : imageCopy.size();
+    const bool ok = m_calibSamples.AddSample(cfg, det, frameUs, imageSize);
     if (!ok)
     {
         // 가장 흔한 실패 원인: 이미 수집된 샘플과 체커보드 설정(rows/cols/square)이 달라짐.
@@ -2136,6 +2150,55 @@ void MainWindow::onClearSamplesClicked()
     UpdateCalibrationSampleUi();
 }
 
+void MainWindow::onRunCalibrationClicked()
+{
+    // m_calibSamples는 UI 스레드 전용이므로 락 없이 읽어도 된다.
+    if (m_calibSamples.Count() < 3)
+    {
+        AppendLog(QStringLiteral("Calibration needs at least 3 samples (have %1)")
+            .arg(m_calibSamples.Count()));
+        return;
+    }
+
+    AppendLog(QStringLiteral("Running intrinsic calibration on %1 observation(s)...")
+        .arg(m_calibSamples.Count()));
+
+    const eventcore::CalibrationResult result = eventcore::CameraCalibrator::Calibrate(
+        m_calibSamples.Observations(), m_calibSamples.ImageSize(), m_calibSamples.Config());
+
+    if (!result.success)
+    {
+        AppendLog(QStringLiteral("Calibration failed: %1")
+            .arg(QString::fromStdString(result.message)));
+        return;
+    }
+
+    m_lastCalibResult = result;  // Phase 5(검증)/Phase 6(저장)에서 사용.
+
+    // 결과를 로그에 사람이 읽을 수 있게 남긴다. fx/fy/cx/cy는 픽셀, RMS는 픽셀 단위.
+    AppendLog(QStringLiteral("Calibration OK (%1x%2, %3 views)")
+        .arg(result.imageWidth).arg(result.imageHeight).arg(result.numObservations));
+    AppendLog(QStringLiteral("  fx=%1  fy=%2  cx=%3  cy=%4")
+        .arg(result.fx(), 0, 'f', 3)
+        .arg(result.fy(), 0, 'f', 3)
+        .arg(result.cx(), 0, 'f', 3)
+        .arg(result.cy(), 0, 'f', 3));
+    AppendLog(QStringLiteral("  dist k1=%1 k2=%2 p1=%3 p2=%4 k3=%5")
+        .arg(result.dist(0), 0, 'f', 5)
+        .arg(result.dist(1), 0, 'f', 5)
+        .arg(result.dist(2), 0, 'f', 5)
+        .arg(result.dist(3), 0, 'f', 5)
+        .arg(result.dist(4), 0, 'f', 5));
+    AppendLog(QStringLiteral("  RMS reprojection error = %1 px")
+        .arg(result.rmsReprojectionError, 0, 'f', 4));
+
+    m_labelCalibStatus->setText(Tr(
+        QStringLiteral("Calibrated: RMS %1 px (%2 views)"),
+        QStringLiteral("캘리브레이션 완료: RMS %1 px (%2 장)"))
+        .arg(result.rmsReprojectionError, 0, 'f', 3)
+        .arg(result.numObservations));
+}
+
 void MainWindow::UpdateCalibrationSampleUi()
 {
     const size_t count = m_calibSamples.Count();
@@ -2159,6 +2222,11 @@ void MainWindow::UpdateCalibrationSampleUi()
     if (m_btnClearSamples)
     {
         m_btnClearSamples->setEnabled(count > 0);
+    }
+    if (m_btnRunCalibration)
+    {
+        // 평면 패턴 calibration의 기술적 최소는 3장(CameraCalibrator와 동일 기준).
+        m_btnRunCalibration->setEnabled(count >= 3);
     }
 }
 

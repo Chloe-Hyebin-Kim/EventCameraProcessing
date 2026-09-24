@@ -2,6 +2,7 @@ set(EVENTCORE_SOURCES
     BallDetector.cpp
     CalibrationImageBuilder.cpp
     CalibrationObservation.cpp
+    CameraCalibrator.cpp
     CheckerboardDetector.cpp
     CsvEventSource.cpp
     EventAccumulator.cpp
@@ -20,6 +21,7 @@ set(EVENTCORE_HEADERS
     CalibrationImageBuilder.h
     CalibrationObservation.h
     CalibrationTypes.h
+    CameraCalibrator.h
     CheckerboardDetector.h
     CsvEventSource.h
     Event.h
