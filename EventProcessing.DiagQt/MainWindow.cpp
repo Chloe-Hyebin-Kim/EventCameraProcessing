@@ -67,6 +67,11 @@ namespace
     // 좌우 화살표 키 1회 입력당 이동하는 시간(1초).
     constexpr lli kArrowSeekStepUs = 1000000;
 
+    // 프리뷰 페인트 최소 간격(ms). 워커는 windowUs(예: 10ms=100fps)마다 프레임을 올리지만,
+    // 매 프레임 큰 픽스맵을 스케일링하면 UI가 못 따라가 이벤트 큐가 쌓여 시간이 갈수록 느려진다.
+    // 화면 페인트를 ~30fps로 제한해 UI가 큐를 따라잡게 한다(프레임 처리 자체는 매 프레임 유지).
+    constexpr qint64 kMinDrawIntervalMs = 33;
+
     // QString::toStdString()은 항상 UTF-8을 돌려주는데, Windows의 std::filesystem::path(const
     // std::string&) 생성자와 OpenCV의 cv::imwrite() 등은 그 바이트열을 UTF-8이 아니라 시스템
     // ANSI 코드페이지로 해석한다. 경로에 한글 등 비ASCII 문자가 있으면 실제로는 존재하지 않는
@@ -810,6 +815,16 @@ void MainWindow::DrawFrame(const cv::Mat& bgrFrame)
         return;
     }
 
+    // 페인트 throttle: 워커가 올리는 프레임 속도(최대 100fps)를 다 그리면 UI가 뒤처져 큐가 쌓이므로,
+    // 마지막 실제 페인트 이후 kMinDrawIntervalMs가 지나지 않았으면 이번 프레임은 그리지 않고 건너뛴다.
+    // (호출부는 프레임 처리를 이미 마친 뒤 이 함수를 부르므로, 건너뛰어도 처리 로직에는 영향이 없다.)
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastDrawMs != 0 && (nowMs - m_lastDrawMs) < kMinDrawIntervalMs)
+    {
+        return;
+    }
+    m_lastDrawMs = nowMs;
+
     const cv::Mat safe = bgrFrame.isContinuous() ? bgrFrame : bgrFrame.clone();
 
     const QImage image(safe.data, safe.cols, safe.rows, static_cast<int>(safe.step), QImage::Format_RGB888);
@@ -1101,6 +1116,7 @@ void MainWindow::StartStream()
     // Calibration Mode로 Start하면, 원본 event를 누적할 빌더를 미리 준비하고 볼 검출을 끈다.
     m_calibImageCount = 0;
     m_haveLastCalibDetection = false;  // 이전 실행의 검출 캐시를 캡처하지 않도록 초기화
+    m_lastDrawMs = 0;                  // 새 실행의 첫 프레임은 즉시 그리도록 throttle 타이머 리셋
     if (m_calibrationMode.load())
     {
         RecreateCalibrationBuilder();

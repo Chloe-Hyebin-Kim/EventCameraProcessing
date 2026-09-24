@@ -257,6 +257,8 @@ private:
     int m_manualRecordFrameIndex = 0;
 
     QPixmap m_previewPixmap;
+    // 프리뷰 페인트 throttle용: 마지막으로 실제 화면을 그린 시각(ms, epoch). 0이면 아직 없음.
+    qint64 m_lastDrawMs = 0;
 
     // UI
     // 메뉴바(BuildUi()가 root 레이아웃에 QLayout::setMenuBar()로 얹는다 - QMainWindow가 아니어도
