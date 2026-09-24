@@ -2,6 +2,7 @@
 
 #include "Utf8Path.h"
 #include "CalibrationImageBuilder.h"
+#include "CheckerboardDetector.h"
 
 #include <QAction>
 #include <QActionGroup>
@@ -160,6 +161,10 @@ MainWindow::MainWindow(QWidget* parent)
     // Calibration 누적 시간 초기 기본값 50 ms(실험용 시작값, 변경 가능). 하드코딩된 상수가 아니라
     // 이 입력 필드 값이 CalibrationImageBuilder로 전달된다.
     m_editAccumMs->setText(QStringLiteral("50"));
+    // Checkerboard 기본값(내부 코너 9x6, 한 칸 25 mm). 실제 사용하는 보드에 맞게 GUI에서 변경.
+    m_editCbCols->setText(QStringLiteral("9"));
+    m_editCbRows->setText(QStringLiteral("6"));
+    m_editCbSquareMm->setText(QStringLiteral("25"));
 
     // bias 기본값(연결 시 카메라에 적용됨). 사용자가 슬라이더로 바꾸면 이 값이 갱신되어,
     // 프로그램이 켜져 있는 동안 Start/Stop을 반복해도 마지막 값이 유지된다.
@@ -342,20 +347,49 @@ void MainWindow::BuildUi()
     // 이미지를 만들어 프리뷰에 표시한다. 이 모드에서는 ShotTrigger/BallDetector 경로를 건너뛰므로,
     // 기존 샷 감지/녹화 동작에 영향을 주지 않는다.
     m_boxCalibration = new QGroupBox(this);
-    auto* calibLayout = new QHBoxLayout(m_boxCalibration);
+    auto* calibOuterLayout = new QVBoxLayout(m_boxCalibration);
 
+    // 1행: [Calibration Mode] [Accumulation(ms)] ... [상태(Detected)]
     m_checkCalibMode = new QCheckBox(m_boxCalibration);
     m_labelAccumMs = new QLabel(m_boxCalibration);
     m_editAccumMs = new QLineEdit(m_boxCalibration);
     m_editAccumMs->setMaximumWidth(80);
     m_labelCalibStatus = new QLabel(m_boxCalibration);
 
-    calibLayout->addWidget(m_checkCalibMode);
-    calibLayout->addSpacing(16);
-    calibLayout->addWidget(m_labelAccumMs);
-    calibLayout->addWidget(m_editAccumMs);
-    calibLayout->addStretch();
-    calibLayout->addWidget(m_labelCalibStatus);
+    auto* calibRow1 = new QHBoxLayout();
+    calibRow1->addWidget(m_checkCalibMode);
+    calibRow1->addSpacing(16);
+    calibRow1->addWidget(m_labelAccumMs);
+    calibRow1->addWidget(m_editAccumMs);
+    calibRow1->addStretch();
+    calibRow1->addWidget(m_labelCalibStatus);
+    calibOuterLayout->addLayout(calibRow1);
+
+    // 2행: Checkerboard [Rows][ ] [Columns][ ] [Square(mm)][ ]
+    m_labelCheckerboard = new QLabel(m_boxCalibration);
+    m_labelCbRows = new QLabel(m_boxCalibration);
+    m_editCbRows = new QLineEdit(m_boxCalibration);
+    m_editCbRows->setMaximumWidth(60);
+    m_labelCbCols = new QLabel(m_boxCalibration);
+    m_editCbCols = new QLineEdit(m_boxCalibration);
+    m_editCbCols->setMaximumWidth(60);
+    m_labelCbSquareMm = new QLabel(m_boxCalibration);
+    m_editCbSquareMm = new QLineEdit(m_boxCalibration);
+    m_editCbSquareMm->setMaximumWidth(70);
+
+    auto* calibRow2 = new QHBoxLayout();
+    calibRow2->addWidget(m_labelCheckerboard);
+    calibRow2->addSpacing(8);
+    calibRow2->addWidget(m_labelCbRows);
+    calibRow2->addWidget(m_editCbRows);
+    calibRow2->addSpacing(8);
+    calibRow2->addWidget(m_labelCbCols);
+    calibRow2->addWidget(m_editCbCols);
+    calibRow2->addSpacing(8);
+    calibRow2->addWidget(m_labelCbSquareMm);
+    calibRow2->addWidget(m_editCbSquareMm);
+    calibRow2->addStretch();
+    calibOuterLayout->addLayout(calibRow2);
 
     root->addWidget(m_boxCalibration);
 
@@ -613,6 +647,25 @@ void MainWindow::RetranslateUi()
             "길수록 edge가 촘촘해지지만 빠르게 움직이는 checkerboard는 번져\n"
             "보입니다. 보통 50~100 ms에서 시작해 조명과 checkerboard 이동\n"
             "속도에 맞춰 조정합니다.")));
+
+    m_labelCheckerboard->setText(Tr(QStringLiteral("Checkerboard"), QStringLiteral("체커보드")));
+    m_labelCbRows->setText(Tr(QStringLiteral("Rows"), QStringLiteral("행")));
+    m_labelCbCols->setText(Tr(QStringLiteral("Columns"), QStringLiteral("열")));
+    m_labelCbSquareMm->setText(Tr(QStringLiteral("Square (mm)"), QStringLiteral("한 칸 (mm)")));
+    m_editCbRows->setToolTip(Tr(
+        QStringLiteral("Number of INNER corners along the vertical direction\n"
+                       "(squares per column minus 1)."),
+        QStringLiteral("세로 방향 내부 코너 수(세로 칸 수 - 1)입니다.")));
+    m_editCbCols->setToolTip(Tr(
+        QStringLiteral("Number of INNER corners along the horizontal direction\n"
+                       "(squares per row minus 1)."),
+        QStringLiteral("가로 방향 내부 코너 수(가로 칸 수 - 1)입니다.")));
+    m_editCbSquareMm->setToolTip(Tr(
+        QStringLiteral("Physical size of one checkerboard square in millimeters.\n"
+                       "Used later to scale the intrinsic calibration."),
+        QStringLiteral("체커보드 한 칸의 실제 크기(mm)입니다.\n"
+                       "이후 intrinsic calibration의 스케일에 사용됩니다.")));
+
     // 상태 라벨은 실행 상황에 따라 갱신되므로, 여기서는 기본(대기) 문구만 채운다.
     if (m_calibImageCount == 0)
     {
@@ -1812,16 +1865,49 @@ void MainWindow::OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg)
 
     cv::Mat bgr;
     cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
+
+    // Checkerboard 검출 후 코너 오버레이(성공/실패 모두 표시). 검출은 완성 이미지마다(=Δt마다)만
+    // 수행되므로 부하가 매 프레임은 아니다.
+    const eventcore::CheckerboardConfig cb = ReadCheckerboardConfigFromUI();
+    const eventcore::CheckerboardDetection det = eventcore::CheckerboardDetector::Detect(gray, cb);
+    eventcore::CheckerboardDetector::DrawCorners(bgr, cb, det);
+
     DrawFrame(bgr);
 
     ++m_calibImageCount;
 
     const double accumMs = static_cast<double>(m_calibBuilder->Config().accumulationUs) / 1000.0;
-    m_labelCalibStatus->setText(Tr(
-        QStringLiteral("Calibration image #%1 (Δt=%2 ms)"),
-        QStringLiteral("calibration 이미지 #%1 (Δt=%2 ms)"))
-        .arg(m_calibImageCount)
-        .arg(accumMs, 0, 'f', 0));
+    const int expectedCorners = cb.innerCornerRows * cb.innerCornerCols;
+    if (det.found)
+    {
+        m_labelCalibStatus->setText(Tr(
+            QStringLiteral("Detected: YES (%1/%2 corners) - image #%3 (Δt=%4 ms)"),
+            QStringLiteral("검출: 성공 (코너 %1/%2) - 이미지 #%3 (Δt=%4 ms)"))
+            .arg(static_cast<int>(det.corners.size()))
+            .arg(expectedCorners)
+            .arg(m_calibImageCount)
+            .arg(accumMs, 0, 'f', 0));
+    }
+    else
+    {
+        m_labelCalibStatus->setText(Tr(
+            QStringLiteral("Detected: NO - image #%1 (Δt=%2 ms)"),
+            QStringLiteral("검출: 실패 - 이미지 #%1 (Δt=%2 ms)"))
+            .arg(m_calibImageCount)
+            .arg(accumMs, 0, 'f', 0));
+    }
+}
+
+eventcore::CheckerboardConfig MainWindow::ReadCheckerboardConfigFromUI() const
+{
+    eventcore::CheckerboardConfig cfg;
+    cfg.innerCornerRows = std::max(2, m_editCbRows->text().toInt());
+    cfg.innerCornerCols = std::max(2, m_editCbCols->text().toInt());
+
+    const double sq = m_editCbSquareMm->text().toDouble();
+    cfg.squareSizeMm = sq > 0.0 ? sq : 25.0;
+
+    return cfg;
 }
 
 void MainWindow::onCalibrationModeToggled(bool checked)

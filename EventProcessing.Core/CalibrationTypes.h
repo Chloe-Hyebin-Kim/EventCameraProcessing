@@ -27,4 +27,16 @@ namespace eventcore
         int negativeValue = 0;    // 음극성(OFF) 이벤트가 우세한 픽셀 값
         int noEventValue = 127;   // 이벤트가 없거나 양/음 이벤트 수가 같은 픽셀 값
     };
+
+    // Checkerboard(체스판) 패턴 설정. OpenCV의 patternSize는 "내부 코너" 개수를 뜻하며
+    // cv::Size(가로 내부 코너 수, 세로 내부 코너 수) = cv::Size(innerCornerCols, innerCornerRows)로
+    // 매핑된다(검출기 쪽에서 이 규칙으로 변환한다).
+    //
+    // 예: 10x7 칸(square)짜리 체스판이면 내부 코너는 9x6 -> innerCornerCols=9, innerCornerRows=6.
+    struct CheckerboardConfig
+    {
+        int innerCornerRows = 6;     // 세로 방향 내부 코너 수
+        int innerCornerCols = 9;     // 가로 방향 내부 코너 수
+        double squareSizeMm = 25.0;  // 한 칸(square)의 실제 한 변 길이(mm). intrinsic 계산 스케일에 사용.
+    };
 }

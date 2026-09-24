@@ -5,6 +5,7 @@
 //  EventProcessing.Console을 대신 사용할 수 있다.)
 #include "LiveEventStream.h"
 #include "ShotTrigger.h"
+#include "CalibrationTypes.h"  // CheckerboardConfig (값 반환 헬퍼가 완전한 타입을 필요로 함)
 
 #include <QMap>
 #include <QString>
@@ -176,6 +177,8 @@ private:
     void OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg);
     // 현재 UI의 Accumulation(ms)와 스트림 해상도로 CalibrationImageBuilder를 새로 만든다.
     void RecreateCalibrationBuilder();
+    // Checkerboard(rows/cols/square mm) 설정을 UI에서 읽는다.
+    eventcore::CheckerboardConfig ReadCheckerboardConfigFromUI() const;
 
     void SeekTo(eventcore::lli timestampUs);
     eventcore::lli SliderValueToTimestamp(int value) const;
@@ -264,6 +267,15 @@ private:
     QLabel* m_labelAccumMs = nullptr;
     QLineEdit* m_editAccumMs = nullptr;
     QLabel* m_labelCalibStatus = nullptr;
+
+    // Checkerboard 설정(Phase 2): 내부 코너 행/열 수, 한 칸 크기(mm).
+    QLabel* m_labelCheckerboard = nullptr;
+    QLabel* m_labelCbRows = nullptr;
+    QLineEdit* m_editCbRows = nullptr;
+    QLabel* m_labelCbCols = nullptr;
+    QLineEdit* m_editCbCols = nullptr;
+    QLabel* m_labelCbSquareMm = nullptr;
+    QLineEdit* m_editCbSquareMm = nullptr;
 
     // Camera Bias (Metavision HAL I_LL_Biases). IMX636의 알려진 표준 bias 6종은 앱 시작 시부터
     // 비활성화된 자리표시자 슬라이더로 항상 보이고(SeedBiasPlaceholders()), 라이브 카메라가
