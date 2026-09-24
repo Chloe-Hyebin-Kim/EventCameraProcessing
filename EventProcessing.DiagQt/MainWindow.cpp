@@ -417,14 +417,21 @@ void MainWindow::BuildUi()
     connect(m_btnClearSamples, &QPushButton::clicked, this, &MainWindow::onClearSamplesClicked);
 
     connect(m_checkCalibMode, &QCheckBox::toggled, this, &MainWindow::onCalibrationModeToggled);
-    // 누적 시간이 바뀌면(실행 중 + calibration 모드) 빌더를 새 Δt로 다시 만든다.
+    // 누적 시간이 바뀌면 snapshot을 갱신하고, 실행 중 + calibration 모드면 빌더를 새 Δt로 다시 만든다.
     connect(m_editAccumMs, &QLineEdit::editingFinished, this, [this]()
     {
+        SnapshotCalibConfigFromUi();
         if (m_calibrationMode.load() && m_runState != RunState::Idle)
         {
-            RecreateCalibrationBuilder();
+            std::lock_guard<std::mutex> lock(m_procMutex);
+            RebuildCalibBuilderLocked();
         }
     });
+    // Checkerboard 설정(rows/cols/square)이 바뀌면 워커가 읽는 snapshot을 갱신한다(다음 프레임부터 반영).
+    const auto snapshotCb = [this]() { SnapshotCalibConfigFromUi(); };
+    connect(m_editCbRows, &QLineEdit::editingFinished, this, snapshotCb);
+    connect(m_editCbCols, &QLineEdit::editingFinished, this, snapshotCb);
+    connect(m_editCbSquareMm, &QLineEdit::editingFinished, this, snapshotCb);
 
     // --- Camera bias (Live camera only; populated after a successful Start()) ---
     m_boxBias = new QGroupBox(this);
@@ -969,9 +976,13 @@ void MainWindow::StartManualRecord()
     fs::create_directories(ToNativePath(m_outputDir), ec);
     fs::create_directories(ToNativePath(folder), ec);
 
-    m_manualRecordDir = folder;
-    m_manualRecordFrameIndex = 0;
-    m_manualRecording = true;
+    // 녹화 상태는 워커 스레드(SaveManualFrame)도 읽으므로 m_procMutex로 보호한다.
+    {
+        std::lock_guard<std::mutex> lock(m_procMutex);
+        m_manualRecordDir = folder;
+        m_manualRecordFrameIndex = 0;
+        m_manualRecording = true;
+    }
 
     AppendLog(QStringLiteral("Manual recording started: %1").arg(folder));
 }
@@ -994,15 +1005,22 @@ void MainWindow::SaveManualFrame(const cv::Mat& bgrFrame)
 
 void MainWindow::StopManualRecord()
 {
-    if (!m_manualRecording)
+    int frames = 0;
+    QString dir;
     {
-        return;
+        std::lock_guard<std::mutex> lock(m_procMutex);
+        if (!m_manualRecording)
+        {
+            return;
+        }
+        m_manualRecording = false;
+        frames = m_manualRecordFrameIndex;
+        dir = m_manualRecordDir;
     }
 
-    m_manualRecording = false;
     AppendLog(QStringLiteral("Manual recording saved: %1 frame(s) to %2")
-        .arg(m_manualRecordFrameIndex)
-        .arg(m_manualRecordDir));
+        .arg(frames)
+        .arg(dir));
 }
 
 void MainWindow::PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg)
@@ -1018,8 +1036,10 @@ void MainWindow::PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg)
     }
 }
 
-void MainWindow::FlushPreRollBuffer(lli impactUs)
+void MainWindow::FlushPreRollBuffer(lli impactUs, WorkerUiUpdate& upd)
 {
+    // 워커 스레드에서 호출된다(HandleFrameOnWorker, m_procMutex 보유). AppendLog(UI 위젯) 대신
+    // upd.logs에 넣어 UI 스레드에서 표시하게 한다.
     const lli preRollStartUs = impactUs - static_cast<lli>(m_activeConfig.preCaptureSeconds * 1000000.0);
 
     int savedCount = 0;
@@ -1035,7 +1055,7 @@ void MainWindow::FlushPreRollBuffer(lli impactUs)
 
     m_preRollBuffer.clear();
 
-    AppendLog(QStringLiteral("Trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
+    upd.logs << QStringLiteral("Trajectory capture started (%1 pre-roll frame(s))").arg(savedCount);
 }
 
 void MainWindow::onStartStopClicked()
@@ -1110,38 +1130,34 @@ void MainWindow::StartStream()
         return;
     }
 
-    // 콜백은 워커 스레드에서 호출된다. this를 직접 캡처해 호출하는 대신, QMetaObject::invokeMethod의
-    // context-object 오버로드를 사용해 UI 스레드로 안전하게 마샬링한다 (this가 이미 파괴되었다면
-    // Qt가 알아서 호출을 건너뛴다).
-    // Calibration Mode로 Start하면, 원본 event를 누적할 빌더를 미리 준비하고 볼 검출을 끈다.
     m_calibImageCount = 0;
     m_haveLastCalibDetection = false;  // 이전 실행의 검출 캐시를 캡처하지 않도록 초기화
     m_lastDrawMs = 0;                  // 새 실행의 첫 프레임은 즉시 그리도록 throttle 타이머 리셋
+
+    // 아직 워커 스레드가 시작되지 않은 시점이므로(m_stream.Start 이전) 처리 상태를 락 없이 초기화해도
+    // 안전하다. Calibration 설정은 UI 위젯에서 snapshot해 두고, 모드면 빌더를 미리 만든다.
+    SnapshotCalibConfigFromUi();
     if (m_calibrationMode.load())
     {
-        RecreateCalibrationBuilder();
+        std::lock_guard<std::mutex> lock(m_procMutex);
+        RebuildCalibBuilderLocked();
+    }
+    // UI로 넘길 우편함을 비워 이전 실행의 잔상이 적용되지 않게 한다.
+    {
+        std::lock_guard<std::mutex> lock(m_uiMutex);
+        m_pendingUi = WorkerUiUpdate{};
     }
     // Calibration 중에는 BallDetector/ShotTrigger가 필요 없으므로 워커 스레드의 볼 검출을 끈다.
     m_stream.SetBallDetectionEnabled(!m_calibrationMode.load());
 
+    // 콜백은 워커 스레드에서 호출된다. 여기서 모든 프레임 처리를 워커 스레드에서 수행하고(UI를 막지
+    // 않음), 화면 표시에 필요한 데이터만 coalesce해 UI 스레드로 넘긴다(HandleFrameOnWorker 내부).
     const bool ok = m_stream.Start(
         live ? "" : rawPathStd.c_str(),
         windowUs,
         [this](const EventProcessingResult& result, const std::vector<Event>& events, lli startUs, lli endUs)
         {
-            auto msg = std::make_shared<FrameMessage>();
-            msg->frame = result.debugImage.clone();
-            msg->ball = result.ball;
-            msg->windowStartUs = startUs;
-            msg->windowEndUs = endUs;
-
-            // Calibration Mode일 때만 원본 event를 복사해 UI 스레드로 넘긴다(그 외에는 복사 안 함).
-            if (m_calibrationMode.load())
-            {
-                msg->events = events;
-            }
-
-            QMetaObject::invokeMethod(this, [this, msg]() { OnFrameReady(msg); }, Qt::QueuedConnection);
+            HandleFrameOnWorker(result, events, startUs, endUs);
         });
 
     if (!ok)
@@ -1189,7 +1205,7 @@ void MainWindow::PauseStream()
     if (m_liveMode)
     {
         // 카메라/미리보기는 그대로 흐르게 둔다(끼어든 상황이 지나가는 걸 볼 수 있도록). ShotTrigger
-        // 갱신과 프레임 저장(녹화)만 건너뛴다 - OnFrameReady에서 m_processingPaused를 확인해 처리.
+        // 갱신과 프레임 저장(녹화)만 건너뛴다 - HandleFrameOnWorker에서 m_processingPaused를 확인해 처리.
         m_processingPaused = true;
         AppendLog(QStringLiteral("PAUSED - live preview continues, recording suspended"));
     }
@@ -1287,6 +1303,14 @@ void MainWindow::StopStream(const QString& logMessage)
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
     m_preRollBuffer.clear();
     m_lastLoggedState = ShotState::Searching;
+
+    // 워커가 멈춘 뒤(m_stream.Stop() 완료), 아직 적용되지 않은 표시 데이터를 비운다
+    // (늦게 도착한 프레임이 방금 만든 검은 화면을 덮어쓰지 않도록).
+    {
+        std::lock_guard<std::mutex> lock(m_uiMutex);
+        m_pendingUi = WorkerUiUpdate{};
+    }
+
     ClearBiasControls();
 
     // 연결이 끊겼으니 소스 박스도 갱신한다(Live 모드면 카메라 식별자 -> 안내 문구로 복귀,
@@ -1774,74 +1798,101 @@ void MainWindow::onSliderReleased()
     SeekTo(SliderValueToTimestamp(m_sliderPosition->value()));
 }
 
-void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
+void MainWindow::HandleFrameOnWorker(const EventProcessingResult& result, const std::vector<Event>& events, lli startUs, lli endUs)
 {
-    if (!msg || msg->frame.empty())
-    {
-        return;
-    }
+    WorkerUiUpdate upd;
+    upd.windowStartUs = startUs;
 
-    m_gotFirstFrame = true;
+    std::lock_guard<std::mutex> lock(m_procMutex);
 
-    // Calibration Mode: 원본 event를 누적해 calibration 이미지를 표시하는 별도 경로.
-    // ShotTrigger/BallDetector/녹화 로직은 전혀 실행하지 않는다(기존 동작에 영향 없음).
+    // ---- Calibration Mode: 원본 event 누적 + (가벼운) 검출/오버레이. 샷/볼/녹화 경로는 실행하지 않음. ----
     if (m_calibrationMode.load())
     {
-        // RAW 재생 중 seek 슬라이더/시간 표시는 그대로 갱신한다(사용자 편의).
-        if (m_seekRangeKnown && !m_sliderPosition->isSliderDown())
+        if (!m_calibBuilder)
         {
-            m_sliderPosition->blockSignals(true);
-            m_sliderPosition->setValue(TimestampToSliderValue(msg->windowStartUs));
-            m_sliderPosition->blockSignals(false);
+            RebuildCalibBuilderLocked();
         }
-        UpdateTimeLabel(msg->windowStartUs);
+        if (m_calibBuilder && m_calibBuilder->AddEvents(events, startUs, endUs))
+        {
+            const cv::Mat& gray = m_calibBuilder->Image();
+            if (!gray.empty())
+            {
+                cv::Mat bgr;
+                cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
 
-        OnCalibrationFrame(msg);
+                const eventcore::CheckerboardConfig cb = m_cbConfigSnapshot;
+                const eventcore::CheckerboardDetection det =
+                    eventcore::CheckerboardDetector::Detect(gray, cb, /*thorough=*/false);
+                eventcore::CheckerboardDetector::DrawCorners(bgr, cb, det);
+
+                // 수동 Capture를 위한 캐시(성공 여부 무관, Capture 시 found 확인).
+                m_lastCalibDetection = det;
+                m_lastCalibConfig = cb;
+                m_lastCalibFrameUs = startUs;
+                m_lastCalibImage = gray.clone();
+                m_haveLastCalibDetection = true;
+
+                ++m_calibImageCount;
+                const double accumMs = static_cast<double>(m_calibBuilder->Config().accumulationUs) / 1000.0;
+                const int expected = cb.innerCornerRows * cb.innerCornerCols;
+                upd.hasCalibStatus = true;
+                upd.calibStatus = det.found
+                    ? Tr(QStringLiteral("Detected: YES (%1/%2 corners) - image #%3 (Δt=%4 ms)"),
+                         QStringLiteral("검출: 성공 (코너 %1/%2) - 이미지 #%3 (Δt=%4 ms)"))
+                        .arg(static_cast<int>(det.corners.size())).arg(expected).arg(m_calibImageCount).arg(accumMs, 0, 'f', 0)
+                    : Tr(QStringLiteral("Detected: NO - image #%1 (Δt=%2 ms)"),
+                         QStringLiteral("검출: 실패 - 이미지 #%1 (Δt=%2 ms)"))
+                        .arg(m_calibImageCount).arg(accumMs, 0, 'f', 0);
+
+                upd.hasFrame = true;
+                upd.frame = std::move(bgr);
+                PostUiUpdate(std::move(upd));
+            }
+        }
+        return;  // calibration 모드에서는 여기서 끝.
+    }
+
+    // ---- 일반 모드: preview + 샷 트리거 + (자동/수동) 녹화. 모두 워커 스레드에서 수행. ----
+    if (result.debugImage.empty())
+    {
         return;
     }
 
-    DrawFrame(msg->frame);
+    // result는 콜백이 반환되면 파괴되므로, UI로 넘길/버퍼링할 프레임은 반드시 clone한다.
+    upd.hasFrame = true;
+    upd.frame = result.debugImage.clone();
 
-    if (m_processingPaused)
+    // pre-roll/녹화용 메시지(프레임은 위 clone과 데이터 공유; cv::Mat 참조 카운트로 안전).
+    auto msg = std::make_shared<FrameMessage>();
+    msg->frame = upd.frame;
+    msg->ball = result.ball;
+    msg->windowStartUs = startUs;
+    msg->windowEndUs = endUs;
+
+    if (m_processingPaused.load())
     {
-        // Live 모드는 카메라를 세우지 않으므로 pause 중에도 이 콜백이 계속 들어온다 - 화면은
-        // 이미 위에서 갱신했으니(끼어든 상황을 볼 수 있게), 트리거 갱신/저장(녹화)만 건너뛴다.
-        // RAW 모드는 m_stream.Pause()가 카메라 자체를 세워서 보통 여기로 오지도 않지만, pause
-        // 호출과 경합하며 이미 큐에 들어와 있던 콜백이 뒤늦게 도착하는 경우를 대비한 방어.
+        // Live pause: 화면(끼어든 상황)은 계속 보여주되 트리거/녹화만 건너뛴다.
+        PostUiUpdate(std::move(upd));
         return;
     }
 
-    // 사용자가 슬라이더를 드래그하는 중에는 재생 위치가 그 값을 덮어쓰지 않도록 한다.
-    if (m_seekRangeKnown && !m_sliderPosition->isSliderDown())
-    {
-        m_sliderPosition->blockSignals(true);
-        m_sliderPosition->setValue(TimestampToSliderValue(msg->windowStartUs));
-        m_sliderPosition->blockSignals(false);
-    }
-    UpdateTimeLabel(msg->windowStartUs);
-
-    // 수동 녹화 중이면(자동 샷 캡처와 별개로) 매 프레임을 저장한다. pause 중에는 위에서 이미
-    // return하므로 여기 오지 않아, 라이브 pause가 곧 수동 녹화 일시정지가 된다.
     if (m_manualRecording)
     {
         SaveManualFrame(msg->frame);
     }
 
-    const ShotUpdateResult su = m_trigger.Update(msg->ball, msg->windowStartUs);
-    UpdateStateLabel(su.state);
+    const ShotUpdateResult su = m_trigger.Update(result.ball, startUs);
+    upd.hasShotState = true;
+    upd.shotState = su.state;
 
-    // 상태가 바뀔 때마다 전이를 로그에 남긴다(SEARCHING/READY/IMPACT/TRJCT 모두). 로그는 언어
-    // 설정과 무관하게 항상 영어 상태 코드로 남긴다.
     if (su.state != m_lastLoggedState)
     {
-        AppendLog(QStringLiteral("State: %1 -> %2")
+        upd.logs << QStringLiteral("State: %1 -> %2")
             .arg(FormatShotState(m_lastLoggedState))
-            .arg(FormatShotState(su.state)));
+            .arg(FormatShotState(su.state));
         m_lastLoggedState = su.state;
     }
 
-    // Trajectory 상태(TRJCT)에 들어가기 전까지의 모든 프레임은 Impact가 언제 확정될지 몰라도
-    // 미리 링 버퍼에 쌓아 둔다. Impact가 확정되면 이 버퍼에서 preCaptureSeconds 분량을 저장한다.
     if (su.state != ShotState::Trajectory)
     {
         PushPreRollFrame(msg);
@@ -1850,7 +1901,7 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
     if (su.justTriggered)
     {
         StartCaptureSave();
-        FlushPreRollBuffer(m_trigger.TriggerTimeUs());
+        FlushPreRollBuffer(m_trigger.TriggerTimeUs(), upd);
     }
 
     if (su.state == ShotState::Trajectory)
@@ -1860,23 +1911,117 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
 
     if (su.justFinishedTrajectory)
     {
-        AppendLog(QStringLiteral("Trajectory capture finished: %1 frame(s) saved to %2")
+        upd.logs << QStringLiteral("Trajectory capture finished: %1 frame(s) saved to %2")
             .arg(m_captureFrameIndex)
-            .arg(m_currentCaptureDir));
+            .arg(m_currentCaptureDir);
         FinishCaptureSave();
+    }
+
+    PostUiUpdate(std::move(upd));
+}
+
+void MainWindow::PostUiUpdate(WorkerUiUpdate&& update)
+{
+    // 표시에 반영할 게 없으면(예: calibration에서 아직 이미지 미완성) 아무것도 하지 않는다.
+    if (!update.hasFrame && !update.hasShotState && !update.hasCalibStatus && update.logs.isEmpty())
+    {
+        return;
+    }
+
+    bool needPost = false;
+    {
+        std::lock_guard<std::mutex> lock(m_uiMutex);
+
+        // 프레임/상태/calib 상태는 최신 것만 의미가 있어 덮어쓴다(coalesce). 로그는 유실 금지라 누적.
+        if (update.hasFrame)
+        {
+            m_pendingUi.hasFrame = true;
+            m_pendingUi.frame = std::move(update.frame);
+            m_pendingUi.windowStartUs = update.windowStartUs;
+        }
+        if (update.hasShotState)
+        {
+            m_pendingUi.hasShotState = true;
+            m_pendingUi.shotState = update.shotState;
+        }
+        if (update.hasCalibStatus)
+        {
+            m_pendingUi.hasCalibStatus = true;
+            m_pendingUi.calibStatus = std::move(update.calibStatus);
+        }
+        if (!update.logs.isEmpty())
+        {
+            m_pendingUi.logs += update.logs;
+        }
+
+        if (!m_uiPosted)
+        {
+            m_uiPosted = true;
+            needPost = true;
+        }
+    }
+
+    // 이미 예약된 호출이 없을 때만 1건 예약한다 -> UI 큐가 쌓이지 않는다(coalescing).
+    if (needPost)
+    {
+        QMetaObject::invokeMethod(this, [this]() { ApplyPendingUi(); }, Qt::QueuedConnection);
     }
 }
 
-void MainWindow::RecreateCalibrationBuilder()
+void MainWindow::ApplyPendingUi()
 {
-    eventcore::CalibrationImageConfig cfg;
-
-    double ms = m_editAccumMs ? m_editAccumMs->text().toDouble() : 50.0;
-    if (ms <= 0.0)
+    WorkerUiUpdate upd;
     {
-        ms = 50.0;  // 잘못된 입력이면 기본값으로 되돌린다(빌더 내부에서도 최소값으로 한 번 더 클램프됨).
+        std::lock_guard<std::mutex> lock(m_uiMutex);
+        upd = std::move(m_pendingUi);
+        m_pendingUi = WorkerUiUpdate{};
+        m_uiPosted = false;
     }
-    cfg.accumulationUs = static_cast<lli>(ms * 1000.0);
+
+    // 로그는 항상 반영(스트림이 멈춘 뒤 도착한 마지막 로그도 표시).
+    for (const QString& line : upd.logs)
+    {
+        AppendLog(line);
+    }
+
+    // 스트림이 이미 멈춘 뒤 늦게 도착한 업데이트면 화면/상태는 갱신하지 않는다(검은 화면 유지).
+    if (m_runState == RunState::Idle)
+    {
+        return;
+    }
+
+    if (upd.hasShotState)
+    {
+        UpdateStateLabel(upd.shotState);
+    }
+    if (upd.hasCalibStatus)
+    {
+        m_labelCalibStatus->setText(upd.calibStatus);
+    }
+
+    if (upd.hasFrame && !upd.frame.empty())
+    {
+        m_gotFirstFrame = true;
+
+        // 사용자가 슬라이더를 드래그하는 중에는 재생 위치가 그 값을 덮어쓰지 않도록 한다.
+        if (m_seekRangeKnown && !m_sliderPosition->isSliderDown())
+        {
+            m_sliderPosition->blockSignals(true);
+            m_sliderPosition->setValue(TimestampToSliderValue(upd.windowStartUs));
+            m_sliderPosition->blockSignals(false);
+        }
+        UpdateTimeLabel(upd.windowStartUs);
+
+        DrawFrame(upd.frame);
+    }
+}
+
+void MainWindow::RebuildCalibBuilderLocked()
+{
+    // 호출자가 m_procMutex를 이미 쥐고 있다고 가정한다. UI 위젯을 만지지 않고 snapshot만 읽으므로
+    // 워커 스레드에서도 안전하다.
+    eventcore::CalibrationImageConfig cfg;
+    cfg.accumulationUs = m_accumUsSnapshot > 0 ? m_accumUsSnapshot : 50000;
 
     // 스트림이 열려 있으면 실제 센서 해상도를, 아니면 IMX636 기본 해상도(WIDTH/HEIGHT)를 쓴다.
     const int w = m_stream.Width() > 0 ? m_stream.Width() : WIDTH;
@@ -1886,72 +2031,21 @@ void MainWindow::RecreateCalibrationBuilder()
     m_calibImageCount = 0;
 }
 
-void MainWindow::OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg)
+void MainWindow::SnapshotCalibConfigFromUi()
 {
-    if (!m_calibBuilder)
-    {
-        RecreateCalibrationBuilder();
-    }
-    if (!m_calibBuilder)
-    {
-        return;
-    }
-
-    const bool ready = m_calibBuilder->AddEvents(msg->events, msg->windowStartUs, msg->windowEndUs);
-    if (!ready)
-    {
-        return;
-    }
-
-    // 완성된 단일 채널 calibration 이미지를 프리뷰 표시용 BGR로 변환한다(DrawFrame은 CV_8UC3 기대).
-    const cv::Mat& gray = m_calibBuilder->Image();
-    if (gray.empty())
-    {
-        return;
-    }
-
-    cv::Mat bgr;
-    cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
-
-    // Checkerboard 검출 후 코너 오버레이(성공/실패 모두 표시). 검출은 완성 이미지마다(=Δt마다)만
-    // 수행되므로 부하가 매 프레임은 아니다.
-    // 라이브 오버레이는 가벼운 검출(thorough=false)만 사용해 스트리밍을 느리게 하지 않는다.
-    // 정밀 검출은 Capture 순간에만 수행한다(onCaptureSampleClicked).
+    // UI 스레드에서만 호출된다(위젯 접근). snapshot은 m_procMutex로 보호해 워커가 안전하게 읽게 한다.
     const eventcore::CheckerboardConfig cb = ReadCheckerboardConfigFromUI();
-    const eventcore::CheckerboardDetection det = eventcore::CheckerboardDetector::Detect(gray, cb, /*thorough=*/false);
-    eventcore::CheckerboardDetector::DrawCorners(bgr, cb, det);
 
-    // 수동 Capture를 위해 가장 최근 검출 결과와 이미지를 캐시한다(성공 여부와 무관; Capture 시 found 확인).
-    m_lastCalibDetection = det;
-    m_lastCalibConfig = cb;
-    m_lastCalibFrameUs = msg->windowStartUs;
-    m_lastCalibImage = gray.clone();
-    m_haveLastCalibDetection = true;
-
-    DrawFrame(bgr);
-
-    ++m_calibImageCount;
-
-    const double accumMs = static_cast<double>(m_calibBuilder->Config().accumulationUs) / 1000.0;
-    const int expectedCorners = cb.innerCornerRows * cb.innerCornerCols;
-    if (det.found)
+    double ms = m_editAccumMs ? m_editAccumMs->text().toDouble() : 50.0;
+    if (ms <= 0.0)
     {
-        m_labelCalibStatus->setText(Tr(
-            QStringLiteral("Detected: YES (%1/%2 corners) - image #%3 (Δt=%4 ms)"),
-            QStringLiteral("검출: 성공 (코너 %1/%2) - 이미지 #%3 (Δt=%4 ms)"))
-            .arg(static_cast<int>(det.corners.size()))
-            .arg(expectedCorners)
-            .arg(m_calibImageCount)
-            .arg(accumMs, 0, 'f', 0));
+        ms = 50.0;
     }
-    else
-    {
-        m_labelCalibStatus->setText(Tr(
-            QStringLiteral("Detected: NO - image #%1 (Δt=%2 ms)"),
-            QStringLiteral("검출: 실패 - 이미지 #%1 (Δt=%2 ms)"))
-            .arg(m_calibImageCount)
-            .arg(accumMs, 0, 'f', 0));
-    }
+    const lli accumUs = static_cast<lli>(ms * 1000.0);
+
+    std::lock_guard<std::mutex> lock(m_procMutex);
+    m_cbConfigSnapshot = cb;
+    m_accumUsSnapshot = accumUs;
 }
 
 eventcore::CheckerboardConfig MainWindow::ReadCheckerboardConfigFromUI() const
@@ -1968,18 +2062,36 @@ eventcore::CheckerboardConfig MainWindow::ReadCheckerboardConfigFromUI() const
 
 void MainWindow::onCaptureSampleClicked()
 {
-    if (!m_haveLastCalibDetection)
+    // 캐시는 워커 스레드가 채우므로 m_procMutex로 보호해 스냅샷을 복사한 뒤 락을 놓고 처리한다.
+    bool have = false;
+    eventcore::CheckerboardDetection cached;
+    eventcore::CheckerboardConfig cfg;
+    cv::Mat imageCopy;
+    lli frameUs = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_procMutex);
+        have = m_haveLastCalibDetection;
+        cached = m_lastCalibDetection;
+        cfg = m_lastCalibConfig;
+        frameUs = m_lastCalibFrameUs;
+        if (!m_lastCalibImage.empty())
+        {
+            imageCopy = m_lastCalibImage.clone();
+        }
+    }
+
+    if (!have)
     {
         AppendLog(QStringLiteral("Capture failed: no calibration image yet"));
         return;
     }
 
     // 저장 시에는 정밀(thorough) 검출을 한 번 수행해 최상의 코너를 얻는다(라이브 경로는 빠른 검출만 함).
-    eventcore::CheckerboardDetection det = m_lastCalibDetection;
-    if (!m_lastCalibImage.empty())
+    eventcore::CheckerboardDetection det = cached;
+    if (!imageCopy.empty())
     {
         const eventcore::CheckerboardDetection thorough =
-            eventcore::CheckerboardDetector::Detect(m_lastCalibImage, m_lastCalibConfig, /*thorough=*/true);
+            eventcore::CheckerboardDetector::Detect(imageCopy, cfg, /*thorough=*/true);
         if (thorough.found)
         {
             det = thorough;
@@ -1992,7 +2104,7 @@ void MainWindow::onCaptureSampleClicked()
         return;
     }
 
-    const bool ok = m_calibSamples.AddSample(m_lastCalibConfig, det, m_lastCalibFrameUs);
+    const bool ok = m_calibSamples.AddSample(cfg, det, frameUs);
     if (!ok)
     {
         // 가장 흔한 실패 원인: 이미 수집된 샘플과 체커보드 설정(rows/cols/square)이 달라짐.
@@ -2004,7 +2116,7 @@ void MainWindow::onCaptureSampleClicked()
     AppendLog(QStringLiteral("Captured sample #%1 (%2 corners) at t=%3 us")
         .arg(m_calibSamples.Count())
         .arg(det.corners.size())
-        .arg(m_lastCalibFrameUs));
+        .arg(frameUs));
     UpdateCalibrationSampleUi();
 }
 
@@ -2059,18 +2171,23 @@ void MainWindow::onCalibrationModeToggled(bool checked)
 
     if (checked)
     {
-        // 실행 중이면 즉시 빌더를 준비해 다음 프레임부터 누적을 시작한다.
+        // UI 위젯에서 설정을 snapshot한 뒤(락 밖), 실행 중이면 락을 쥐고 빌더를 새로 만든다.
+        SnapshotCalibConfigFromUi();
         if (m_runState != RunState::Idle)
         {
-            RecreateCalibrationBuilder();
+            std::lock_guard<std::mutex> lock(m_procMutex);
+            RebuildCalibBuilderLocked();
         }
         AppendLog(QStringLiteral("Calibration mode ON (accumulation %1 ms) - ball detection / shot trigger paused")
             .arg(m_editAccumMs->text()));
     }
     else
     {
-        m_calibBuilder.reset();
-        m_haveLastCalibDetection = false;  // 캐시된 검출 결과 무효화(다음 Capture는 새 프레임을 요구)
+        {
+            std::lock_guard<std::mutex> lock(m_procMutex);
+            m_calibBuilder.reset();
+            m_haveLastCalibDetection = false;  // 캐시된 검출 결과 무효화(다음 Capture는 새 프레임을 요구)
+        }
         m_labelCalibStatus->setText(Tr(QStringLiteral("Calibration image: -"),
                                        QStringLiteral("calibration 이미지: -")));
         AppendLog(QStringLiteral("Calibration mode OFF - ball detection / shot trigger resumed"));
