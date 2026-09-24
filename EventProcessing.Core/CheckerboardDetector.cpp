@@ -9,7 +9,7 @@ namespace eventcore
         return cv::Size(config.innerCornerCols, config.innerCornerRows);
     }
 
-    CheckerboardDetection CheckerboardDetector::Detect(const cv::Mat& image, const CheckerboardConfig& config)
+    CheckerboardDetection CheckerboardDetector::Detect(const cv::Mat& image, const CheckerboardConfig& config, bool thorough)
     {
         CheckerboardDetection det;
 
@@ -43,11 +43,17 @@ namespace eventcore
         bool found = false;
 
         // 1) sector-based 검출(선호). subpixel 보정 내장.
+        //    thorough일 때만 EXHAUSTIVE|ACCURACY를 켠다(정확도↑, 속도↓). 라이브 오버레이(=false)에서는
+        //    NORMALIZE만 써서 프레임마다 도는 비용을 최소화한다.
+        int sbFlags = cv::CALIB_CB_NORMALIZE_IMAGE;
+        if (thorough)
+        {
+            sbFlags |= cv::CALIB_CB_EXHAUSTIVE | cv::CALIB_CB_ACCURACY;
+        }
+
         try
         {
-            found = cv::findChessboardCornersSB(
-                gray, pattern, corners,
-                cv::CALIB_CB_NORMALIZE_IMAGE | cv::CALIB_CB_EXHAUSTIVE | cv::CALIB_CB_ACCURACY);
+            found = cv::findChessboardCornersSB(gray, pattern, corners, sbFlags);
         }
         catch (const cv::Exception&)
         {
@@ -55,8 +61,9 @@ namespace eventcore
             corners.clear();
         }
 
-        // 2) 폴백: 고전적 검출 + subpixel 보정.
-        if (!found)
+        // 2) 폴백: 고전적 검출 + subpixel 보정. thorough일 때만 수행한다
+        //    (라이브 경로에서 미검출 프레임마다 이 무거운 폴백까지 도는 것을 막는다).
+        if (!found && thorough)
         {
             corners.clear();
             bool classicFound = false;

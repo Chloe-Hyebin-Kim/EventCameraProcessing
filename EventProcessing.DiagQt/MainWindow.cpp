@@ -1899,14 +1899,17 @@ void MainWindow::OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg)
 
     // Checkerboard 검출 후 코너 오버레이(성공/실패 모두 표시). 검출은 완성 이미지마다(=Δt마다)만
     // 수행되므로 부하가 매 프레임은 아니다.
+    // 라이브 오버레이는 가벼운 검출(thorough=false)만 사용해 스트리밍을 느리게 하지 않는다.
+    // 정밀 검출은 Capture 순간에만 수행한다(onCaptureSampleClicked).
     const eventcore::CheckerboardConfig cb = ReadCheckerboardConfigFromUI();
-    const eventcore::CheckerboardDetection det = eventcore::CheckerboardDetector::Detect(gray, cb);
+    const eventcore::CheckerboardDetection det = eventcore::CheckerboardDetector::Detect(gray, cb, /*thorough=*/false);
     eventcore::CheckerboardDetector::DrawCorners(bgr, cb, det);
 
-    // 수동 Capture를 위해 가장 최근 검출 결과를 캐시한다(성공 여부와 무관하게 저장; Capture 시 found 확인).
+    // 수동 Capture를 위해 가장 최근 검출 결과와 이미지를 캐시한다(성공 여부와 무관; Capture 시 found 확인).
     m_lastCalibDetection = det;
     m_lastCalibConfig = cb;
     m_lastCalibFrameUs = msg->windowStartUs;
+    m_lastCalibImage = gray.clone();
     m_haveLastCalibDetection = true;
 
     DrawFrame(bgr);
@@ -1949,13 +1952,31 @@ eventcore::CheckerboardConfig MainWindow::ReadCheckerboardConfigFromUI() const
 
 void MainWindow::onCaptureSampleClicked()
 {
-    if (!m_haveLastCalibDetection || !m_lastCalibDetection.found)
+    if (!m_haveLastCalibDetection)
     {
-        AppendLog(QStringLiteral("Capture failed: no checkerboard currently detected"));
+        AppendLog(QStringLiteral("Capture failed: no calibration image yet"));
         return;
     }
 
-    const bool ok = m_calibSamples.AddSample(m_lastCalibConfig, m_lastCalibDetection, m_lastCalibFrameUs);
+    // 저장 시에는 정밀(thorough) 검출을 한 번 수행해 최상의 코너를 얻는다(라이브 경로는 빠른 검출만 함).
+    eventcore::CheckerboardDetection det = m_lastCalibDetection;
+    if (!m_lastCalibImage.empty())
+    {
+        const eventcore::CheckerboardDetection thorough =
+            eventcore::CheckerboardDetector::Detect(m_lastCalibImage, m_lastCalibConfig, /*thorough=*/true);
+        if (thorough.found)
+        {
+            det = thorough;
+        }
+    }
+
+    if (!det.found)
+    {
+        AppendLog(QStringLiteral("Capture failed: no checkerboard detected in the current image"));
+        return;
+    }
+
+    const bool ok = m_calibSamples.AddSample(m_lastCalibConfig, det, m_lastCalibFrameUs);
     if (!ok)
     {
         // 가장 흔한 실패 원인: 이미 수집된 샘플과 체커보드 설정(rows/cols/square)이 달라짐.
@@ -1966,7 +1987,7 @@ void MainWindow::onCaptureSampleClicked()
 
     AppendLog(QStringLiteral("Captured sample #%1 (%2 corners) at t=%3 us")
         .arg(m_calibSamples.Count())
-        .arg(m_lastCalibDetection.corners.size())
+        .arg(det.corners.size())
         .arg(m_lastCalibFrameUs));
     UpdateCalibrationSampleUi();
 }

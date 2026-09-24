@@ -30,7 +30,14 @@ namespace eventcore
         //  2) 실패하면 고전적 findChessboardCorners + cornerSubPix로 폴백한다.
         // 두 방법 중 무엇이 실제 EVK4HD 데이터에서 더 안정적인지는 실촬영으로 검증해야 하며,
         // 그 결과에 따라 순서/플래그를 조정할 수 있다.
-        static CheckerboardDetection Detect(const cv::Mat& image, const CheckerboardConfig& config);
+        //
+        // thorough:
+        //  - true(기본): SB에 EXHAUSTIVE|ACCURACY 플래그를 주고, 실패 시 고전 검출로 폴백한다.
+        //    검출률이 높지만 느리다(1280x720에서 특히 미검출 프레임이 비쌈). 저장(Capture)처럼
+        //    사용자가 한 번만 트리거하는 정밀 검출에 쓴다.
+        //  - false: 가벼운 SB(NORMALIZE만)만 시도하고 고전 폴백을 하지 않는다. 훨씬 빨라
+        //    라이브 프리뷰 오버레이처럼 매 프레임 도는 경로에 적합하다.
+        static CheckerboardDetection Detect(const cv::Mat& image, const CheckerboardConfig& config, bool thorough = true);
 
         // bgrImage(CV_8UC3) 위에 검출 결과를 오버레이한다(cv::drawChessboardCorners).
         // found == false여도 부분적으로 찾은 후보 코너가 있으면 표시해 디버깅에 도움을 준다.
