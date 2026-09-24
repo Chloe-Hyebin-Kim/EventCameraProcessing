@@ -425,6 +425,70 @@ namespace eventcore
         }
     }
 
+    bool LiveEventStream::SaveBiasesToFile(const std::string& utf8Path)
+    {
+        if (!m_running)
+        {
+            return false;
+        }
+
+        try
+        {
+            Metavision::I_LL_Biases& biases = m_camera.get_facility<Metavision::I_LL_Biases>();
+            biases.save_to_file(Utf8ToPath(utf8Path));
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    bool LiveEventStream::LoadBiasesFromFile(const std::string& utf8Path)
+    {
+        if (!m_running)
+        {
+            return false;
+        }
+
+        try
+        {
+            Metavision::I_LL_Biases& biases = m_camera.get_facility<Metavision::I_LL_Biases>();
+            biases.load_from_file(Utf8ToPath(utf8Path));
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    CameraInfo LiveEventStream::GetCameraInfo() const
+    {
+        CameraInfo info;
+
+        if (!m_running)
+        {
+            return info;
+        }
+
+        try
+        {
+            const Metavision::CameraConfiguration& config = m_camera.get_camera_configuration();
+            info.serialNumber = config.serial_number;
+            info.integrator = config.integrator;
+            info.pluginName = config.plugin_name;
+
+            info.generationName = m_camera.generation().name();
+        }
+        catch (...)
+        {
+            // 정보 조회 중 예외가 나면(소스가 아직 준비 안 됨 등) 얻은 만큼만 돌려준다.
+        }
+
+        return info;
+    }
+
     void LiveEventStream::WindowLoop(lli windowUs, FrameCallback callback)
     {
         lli runningClockUs = 0;
@@ -457,11 +521,11 @@ namespace eventcore
             runningClockUs = batchEnd;
             m_lastProcessedUs = batchEnd;
 
-            const EventProcessingResult result = EventProcessor::Process(batch, m_width, m_height, batchStart, batchEnd - batchStart);
+            const EventProcessingResult result = EventProcessor::Process(batch, m_width, m_height, batchStart, batchEnd - batchStart, m_ballDetectionEnabled.load());
 
             if (callback)
             {
-                callback(result, batchStart, batchEnd);
+                callback(result, batch, batchStart, batchEnd);
             }
         }
 

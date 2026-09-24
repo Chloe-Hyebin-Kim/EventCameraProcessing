@@ -5,15 +5,27 @@
 //  EventProcessing.Console을 대신 사용할 수 있다.)
 #include "LiveEventStream.h"
 #include "ShotTrigger.h"
+#include "CalibrationTypes.h"       // CheckerboardConfig (값 반환 헬퍼가 완전한 타입을 필요로 함)
+#include "CheckerboardDetector.h"   // CheckerboardDetection (멤버로 값 보관)
+#include "CalibrationObservation.h" // CalibrationSampleCollector (멤버로 값 보관)
 
+#include <QMap>
+#include <QString>
 #include <QWidget>
 
+#include <atomic>
 #include <deque>
 #include <memory>
 #include <vector>
 
+namespace eventcore
+{
+    class CalibrationImageBuilder;  // Calibration/이미지 빌더(원본 event 누적). 구현은 .cpp에서 include.
+}
+
 QT_BEGIN_NAMESPACE
 class QAction;
+class QCheckBox;
 class QFormLayout;
 class QGroupBox;
 class QKeyEvent;
@@ -34,6 +46,10 @@ struct FrameMessage
     eventcore::BallDetectionResult ball;
     eventcore::lli windowStartUs = 0;
     eventcore::lli windowEndUs = 0;
+
+    // Calibration Mode일 때만 채워진다(그 외에는 빈 벡터로 두어 불필요한 복사를 피한다).
+    // 원본 event를 UI 스레드의 CalibrationImageBuilder로 넘기기 위한 스냅샷.
+    std::vector<eventcore::Event> events;
 };
 
 // Qt Widgets 기반 Live/RAW Diagnostic Viewer. Windows/Linux(및 다른 Qt 지원 플랫폼)에서
@@ -53,6 +69,7 @@ protected:
 private slots:
     void onStartStopClicked();
     void onPauseResumeClicked();
+    void onRecordSaveClicked();
     void onBrowseRawClicked();
     void onBrowseOutputClicked();
     void onPollStreamState();
@@ -60,6 +77,19 @@ private slots:
     void onSliderReleased();
     void onShowAboutVersion();
     void onShowAboutLicense();
+    // Live/RAW 모드 라디오가 바뀔 때. 소스 텍스트 박스를 모드에 맞게 갈아 끼운다.
+    void onSourceModeToggled(bool liveChecked);
+    // 현재 카메라 bias 조합을 .bias 파일로 저장 / 파일에서 불러와 적용.
+    void onSaveBiasClicked();
+    void onLoadBiasClicked();
+    // Calibration Mode 체크박스 토글. 켜지면 원본 event를 누적해 calibration 이미지를 화면에
+    // 표시하고(ShotTrigger/BallDetector 경로는 건너뜀), 끄면 기존 동작으로 복귀한다.
+    void onCalibrationModeToggled(bool checked);
+    // Calibration observation 수집(수동 Capture 방식): 현재(가장 최근 완성) 프레임의 검출 결과를
+    // 하나의 observation으로 저장 / 마지막 것 제거 / 전체 초기화.
+    void onCaptureSampleClicked();
+    void onRemoveLastSampleClicked();
+    void onClearSamplesClicked();
 
 private:
     // 버튼 두 개, 각각 두 가지 역할을 겸한다:
@@ -86,6 +116,13 @@ private:
     // CreateBiasRow()/ApplyBiasTooltip() 등 이 밑의 메서드 선언들이 먼저 참조하므로 전방 선언.
     struct BiasControlRow;
 
+    // 소스 텍스트 박스(m_editRawPath)를 현재 모드/연결 상태에 맞게 갱신한다:
+    // - RAW 모드: 편집 가능, 마지막으로 고른 RAW 파일 경로를 표시.
+    // - Live 모드: 읽기 전용. 연결(Start)되면 카메라 식별자, 아니면 안내 문구.
+    void UpdateSourceBox();
+    // 현재 연결된 카메라의 식별 문자열(시리얼 번호 + 세대/통합사)을 만든다. 연결 안 됐으면 빈 문자열.
+    QString FormatCameraIdentifier() const;
+
     void BuildUi();
     eventcore::ShotTriggerConfig ReadConfigFromUI() const;
     void AppendLog(const QString& msg);
@@ -106,6 +143,10 @@ private:
     void StartCaptureSave();
     void SaveCaptureFrame(const cv::Mat& bgrFrame);
     void FinishCaptureSave();
+    // 수동 녹화(자동 샷 캡처와 별개). Record 버튼으로 시작, Save 버튼/Stop으로 종료한다.
+    void StartManualRecord();
+    void SaveManualFrame(const cv::Mat& bgrFrame);
+    void StopManualRecord();
     void StopStream(const QString& logMessage);
     void PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg);
     void FlushPreRollBuffer(eventcore::lli impactUs);
@@ -113,10 +154,12 @@ private:
     // 앱 시작 시 한 번, IMX636의 알려진 표준 bias 6종에 대해 비활성화된 슬라이더 행을 미리
     // 만들어 둔다(연결 전이라 실제 값/범위를 모르므로 자리표시자 상태). BuildUi()에서 호출.
     void SeedBiasPlaceholders();
-    // biasName 하나에 대한 슬라이더 행(컨테이너+슬라이더+값 라벨)을 새로 만들어 폼에 추가하고
+    // biasName 하나에 대한 슬라이더 행(컨테이너+슬라이더+값 라벨)을 지정한 열(form)에 추가하고
     // 돌려준다(m_biasRows에 넣는 건 호출부 책임). dynamic=true는 알려진 6종에 없는, 실제 연결된
     // 카메라가 보고한 추가 bias용(연결 해제 시 제거 대상)이라는 표시.
-    BiasControlRow CreateBiasRow(const QString& biasName, bool dynamic);
+    BiasControlRow CreateBiasRow(const QString& biasName, bool dynamic, QFormLayout* form);
+    // bias 이름을 어느 열(form)에 둘지 결정한다(왼쪽: diff/diff_off/diff_on, 그 외: 오른쪽).
+    QFormLayout* FormColumnForBias(const QString& biasName) const;
     // row의 현재 언어 설명에 맞는 툴팁을 슬라이더/컨테이너/이름 라벨에 다시 적용한다.
     void ApplyBiasTooltip(const BiasControlRow& row);
     // 연결 상태(m_biasConnected)와 현재 언어에 맞춰 안내 라벨 문구를 갱신한다.
@@ -124,7 +167,9 @@ private:
 
     // 라이브 카메라가 성공적으로 시작된 뒤 m_stream.GetBiases()로 얻은 실제 값/범위로 기존
     // placeholder 행들을 갱신하고 활성화한다(알려진 6종에 없는 이름은 새 행을 동적으로 추가).
-    void PopulateBiasControls();
+    // applySaved=true면 기억해 둔 값(기본값/사용자 변경분)을 카메라에 적용, false면 카메라가
+    // 현재 들고 있는 값을 그대로 반영만 하고 기억 값도 그 값으로 맞춘다(.bias 로드 직후 등).
+    void PopulateBiasControls(bool applySaved = true);
     // 알려진 6종 행은 비활성화 + 자리표시자 상태로 되돌리고(삭제하지 않음), 동적으로 추가됐던
     // 행만 제거한다(Stop, 또는 RAW 모드로 시작할 때).
     void ClearBiasControls();
@@ -132,6 +177,17 @@ private:
     // LiveEventStream의 콜백은 워커 스레드에서 호출된다. 캡처한 프레임은 힙에 올려
     // QMetaObject::invokeMethod(..., Qt::QueuedConnection)로 UI 스레드에 마샬링해서 처리한다.
     void OnFrameReady(std::shared_ptr<FrameMessage> msg);
+
+    // Calibration Mode 전용 프레임 처리(UI 스레드). msg->events를 CalibrationImageBuilder에
+    // 누적하고, Δt가 차서 이미지가 완성되면 그 polarity 이미지를 프리뷰에 표시한다.
+    // ShotTrigger/BallDetector/녹화 경로는 전혀 건드리지 않는다.
+    void OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg);
+    // 현재 UI의 Accumulation(ms)와 스트림 해상도로 CalibrationImageBuilder를 새로 만든다.
+    void RecreateCalibrationBuilder();
+    // Checkerboard(rows/cols/square mm) 설정을 UI에서 읽는다.
+    eventcore::CheckerboardConfig ReadCheckerboardConfigFromUI() const;
+    // 수집된 샘플 개수/버튼 활성화 상태 등 calibration observation UI를 갱신한다.
+    void UpdateCalibrationSampleUi();
 
     void SeekTo(eventcore::lli timestampUs);
     eventcore::lli SliderValueToTimestamp(int value) const;
@@ -146,6 +202,28 @@ private:
     RunState m_runState = RunState::Idle;
     AppLanguage m_language = AppLanguage::English;
     bool m_liveMode = false;
+
+    // Calibration Mode 상태. m_calibrationMode는 워커 스레드(Start 콜백)에서 읽고 UI 스레드에서
+    // 쓰므로 atomic으로 둔다. 원본 event 복사는 이 플래그가 켜져 있을 때만 수행한다.
+    std::atomic<bool> m_calibrationMode{ false };
+    std::unique_ptr<eventcore::CalibrationImageBuilder> m_calibBuilder;
+    int m_calibImageCount = 0;  // 이번 실행에서 완성된 calibration 이미지 수(상태 표시용)
+
+    // 수동 Capture를 위해 "가장 최근에 완성된 calibration 이미지"의 검출 결과를 캐시한다.
+    // Capture 버튼은 이 캐시를 하나의 observation으로 저장한다.
+    eventcore::CheckerboardDetection m_lastCalibDetection;
+    eventcore::CheckerboardConfig m_lastCalibConfig;
+    eventcore::lli m_lastCalibFrameUs = 0;
+    bool m_haveLastCalibDetection = false;
+    // 가장 최근 완성된 calibration 이미지(CV_8UC1)의 사본. Capture 시 정밀(thorough) 재검출에 쓴다.
+    cv::Mat m_lastCalibImage;
+
+    // 수집된 calibration observation(여러 pose). Start/Stop을 반복해도 세션 동안 유지된다(Clear로만 비움).
+    eventcore::CalibrationSampleCollector m_calibSamples;
+
+    // 마지막으로 로그에 남긴 샷 상태. 매 프레임 ShotTrigger가 돌려주는 상태가 이 값과 다르면
+    // 상태 전이로 보고 로그에 한 줄 남긴다(READY뿐 아니라 SEARCHING/IMPACT/TRJCT 전이 모두).
+    eventcore::ShotState m_lastLoggedState = eventcore::ShotState::Searching;
 
     // Live 카메라 모드에서만 쓰인다: Pause 동안 카메라/미리보기는 계속 흐르게 두고(끼어든 상황이
     // 지나가는 걸 볼 수 있게), ShotTrigger 갱신과 프레임 저장(녹화)만 건너뛴다. RAW 모드의 Pause는
@@ -173,7 +251,14 @@ private:
     int m_captureFrameIndex = 0;
     bool m_capturingNow = false;
 
+    // 수동 녹화(Record/Save 버튼) 상태. 자동 샷 캡처(위 m_capturingNow)와 독립적으로 동작한다.
+    bool m_manualRecording = false;
+    QString m_manualRecordDir;
+    int m_manualRecordFrameIndex = 0;
+
     QPixmap m_previewPixmap;
+    // 프리뷰 페인트 throttle용: 마지막으로 실제 화면을 그린 시각(ms, epoch). 0이면 아직 없음.
+    qint64 m_lastDrawMs = 0;
 
     // UI
     // 메뉴바(BuildUi()가 root 레이아웃에 QLayout::setMenuBar()로 얹는다 - QMainWindow가 아니어도
@@ -198,14 +283,49 @@ private:
     QGroupBox* m_boxOutput = nullptr;
     QGroupBox* m_boxShotTrigger = nullptr;
 
+    // Calibration Mode UI(Phase 1: 모드 토글 + 누적 시간 + 상태 표시). Capture/Run 등 나머지 버튼은
+    // 이후 Phase에서 추가한다.
+    QGroupBox* m_boxCalibration = nullptr;
+    QCheckBox* m_checkCalibMode = nullptr;
+    QLabel* m_labelAccumMs = nullptr;
+    QLineEdit* m_editAccumMs = nullptr;
+    QLabel* m_labelCalibStatus = nullptr;
+
+    // Checkerboard 설정(Phase 2): 내부 코너 행/열 수, 한 칸 크기(mm).
+    QLabel* m_labelCheckerboard = nullptr;
+    QLabel* m_labelCbRows = nullptr;
+    QLineEdit* m_editCbRows = nullptr;
+    QLabel* m_labelCbCols = nullptr;
+    QLineEdit* m_editCbCols = nullptr;
+    QLabel* m_labelCbSquareMm = nullptr;
+    QLineEdit* m_editCbSquareMm = nullptr;
+
+    // Observation 수집 컨트롤(Phase 3).
+    QPushButton* m_btnCaptureSample = nullptr;
+    QPushButton* m_btnRemoveLastSample = nullptr;
+    QPushButton* m_btnClearSamples = nullptr;
+    QLabel* m_labelSamples = nullptr;
+
     // Camera Bias (Metavision HAL I_LL_Biases). IMX636의 알려진 표준 bias 6종은 앱 시작 시부터
     // 비활성화된 자리표시자 슬라이더로 항상 보이고(SeedBiasPlaceholders()), 라이브 카메라가
     // 성공적으로 시작되면 PopulateBiasControls()가 실제 값/범위로 갱신하며 활성화한다.
     QGroupBox* m_boxBias = nullptr;
-    QFormLayout* m_biasFormLayout = nullptr;
+    // bias 슬라이더를 2열로 배치한다: 왼쪽 열(bias_diff/off/on), 오른쪽 열(bias_fo/hpf/refr).
+    // 알려진 6종 밖의 이름(다른 센서/펌웨어)은 오른쪽 열에 이어 붙인다.
+    QFormLayout* m_biasFormLeft = nullptr;
+    QFormLayout* m_biasFormRight = nullptr;
     QLabel* m_labelBiasUnavailable = nullptr;
+    // 현재 bias 조합을 .bias 파일로 저장/불러오기(연결 중일 때만 활성화).
+    QPushButton* m_btnSaveBias = nullptr;
+    QPushButton* m_btnLoadBias = nullptr;
     // 라이브 카메라가 현재 연결되어 bias 값이 실제 하드웨어를 반영 중인지(false면 자리표시자).
     bool m_biasConnected = false;
+
+    // 프로그램이 실행되는 동안(종료 전까지) 기억할 bias 값. Start->Stop->Start를 반복해도
+    // 여기 있는 값이 유지되어, 카메라를 다시 열 때 그대로 다시 적용된다(디스크에 저장하지 않으므로
+    // 프로그램을 종료하면 사라짐). 앱 시작 시 bias_diff/off/on/fo의 기본값이 미리 들어 있고,
+    // 사용자가 슬라이더를 움직이면 그 값으로 갱신된다.
+    QMap<QString, int> m_savedBiasValues;
 
     struct BiasControlRow
     {
@@ -216,6 +336,7 @@ private:
         QSlider* slider = nullptr;
         QLabel* valueLabel = nullptr;
         QWidget* nameLabel = nullptr; // QFormLayout::labelForField()로 얻은, 행의 이름 라벨.
+        QFormLayout* form = nullptr;  // 이 행이 속한 열(왼쪽/오른쪽 form). removeRow/labelForField에 사용.
         // true면 알려진 6종에 없는, 실제 연결된 카메라가 보고한 추가 bias 행 - 연결 해제 시
         // 비활성화만 하는 게 아니라 아예 제거한다(false인 6종 고정 행은 항상 남아 있음).
         bool dynamic = false;
@@ -229,6 +350,9 @@ private:
     QRadioButton* m_radioRaw = nullptr;
     QLineEdit* m_editRawPath = nullptr;
     QPushButton* m_btnBrowseRaw = nullptr;
+    // Live 모드에서는 소스 박스가 카메라 식별자를 대신 보여주므로, RAW 모드로 돌아왔을 때
+    // 복원할 수 있도록 마지막으로 고른 RAW 파일 경로를 따로 기억해 둔다.
+    QString m_rawFilePath;
     QLineEdit* m_editOutputDir = nullptr;
     QPushButton* m_btnBrowseOutput = nullptr;
 
@@ -253,6 +377,7 @@ private:
     QLineEdit* m_editWindowUs = nullptr;
     QPushButton* m_btnStartStop = nullptr;
     QPushButton* m_btnPauseResume = nullptr;
+    QPushButton* m_btnRecordSave = nullptr;
     QLabel* m_labelStateCaption = nullptr;
     QLabel* m_labelState = nullptr;
     QLabel* m_labelPreview = nullptr;

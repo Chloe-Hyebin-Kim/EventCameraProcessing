@@ -1,9 +1,12 @@
 #include "MainWindow.h"
 
 #include "Utf8Path.h"
+#include "CalibrationImageBuilder.h"
+#include "CheckerboardDetector.h"
 
 #include <QAction>
 #include <QActionGroup>
+#include <QCheckBox>
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QDialog>
@@ -63,6 +66,11 @@ namespace
 
     // 좌우 화살표 키 1회 입력당 이동하는 시간(1초).
     constexpr lli kArrowSeekStepUs = 1000000;
+
+    // 프리뷰 페인트 최소 간격(ms). 워커는 windowUs(예: 10ms=100fps)마다 프레임을 올리지만,
+    // 매 프레임 큰 픽스맵을 스케일링하면 UI가 못 따라가 이벤트 큐가 쌓여 시간이 갈수록 느려진다.
+    // 화면 페인트를 ~30fps로 제한해 UI가 큐를 따라잡게 한다(프레임 처리 자체는 매 프레임 유지).
+    constexpr qint64 kMinDrawIntervalMs = 33;
 
     // QString::toStdString()은 항상 UTF-8을 돌려주는데, Windows의 std::filesystem::path(const
     // std::string&) 생성자와 OpenCV의 cv::imwrite() 등은 그 바이트열을 UTF-8이 아니라 시스템
@@ -155,6 +163,20 @@ MainWindow::MainWindow(QWidget* parent)
     m_editMaxDirDeviationDeg->setText(QStringLiteral("35"));
     m_editMissToleranceMs->setText(QStringLiteral("150"));
     m_editWindowUs->setText(QStringLiteral("10000"));
+    // Calibration 누적 시간 초기 기본값 50 ms(실험용 시작값, 변경 가능). 하드코딩된 상수가 아니라
+    // 이 입력 필드 값이 CalibrationImageBuilder로 전달된다.
+    m_editAccumMs->setText(QStringLiteral("50"));
+    // Checkerboard 기본값(내부 코너 9x6, 한 칸 25 mm). 실제 사용하는 보드에 맞게 GUI에서 변경.
+    m_editCbCols->setText(QStringLiteral("9"));
+    m_editCbRows->setText(QStringLiteral("6"));
+    m_editCbSquareMm->setText(QStringLiteral("25"));
+
+    // bias 기본값(연결 시 카메라에 적용됨). 사용자가 슬라이더로 바꾸면 이 값이 갱신되어,
+    // 프로그램이 켜져 있는 동안 Start/Stop을 반복해도 마지막 값이 유지된다.
+    m_savedBiasValues[QStringLiteral("bias_diff")] = -30;
+    m_savedBiasValues[QStringLiteral("bias_diff_off")] = -15;
+    m_savedBiasValues[QStringLiteral("bias_diff_on")] = -5;
+    m_savedBiasValues[QStringLiteral("bias_fo")] = 20;
 
     UpdateRunButtons();
     m_labelState->setText(QStringLiteral("IDLE"));
@@ -325,15 +347,115 @@ void MainWindow::BuildUi()
 
     root->addWidget(m_boxShotTrigger);
 
+    // --- Calibration (Phase 1: 모드 토글 + 누적 시간 + 상태) ---
+    // Calibration Mode가 켜지면 원본 event를 Δt(누적 시간)만큼 모아 polarity 기반 calibration
+    // 이미지를 만들어 프리뷰에 표시한다. 이 모드에서는 ShotTrigger/BallDetector 경로를 건너뛰므로,
+    // 기존 샷 감지/녹화 동작에 영향을 주지 않는다.
+    m_boxCalibration = new QGroupBox(this);
+    auto* calibOuterLayout = new QVBoxLayout(m_boxCalibration);
+
+    // 1행: [Calibration Mode] [Accumulation(ms)] ... [상태(Detected)]
+    m_checkCalibMode = new QCheckBox(m_boxCalibration);
+    m_labelAccumMs = new QLabel(m_boxCalibration);
+    m_editAccumMs = new QLineEdit(m_boxCalibration);
+    m_editAccumMs->setMaximumWidth(80);
+    m_labelCalibStatus = new QLabel(m_boxCalibration);
+
+    auto* calibRow1 = new QHBoxLayout();
+    calibRow1->addWidget(m_checkCalibMode);
+    calibRow1->addSpacing(16);
+    calibRow1->addWidget(m_labelAccumMs);
+    calibRow1->addWidget(m_editAccumMs);
+    calibRow1->addStretch();
+    calibRow1->addWidget(m_labelCalibStatus);
+    calibOuterLayout->addLayout(calibRow1);
+
+    // 2행: Checkerboard [Rows][ ] [Columns][ ] [Square(mm)][ ]
+    m_labelCheckerboard = new QLabel(m_boxCalibration);
+    m_labelCbRows = new QLabel(m_boxCalibration);
+    m_editCbRows = new QLineEdit(m_boxCalibration);
+    m_editCbRows->setMaximumWidth(60);
+    m_labelCbCols = new QLabel(m_boxCalibration);
+    m_editCbCols = new QLineEdit(m_boxCalibration);
+    m_editCbCols->setMaximumWidth(60);
+    m_labelCbSquareMm = new QLabel(m_boxCalibration);
+    m_editCbSquareMm = new QLineEdit(m_boxCalibration);
+    m_editCbSquareMm->setMaximumWidth(70);
+
+    auto* calibRow2 = new QHBoxLayout();
+    calibRow2->addWidget(m_labelCheckerboard);
+    calibRow2->addSpacing(8);
+    calibRow2->addWidget(m_labelCbRows);
+    calibRow2->addWidget(m_editCbRows);
+    calibRow2->addSpacing(8);
+    calibRow2->addWidget(m_labelCbCols);
+    calibRow2->addWidget(m_editCbCols);
+    calibRow2->addSpacing(8);
+    calibRow2->addWidget(m_labelCbSquareMm);
+    calibRow2->addWidget(m_editCbSquareMm);
+    calibRow2->addStretch();
+    calibOuterLayout->addLayout(calibRow2);
+
+    // 3행: [Capture Sample] [Remove Last] [Clear] ... [Samples: N]
+    m_btnCaptureSample = new QPushButton(m_boxCalibration);
+    m_btnRemoveLastSample = new QPushButton(m_boxCalibration);
+    m_btnClearSamples = new QPushButton(m_boxCalibration);
+    m_labelSamples = new QLabel(m_boxCalibration);
+
+    auto* calibRow3 = new QHBoxLayout();
+    calibRow3->addWidget(m_btnCaptureSample);
+    calibRow3->addWidget(m_btnRemoveLastSample);
+    calibRow3->addWidget(m_btnClearSamples);
+    calibRow3->addStretch();
+    calibRow3->addWidget(m_labelSamples);
+    calibOuterLayout->addLayout(calibRow3);
+
+    root->addWidget(m_boxCalibration);
+
+    connect(m_btnCaptureSample, &QPushButton::clicked, this, &MainWindow::onCaptureSampleClicked);
+    connect(m_btnRemoveLastSample, &QPushButton::clicked, this, &MainWindow::onRemoveLastSampleClicked);
+    connect(m_btnClearSamples, &QPushButton::clicked, this, &MainWindow::onClearSamplesClicked);
+
+    connect(m_checkCalibMode, &QCheckBox::toggled, this, &MainWindow::onCalibrationModeToggled);
+    // 누적 시간이 바뀌면(실행 중 + calibration 모드) 빌더를 새 Δt로 다시 만든다.
+    connect(m_editAccumMs, &QLineEdit::editingFinished, this, [this]()
+    {
+        if (m_calibrationMode.load() && m_runState != RunState::Idle)
+        {
+            RecreateCalibrationBuilder();
+        }
+    });
+
     // --- Camera bias (Live camera only; populated after a successful Start()) ---
     m_boxBias = new QGroupBox(this);
     auto* biasOuterLayout = new QVBoxLayout(m_boxBias);
 
+    // 상단 헤더 행: [연결 상태 라벨] .... [Save Bias...] [Load Bias...] 를 한 줄에 둔다.
+    // (저장/불러오기 버튼은 연결 중일 때만 활성화)
     m_labelBiasUnavailable = new QLabel(m_boxBias);
-    biasOuterLayout->addWidget(m_labelBiasUnavailable);
+    m_btnSaveBias = new QPushButton(m_boxBias);
+    m_btnLoadBias = new QPushButton(m_boxBias);
+    m_btnSaveBias->setEnabled(false);
+    m_btnLoadBias->setEnabled(false);
 
-    m_biasFormLayout = new QFormLayout();
-    biasOuterLayout->addLayout(m_biasFormLayout);
+    auto* biasHeaderLayout = new QHBoxLayout();
+    biasHeaderLayout->addWidget(m_labelBiasUnavailable);
+    biasHeaderLayout->addStretch();
+    biasHeaderLayout->addWidget(m_btnSaveBias);
+    biasHeaderLayout->addWidget(m_btnLoadBias);
+    biasOuterLayout->addLayout(biasHeaderLayout);
+
+    connect(m_btnSaveBias, &QPushButton::clicked, this, &MainWindow::onSaveBiasClicked);
+    connect(m_btnLoadBias, &QPushButton::clicked, this, &MainWindow::onLoadBiasClicked);
+
+    // 2열 배치: 왼쪽 열(bias_diff/off/on)과 오른쪽 열(bias_fo/hpf/refr)을 나란히 둔다.
+    auto* biasColumnsLayout = new QHBoxLayout();
+    m_biasFormLeft = new QFormLayout();
+    m_biasFormRight = new QFormLayout();
+    biasColumnsLayout->addLayout(m_biasFormLeft, 1);
+    biasColumnsLayout->addSpacing(24);
+    biasColumnsLayout->addLayout(m_biasFormRight, 1);
+    biasOuterLayout->addLayout(biasColumnsLayout);
 
     root->addWidget(m_boxBias);
 
@@ -345,12 +467,14 @@ void MainWindow::BuildUi()
     auto* controlLayout = new QHBoxLayout();
     m_btnStartStop = new QPushButton(this);
     m_btnPauseResume = new QPushButton(this);
+    m_btnRecordSave = new QPushButton(this);
     m_labelStateCaption = new QLabel(this);
     m_labelState = new QLabel(QStringLiteral("IDLE"), this);
     m_labelState->setStyleSheet(QStringLiteral("font-weight: bold;"));
 
     controlLayout->addWidget(m_btnStartStop);
     controlLayout->addWidget(m_btnPauseResume);
+    controlLayout->addWidget(m_btnRecordSave);
     controlLayout->addStretch();
     controlLayout->addWidget(m_labelStateCaption);
     controlLayout->addWidget(m_labelState);
@@ -388,6 +512,7 @@ void MainWindow::BuildUi()
 
     connect(m_btnStartStop, &QPushButton::clicked, this, &MainWindow::onStartStopClicked);
     connect(m_btnPauseResume, &QPushButton::clicked, this, &MainWindow::onPauseResumeClicked);
+    connect(m_btnRecordSave, &QPushButton::clicked, this, &MainWindow::onRecordSaveClicked);
     connect(m_btnBrowseRaw, &QPushButton::clicked, this, &MainWindow::onBrowseRawClicked);
     connect(m_btnBrowseOutput, &QPushButton::clicked, this, &MainWindow::onBrowseOutputClicked);
     connect(m_sliderPosition, &QSlider::sliderMoved, this, &MainWindow::onSliderMoved);
@@ -399,6 +524,19 @@ void MainWindow::BuildUi()
     connect(m_actionModeRaw, &QAction::triggered, this, [this]() { m_radioRaw->setChecked(true); });
     connect(m_radioLive, &QRadioButton::toggled, this, [this](bool checked) { if (checked) m_actionModeLive->setChecked(true); });
     connect(m_radioRaw, &QRadioButton::toggled, this, [this](bool checked) { if (checked) m_actionModeRaw->setChecked(true); });
+
+    // 모드가 바뀌면 소스 텍스트 박스(RAW 경로 <-> 카메라 식별자)를 갈아 끼운다.
+    connect(m_radioLive, &QRadioButton::toggled, this, &MainWindow::onSourceModeToggled);
+
+    // RAW 모드에서 사용자가 경로를 직접 입력하면 m_rawFilePath 백업도 같이 최신화한다
+    // (textEdited는 프로그램적 setText에는 반응하지 않으므로 무한 루프 걱정이 없다).
+    connect(m_editRawPath, &QLineEdit::textEdited, this, [this](const QString& text)
+    {
+        if (!m_radioLive->isChecked())
+        {
+            m_rawFilePath = text;
+        }
+    });
 
     // File > Open File / Set Output Path는 각각 기존 Browse... 버튼과 완전히 같은 동작을 한다.
     connect(m_actionOpenFile, &QAction::triggered, this, &MainWindow::onBrowseRawClicked);
@@ -461,6 +599,14 @@ void MainWindow::UpdateRunButtons()
         m_btnPauseResume->setEnabled(true);
         break;
     }
+
+    // Record/Save 버튼: 녹화 중이면 "Save"(누르면 저장 종료), 아니면 "Record"(누르면 수동 녹화 시작).
+    // 활성화 조건: Live 카메라 모드로 Start된 상태(Running/Paused)일 때만. RAW 재생 모드나 Idle에서는
+    // 수동 녹화가 의미 없으므로 비활성화.
+    m_btnRecordSave->setText(m_manualRecording
+        ? Tr(QStringLiteral("Save"), QStringLiteral("저장"))
+        : Tr(QStringLiteral("Record"), QStringLiteral("녹화")));
+    m_btnRecordSave->setEnabled(m_liveMode && m_runState != RunState::Idle);
 }
 
 QString MainWindow::Tr(const QString& en, const QString& ko) const
@@ -502,13 +648,69 @@ void MainWindow::RetranslateUi()
     m_radioLive->setText(Tr(QStringLiteral("Live camera"), QStringLiteral("라이브 카메라")));
     m_radioRaw->setText(Tr(QStringLiteral("RAW file"), QStringLiteral("RAW 파일")));
     m_btnBrowseRaw->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
+    // 소스 박스의 안내 문구/카메라 식별자 라벨도 새 언어로 다시 채운다.
+    UpdateSourceBox();
 
     m_boxOutput->setTitle(Tr(QStringLiteral("Output"), QStringLiteral("출력")));
     m_btnBrowseOutput->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
 
     m_boxShotTrigger->setTitle(Tr(QStringLiteral("Shot Trigger"), QStringLiteral("샷 트리거")));
 
+    m_boxCalibration->setTitle(Tr(QStringLiteral("Calibration"), QStringLiteral("캘리브레이션")));
+    m_checkCalibMode->setText(Tr(QStringLiteral("Calibration Mode"), QStringLiteral("캘리브레이션 모드")));
+    m_labelAccumMs->setText(Tr(QStringLiteral("Accumulation (ms)"), QStringLiteral("누적 시간 (ms)")));
+    m_editAccumMs->setToolTip(Tr(
+        QStringLiteral(
+            "Temporal window (milliseconds) of events accumulated into one\n"
+            "calibration image. Longer windows give denser edges but blur fast\n"
+            "checkerboard motion. A typical starting point is 50-100 ms; adjust\n"
+            "for your lighting and how fast you move the checkerboard."),
+        QStringLiteral(
+            "하나의 calibration 이미지에 누적할 event 시간 창(밀리초)입니다.\n"
+            "길수록 edge가 촘촘해지지만 빠르게 움직이는 checkerboard는 번져\n"
+            "보입니다. 보통 50~100 ms에서 시작해 조명과 checkerboard 이동\n"
+            "속도에 맞춰 조정합니다.")));
+
+    m_labelCheckerboard->setText(Tr(QStringLiteral("Checkerboard"), QStringLiteral("체커보드")));
+    m_labelCbRows->setText(Tr(QStringLiteral("Rows"), QStringLiteral("행")));
+    m_labelCbCols->setText(Tr(QStringLiteral("Columns"), QStringLiteral("열")));
+    m_labelCbSquareMm->setText(Tr(QStringLiteral("Square (mm)"), QStringLiteral("한 칸 (mm)")));
+    m_editCbRows->setToolTip(Tr(
+        QStringLiteral("Number of INNER corners along the vertical direction\n"
+                       "(squares per column minus 1)."),
+        QStringLiteral("세로 방향 내부 코너 수(세로 칸 수 - 1)입니다.")));
+    m_editCbCols->setToolTip(Tr(
+        QStringLiteral("Number of INNER corners along the horizontal direction\n"
+                       "(squares per row minus 1)."),
+        QStringLiteral("가로 방향 내부 코너 수(가로 칸 수 - 1)입니다.")));
+    m_editCbSquareMm->setToolTip(Tr(
+        QStringLiteral("Physical size of one checkerboard square in millimeters.\n"
+                       "Used later to scale the intrinsic calibration."),
+        QStringLiteral("체커보드 한 칸의 실제 크기(mm)입니다.\n"
+                       "이후 intrinsic calibration의 스케일에 사용됩니다.")));
+
+    m_btnCaptureSample->setText(Tr(QStringLiteral("Capture Sample"), QStringLiteral("샘플 캡처")));
+    m_btnRemoveLastSample->setText(Tr(QStringLiteral("Remove Last"), QStringLiteral("마지막 제거")));
+    m_btnClearSamples->setText(Tr(QStringLiteral("Clear"), QStringLiteral("전체 삭제")));
+    m_btnCaptureSample->setToolTip(Tr(
+        QStringLiteral("Save the checkerboard detected in the most recent calibration\n"
+                       "image as one calibration observation (objectPoints/imagePoints/\n"
+                       "timestamp). Move the board to a new pose before each capture."),
+        QStringLiteral("가장 최근 calibration 이미지에서 검출된 체커보드를 하나의\n"
+                       "observation(objectPoints/imagePoints/timestamp)으로 저장합니다.\n"
+                       "캡처할 때마다 보드를 새로운 pose로 옮기세요.")));
+    UpdateCalibrationSampleUi();
+
+    // 상태 라벨은 실행 상황에 따라 갱신되므로, 여기서는 기본(대기) 문구만 채운다.
+    if (m_calibImageCount == 0)
+    {
+        m_labelCalibStatus->setText(Tr(QStringLiteral("Calibration image: -"),
+                                       QStringLiteral("calibration 이미지: -")));
+    }
+
     m_boxBias->setTitle(Tr(QStringLiteral("Camera Bias"), QStringLiteral("카메라 Bias")));
+    m_btnSaveBias->setText(Tr(QStringLiteral("Save Bias..."), QStringLiteral("Bias 저장...")));
+    m_btnLoadBias->setText(Tr(QStringLiteral("Load Bias..."), QStringLiteral("Bias 불러오기...")));
     UpdateBiasStatusLabel();
 
     // 이미 채워진 bias 행이 있다면(언어를 바꿀 때) 설명 툴팁도 새 언어에 맞게 다시 적용한다.
@@ -612,6 +814,16 @@ void MainWindow::DrawFrame(const cv::Mat& bgrFrame)
     {
         return;
     }
+
+    // 페인트 throttle: 워커가 올리는 프레임 속도(최대 100fps)를 다 그리면 UI가 뒤처져 큐가 쌓이므로,
+    // 마지막 실제 페인트 이후 kMinDrawIntervalMs가 지나지 않았으면 이번 프레임은 그리지 않고 건너뛴다.
+    // (호출부는 프레임 처리를 이미 마친 뒤 이 함수를 부르므로, 건너뛰어도 처리 로직에는 영향이 없다.)
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastDrawMs != 0 && (nowMs - m_lastDrawMs) < kMinDrawIntervalMs)
+    {
+        return;
+    }
+    m_lastDrawMs = nowMs;
 
     const cv::Mat safe = bgrFrame.isContinuous() ? bgrFrame : bgrFrame.clone();
 
@@ -732,6 +944,67 @@ void MainWindow::FinishCaptureSave()
     m_capturingNow = false;
 }
 
+void MainWindow::onRecordSaveClicked()
+{
+    if (m_manualRecording)
+    {
+        StopManualRecord();
+    }
+    else
+    {
+        StartManualRecord();
+    }
+    UpdateRunButtons(); // Record <-> Save 라벨 갱신
+}
+
+void MainWindow::StartManualRecord()
+{
+    // 자동 샷 캡처(shot_*)와 구분되도록 별도 폴더(manual_*)에 저장한다.
+    const QDateTime now = QDateTime::currentDateTime();
+    const QString folder = QStringLiteral("%1/manual_%2")
+        .arg(m_outputDir)
+        .arg(now.toString(QStringLiteral("yyyyMMdd_HHmmss")));
+
+    std::error_code ec;
+    fs::create_directories(ToNativePath(m_outputDir), ec);
+    fs::create_directories(ToNativePath(folder), ec);
+
+    m_manualRecordDir = folder;
+    m_manualRecordFrameIndex = 0;
+    m_manualRecording = true;
+
+    AppendLog(QStringLiteral("Manual recording started: %1").arg(folder));
+}
+
+void MainWindow::SaveManualFrame(const cv::Mat& bgrFrame)
+{
+    if (!m_manualRecording || bgrFrame.empty())
+    {
+        return;
+    }
+
+    const QString filename = QStringLiteral("%1/frame_%2.png")
+        .arg(m_manualRecordDir)
+        .arg(m_manualRecordFrameIndex, 4, 10, QChar('0'));
+
+    cv::imwrite(ToNativePath(filename).string(), bgrFrame);
+
+    ++m_manualRecordFrameIndex;
+}
+
+void MainWindow::StopManualRecord()
+{
+    if (!m_manualRecording)
+    {
+        return;
+    }
+
+    m_manualRecording = false;
+    AppendLog(QStringLiteral("Manual recording saved: %1 frame(s) to %2")
+        .arg(m_manualRecordFrameIndex)
+        .arg(m_manualRecordDir));
+}
+
 void MainWindow::PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg)
 {
     m_preRollBuffer.push_back(msg);
@@ -762,7 +1035,7 @@ void MainWindow::FlushPreRollBuffer(lli impactUs)
 
     m_preRollBuffer.clear();
 
-    AppendLog(QStringLiteral("IMPACT - trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
+    AppendLog(QStringLiteral("Trajectory capture started (%1 pre-roll frame(s))").arg(savedCount));
 }
 
 void MainWindow::onStartStopClicked()
@@ -813,6 +1086,7 @@ void MainWindow::StartStream()
 
     m_activeConfig = ReadConfigFromUI();
     m_trigger = ShotTrigger(m_activeConfig);
+    m_lastLoggedState = ShotState::Searching;  // 새 실행은 트리거 초기 상태(Searching)에서 시작
     m_capturingNow = false;
     m_captureFrameIndex = 0;
     m_preRollBuffer.clear();
@@ -839,16 +1113,33 @@ void MainWindow::StartStream()
     // 콜백은 워커 스레드에서 호출된다. this를 직접 캡처해 호출하는 대신, QMetaObject::invokeMethod의
     // context-object 오버로드를 사용해 UI 스레드로 안전하게 마샬링한다 (this가 이미 파괴되었다면
     // Qt가 알아서 호출을 건너뛴다).
+    // Calibration Mode로 Start하면, 원본 event를 누적할 빌더를 미리 준비하고 볼 검출을 끈다.
+    m_calibImageCount = 0;
+    m_haveLastCalibDetection = false;  // 이전 실행의 검출 캐시를 캡처하지 않도록 초기화
+    m_lastDrawMs = 0;                  // 새 실행의 첫 프레임은 즉시 그리도록 throttle 타이머 리셋
+    if (m_calibrationMode.load())
+    {
+        RecreateCalibrationBuilder();
+    }
+    // Calibration 중에는 BallDetector/ShotTrigger가 필요 없으므로 워커 스레드의 볼 검출을 끈다.
+    m_stream.SetBallDetectionEnabled(!m_calibrationMode.load());
+
     const bool ok = m_stream.Start(
         live ? "" : rawPathStd.c_str(),
         windowUs,
-        [this](const EventProcessingResult& result, lli startUs, lli endUs)
+        [this](const EventProcessingResult& result, const std::vector<Event>& events, lli startUs, lli endUs)
         {
             auto msg = std::make_shared<FrameMessage>();
             msg->frame = result.debugImage.clone();
             msg->ball = result.ball;
             msg->windowStartUs = startUs;
             msg->windowEndUs = endUs;
+
+            // Calibration Mode일 때만 원본 event를 복사해 UI 스레드로 넘긴다(그 외에는 복사 안 함).
+            if (m_calibrationMode.load())
+            {
+                msg->events = events;
+            }
 
             QMetaObject::invokeMethod(this, [this, msg]() { OnFrameReady(msg); }, Qt::QueuedConnection);
         });
@@ -872,7 +1163,7 @@ void MainWindow::StartStream()
     UpdateRunButtons();
     m_labelState->setText(QStringLiteral("SEARCHING"));
     AppendLog(live
-        ? QStringLiteral("Started (live camera) - recording")
+        ? QStringLiteral("Started (live camera) - watching for shots")
         : QStringLiteral("Started (RAW playback)"));
 
     if (live)
@@ -883,6 +1174,9 @@ void MainWindow::StartStream()
     {
         ClearBiasControls();
     }
+
+    // Live 모드면 이제 카메라가 열렸으니 소스 박스에 식별자(시리얼 번호 등)를 채운다.
+    UpdateSourceBox();
 }
 
 void MainWindow::PauseStream()
@@ -971,6 +1265,14 @@ void MainWindow::onPollStreamState()
 
 void MainWindow::StopStream(const QString& logMessage)
 {
+    // 수동 녹화 중에 Stop을 누르면, 녹화하던 것을 먼저 저장 처리(종료)하고 스트림을 멈춘다.
+    // 프레임은 실시간으로 이미 디스크에 기록돼 있으므로, 여기서는 녹화를 마무리(로그 남기고
+    // 상태 해제)만 하면 된다.
+    if (m_manualRecording)
+    {
+        StopManualRecord();
+    }
+
     m_stream.Stop();
     m_running = false;
     m_processingPaused = false;
@@ -984,7 +1286,12 @@ void MainWindow::StopStream(const QString& logMessage)
     m_sliderPosition->setValue(0);
     m_labelTime->setText(QStringLiteral("--:--.- / --:--.-"));
     m_preRollBuffer.clear();
+    m_lastLoggedState = ShotState::Searching;
     ClearBiasControls();
+
+    // 연결이 끊겼으니 소스 박스도 갱신한다(Live 모드면 카메라 식별자 -> 안내 문구로 복귀,
+    // RAW 모드면 마지막 파일 경로 복원). m_running은 위에서 이미 false로 내려간 상태.
+    UpdateSourceBox();
 
     // 처음(까만 화면)으로 되돌린다.
     m_previewPixmap = QPixmap();
@@ -993,7 +1300,19 @@ void MainWindow::StopStream(const QString& logMessage)
     AppendLog(logMessage);
 }
 
-MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bool dynamic)
+QFormLayout* MainWindow::FormColumnForBias(const QString& biasName) const
+{
+    // 왼쪽 열: bias_diff / bias_diff_off / bias_diff_on. 그 외(fo/hpf/refr 및 알려지지 않은
+    // 이름)는 오른쪽 열.
+    static const QStringList kColumn1 = {
+        QStringLiteral("bias_diff"),
+        QStringLiteral("bias_diff_off"),
+        QStringLiteral("bias_diff_on"),
+    };
+    return kColumn1.contains(biasName) ? m_biasFormLeft : m_biasFormRight;
+}
+
+MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bool dynamic, QFormLayout* form)
 {
     auto* container = new QWidget(m_boxBias);
     auto* rowLayout = new QHBoxLayout(container);
@@ -1010,13 +1329,16 @@ MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bo
     connect(slider, &QSlider::valueChanged, this, [this, biasName, valueLabel](int value)
     {
         valueLabel->setText(QString::number(value));
+        // 사용자가 바꾼 값을 기억해 둔다(다음 Start 때 이 값으로 다시 적용됨). 이 핸들러는
+        // 사용자 조작에서만 불린다 - 프로그램적 setValue는 blockSignals로 막아 두므로.
+        m_savedBiasValues[biasName] = value;
         if (!m_stream.SetBias(biasName.toStdString(), value))
         {
             AppendLog(QStringLiteral("Failed to set bias '%1' to %2").arg(biasName).arg(value));
         }
     });
 
-    m_biasFormLayout->addRow(biasName, container);
+    form->addRow(biasName, container);
 
     BiasControlRow row;
     row.biasName = biasName;
@@ -1030,7 +1352,8 @@ MainWindow::BiasControlRow MainWindow::CreateBiasRow(const QString& biasName, bo
     row.valueLabel = valueLabel;
     // addRow(QString, QWidget*)가 내부적으로 만든 이름 라벨은 labelForField()로만 접근할 수
     // 있다 - 슬라이더뿐 아니라 이름 위에 마우스를 올려도 같은 설명이 뜨게 하기 위함.
-    row.nameLabel = m_biasFormLayout->labelForField(container);
+    row.nameLabel = form->labelForField(container);
+    row.form = form;
     row.dynamic = dynamic;
 
     return row;
@@ -1063,13 +1386,23 @@ void MainWindow::UpdateBiasStatusLabel()
              QStringLiteral("연결됨 - 카메라의 실제 값을 표시 중."))
         : Tr(QStringLiteral("Not connected - showing default IMX636 bias placeholders."),
              QStringLiteral("연결 안 됨 - 기본 IMX636 bias 값(자리표시자)을 표시 중.")));
+
+    // 저장/불러오기는 카메라가 실제 연결되어 있을 때만 의미가 있다.
+    if (m_btnSaveBias)
+    {
+        m_btnSaveBias->setEnabled(m_biasConnected);
+    }
+    if (m_btnLoadBias)
+    {
+        m_btnLoadBias->setEnabled(m_biasConnected);
+    }
 }
 
 void MainWindow::SeedBiasPlaceholders()
 {
     for (const QString& biasName : KnownBiasNames())
     {
-        BiasControlRow row = CreateBiasRow(biasName, /*dynamic=*/false);
+        BiasControlRow row = CreateBiasRow(biasName, /*dynamic=*/false, FormColumnForBias(biasName));
         row.slider->setEnabled(false);
         ApplyBiasTooltip(row);
         m_biasRows.push_back(row);
@@ -1089,7 +1422,7 @@ void MainWindow::ClearBiasControls()
     {
         if (row.dynamic)
         {
-            m_biasFormLayout->removeRow(row.container);
+            row.form->removeRow(row.container);
             continue;
         }
 
@@ -1102,7 +1435,7 @@ void MainWindow::ClearBiasControls()
     m_biasRows = std::move(kept);
 }
 
-void MainWindow::PopulateBiasControls()
+void MainWindow::PopulateBiasControls(bool applySaved)
 {
     const std::vector<eventcore::BiasSetting> biases = m_stream.GetBiases();
     if (biases.empty())
@@ -1131,16 +1464,41 @@ void MainWindow::PopulateBiasControls()
         else
         {
             // 알려진 6종에 없는 이름 - 이 카메라/펌웨어가 보고한 추가 bias용 행을 새로 만든다.
-            m_biasRows.push_back(CreateBiasRow(biasName, /*dynamic=*/true));
+            m_biasRows.push_back(CreateBiasRow(biasName, /*dynamic=*/true, FormColumnForBias(biasName)));
             row = &m_biasRows.back();
+        }
+
+        // 표시/적용할 값 결정.
+        int targetValue = bias.value;
+        if (bias.modifiable)
+        {
+            const auto savedIt = m_savedBiasValues.find(biasName);
+            if (applySaved && savedIt != m_savedBiasValues.end())
+            {
+                // 기억해 둔 값(기본값 또는 사용자가 마지막으로 바꾼 값)을 카메라 범위 안으로
+                // clamp해서 카메라에 적용한다.
+                targetValue = std::clamp(savedIt.value(), bias.minValue, bias.maxValue);
+                if (targetValue != bias.value && !m_stream.SetBias(bias.name, targetValue))
+                {
+                    // 적용 실패 시(범위 밖 등) 카메라가 실제로 들고 있는 값으로 되돌린다.
+                    targetValue = bias.value;
+                }
+                m_savedBiasValues[biasName] = targetValue;
+            }
+            else if (!applySaved)
+            {
+                // .bias 파일 로드 직후 등: 카메라에 이미 반영된 값을 그대로 반영하고, 기억 값도
+                // 그 값으로 채택한다(다음 Start 때 로드된 값이 유지되도록).
+                m_savedBiasValues[biasName] = targetValue;
+            }
         }
 
         row->slider->blockSignals(true);
         row->slider->setRange(bias.minValue, bias.maxValue);
-        row->slider->setValue(bias.value);
+        row->slider->setValue(targetValue);
         row->slider->setEnabled(bias.modifiable);
         row->slider->blockSignals(false);
-        row->valueLabel->setText(QString::number(bias.value));
+        row->valueLabel->setText(QString::number(targetValue));
 
         // HAL이 실제 영어 설명을 보고했다면(비어 있지 않다면) 그 원문으로 덮어쓴다 - 연결 전
         // 자리표시자로 채워 뒀던 우리 설명보다 이쪽이 진짜 출처 있는 정보이므로 우선한다.
@@ -1163,8 +1521,149 @@ void MainWindow::onBrowseRawClicked()
 
     if (!path.isEmpty())
     {
-        m_editRawPath->setText(path);
+        // m_rawFilePath를 먼저 갱신해 둔다: 아래 setChecked(true)가 RAW 모드로 전환하면서
+        // onSourceModeToggled -> UpdateSourceBox()로 이 값을 박스에 복원하기 때문. 이미 RAW
+        // 모드였다면 toggle 신호가 안 나므로 setText로 직접 표시도 해 준다.
+        m_rawFilePath = path;
         m_radioRaw->setChecked(true);
+        m_editRawPath->setText(path);
+    }
+}
+
+void MainWindow::onSaveBiasClicked()
+{
+    if (!m_biasConnected)
+    {
+        return;
+    }
+
+    QString path = QFileDialog::getSaveFileName(
+        this,
+        Tr(QStringLiteral("Save bias file"), QStringLiteral("Bias 파일 저장")),
+        QStringLiteral("camera.bias"),
+        Tr(QStringLiteral("Metavision bias (*.bias);;All Files (*)"), QStringLiteral("Metavision bias (*.bias);;모든 파일 (*)")));
+
+    if (path.isEmpty())
+    {
+        return;
+    }
+
+    // 확장자를 안 붙였으면 .bias를 붙여 준다.
+    if (!path.endsWith(QStringLiteral(".bias"), Qt::CaseInsensitive))
+    {
+        path += QStringLiteral(".bias");
+    }
+
+    if (m_stream.SaveBiasesToFile(ToUtf8(path)))
+    {
+        AppendLog(QStringLiteral("Saved bias file: %1").arg(path));
+    }
+    else
+    {
+        AppendLog(QStringLiteral("Failed to save bias file: %1").arg(path));
+    }
+}
+
+void MainWindow::onLoadBiasClicked()
+{
+    if (!m_biasConnected)
+    {
+        return;
+    }
+
+    const QString path = QFileDialog::getOpenFileName(
+        this,
+        Tr(QStringLiteral("Load bias file"), QStringLiteral("Bias 파일 불러오기")),
+        QString(),
+        Tr(QStringLiteral("Metavision bias (*.bias);;All Files (*)"), QStringLiteral("Metavision bias (*.bias);;모든 파일 (*)")));
+
+    if (path.isEmpty())
+    {
+        return;
+    }
+
+    if (m_stream.LoadBiasesFromFile(ToUtf8(path)))
+    {
+        // 파일 값이 카메라에 이미 적용됐으니, 기억 값을 덮어쓰지 말고 카메라 현재 값을 그대로
+        // 슬라이더에 반영한다(applySaved=false). 이렇게 하면 로드한 값이 기억 값이 되어 이후
+        // Start/Stop에도 유지된다.
+        PopulateBiasControls(/*applySaved=*/false);
+        AppendLog(QStringLiteral("Loaded bias file: %1").arg(path));
+    }
+    else
+    {
+        AppendLog(QStringLiteral("Failed to load bias file: %1").arg(path));
+    }
+}
+
+void MainWindow::onSourceModeToggled(bool liveChecked)
+{
+    if (liveChecked)
+    {
+        // 라이브로 전환하기 직전, 박스에 보이던 RAW 경로를 기억해 둔다(라이브 동안에는 카메라
+        // 식별자를 대신 표시하므로 박스 내용이 덮어써짐).
+        m_rawFilePath = m_editRawPath->text();
+    }
+    UpdateSourceBox();
+}
+
+QString MainWindow::FormatCameraIdentifier() const
+{
+    // 라이브 카메라로 실제 연결되어 있을 때만 식별자를 만들 수 있다.
+    if (!(m_running && m_liveMode))
+    {
+        return QString();
+    }
+
+    const eventcore::CameraInfo info = m_stream.GetCameraInfo();
+
+    const QString serial = QString::fromStdString(info.serialNumber);
+
+    // 시리얼 라벨은 UI 문구라 언어 설정을 따르고, 값 자체는 하드웨어가 보고한 그대로 둔다.
+    QString id = serial.isEmpty()
+        ? Tr(QStringLiteral("(serial number unavailable)"), QStringLiteral("(시리얼 번호 없음)"))
+        : Tr(QStringLiteral("Serial: %1"), QStringLiteral("시리얼: %1")).arg(serial);
+
+    QStringList extras;
+    if (!info.integrator.empty())
+    {
+        extras << QString::fromStdString(info.integrator);
+    }
+    if (!info.generationName.empty())
+    {
+        extras << QStringLiteral("Gen %1").arg(QString::fromStdString(info.generationName));
+    }
+    if (!extras.isEmpty())
+    {
+        id += QStringLiteral(" (%1)").arg(extras.join(QStringLiteral(", ")));
+    }
+
+    return id;
+}
+
+void MainWindow::UpdateSourceBox()
+{
+    const bool live = m_radioLive->isChecked();
+
+    if (live)
+    {
+        // Live 모드: 사용자가 경로를 입력할 대상이 아니라 카메라 정보를 보여주는 자리이므로
+        // 읽기 전용 + Browse 비활성화. 연결(Start)되면 식별자, 아니면 안내 문구만.
+        m_editRawPath->setReadOnly(true);
+        m_btnBrowseRaw->setEnabled(false);
+        m_editRawPath->setText(FormatCameraIdentifier());
+        m_editRawPath->setPlaceholderText(Tr(
+            QStringLiteral("Camera identifier appears here once connected (press Start)"),
+            QStringLiteral("연결되면 카메라 식별자가 여기에 표시됩니다 (Start 누르기)")));
+    }
+    else
+    {
+        m_editRawPath->setReadOnly(false);
+        m_btnBrowseRaw->setEnabled(true);
+        m_editRawPath->setText(m_rawFilePath);
+        m_editRawPath->setPlaceholderText(Tr(
+            QStringLiteral("Select a RAW file..."),
+            QStringLiteral("RAW 파일을 선택하세요...")));
     }
 }
 
@@ -1284,6 +1783,23 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
 
     m_gotFirstFrame = true;
 
+    // Calibration Mode: 원본 event를 누적해 calibration 이미지를 표시하는 별도 경로.
+    // ShotTrigger/BallDetector/녹화 로직은 전혀 실행하지 않는다(기존 동작에 영향 없음).
+    if (m_calibrationMode.load())
+    {
+        // RAW 재생 중 seek 슬라이더/시간 표시는 그대로 갱신한다(사용자 편의).
+        if (m_seekRangeKnown && !m_sliderPosition->isSliderDown())
+        {
+            m_sliderPosition->blockSignals(true);
+            m_sliderPosition->setValue(TimestampToSliderValue(msg->windowStartUs));
+            m_sliderPosition->blockSignals(false);
+        }
+        UpdateTimeLabel(msg->windowStartUs);
+
+        OnCalibrationFrame(msg);
+        return;
+    }
+
     DrawFrame(msg->frame);
 
     if (m_processingPaused)
@@ -1304,19 +1820,31 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
     }
     UpdateTimeLabel(msg->windowStartUs);
 
+    // 수동 녹화 중이면(자동 샷 캡처와 별개로) 매 프레임을 저장한다. pause 중에는 위에서 이미
+    // return하므로 여기 오지 않아, 라이브 pause가 곧 수동 녹화 일시정지가 된다.
+    if (m_manualRecording)
+    {
+        SaveManualFrame(msg->frame);
+    }
+
     const ShotUpdateResult su = m_trigger.Update(msg->ball, msg->windowStartUs);
     UpdateStateLabel(su.state);
+
+    // 상태가 바뀔 때마다 전이를 로그에 남긴다(SEARCHING/READY/IMPACT/TRJCT 모두). 로그는 언어
+    // 설정과 무관하게 항상 영어 상태 코드로 남긴다.
+    if (su.state != m_lastLoggedState)
+    {
+        AppendLog(QStringLiteral("State: %1 -> %2")
+            .arg(FormatShotState(m_lastLoggedState))
+            .arg(FormatShotState(su.state)));
+        m_lastLoggedState = su.state;
+    }
 
     // Trajectory 상태(TRJCT)에 들어가기 전까지의 모든 프레임은 Impact가 언제 확정될지 몰라도
     // 미리 링 버퍼에 쌓아 둔다. Impact가 확정되면 이 버퍼에서 preCaptureSeconds 분량을 저장한다.
     if (su.state != ShotState::Trajectory)
     {
         PushPreRollFrame(msg);
-    }
-
-    if (su.justEnteredReady)
-    {
-        AppendLog(QStringLiteral("READY"));
     }
 
     if (su.justTriggered)
@@ -1337,4 +1865,217 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
             .arg(m_currentCaptureDir));
         FinishCaptureSave();
     }
+}
+
+void MainWindow::RecreateCalibrationBuilder()
+{
+    eventcore::CalibrationImageConfig cfg;
+
+    double ms = m_editAccumMs ? m_editAccumMs->text().toDouble() : 50.0;
+    if (ms <= 0.0)
+    {
+        ms = 50.0;  // 잘못된 입력이면 기본값으로 되돌린다(빌더 내부에서도 최소값으로 한 번 더 클램프됨).
+    }
+    cfg.accumulationUs = static_cast<lli>(ms * 1000.0);
+
+    // 스트림이 열려 있으면 실제 센서 해상도를, 아니면 IMX636 기본 해상도(WIDTH/HEIGHT)를 쓴다.
+    const int w = m_stream.Width() > 0 ? m_stream.Width() : WIDTH;
+    const int h = m_stream.Height() > 0 ? m_stream.Height() : HEIGHT;
+
+    m_calibBuilder = std::make_unique<eventcore::CalibrationImageBuilder>(cfg, w, h);
+    m_calibImageCount = 0;
+}
+
+void MainWindow::OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg)
+{
+    if (!m_calibBuilder)
+    {
+        RecreateCalibrationBuilder();
+    }
+    if (!m_calibBuilder)
+    {
+        return;
+    }
+
+    const bool ready = m_calibBuilder->AddEvents(msg->events, msg->windowStartUs, msg->windowEndUs);
+    if (!ready)
+    {
+        return;
+    }
+
+    // 완성된 단일 채널 calibration 이미지를 프리뷰 표시용 BGR로 변환한다(DrawFrame은 CV_8UC3 기대).
+    const cv::Mat& gray = m_calibBuilder->Image();
+    if (gray.empty())
+    {
+        return;
+    }
+
+    cv::Mat bgr;
+    cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
+
+    // Checkerboard 검출 후 코너 오버레이(성공/실패 모두 표시). 검출은 완성 이미지마다(=Δt마다)만
+    // 수행되므로 부하가 매 프레임은 아니다.
+    // 라이브 오버레이는 가벼운 검출(thorough=false)만 사용해 스트리밍을 느리게 하지 않는다.
+    // 정밀 검출은 Capture 순간에만 수행한다(onCaptureSampleClicked).
+    const eventcore::CheckerboardConfig cb = ReadCheckerboardConfigFromUI();
+    const eventcore::CheckerboardDetection det = eventcore::CheckerboardDetector::Detect(gray, cb, /*thorough=*/false);
+    eventcore::CheckerboardDetector::DrawCorners(bgr, cb, det);
+
+    // 수동 Capture를 위해 가장 최근 검출 결과와 이미지를 캐시한다(성공 여부와 무관; Capture 시 found 확인).
+    m_lastCalibDetection = det;
+    m_lastCalibConfig = cb;
+    m_lastCalibFrameUs = msg->windowStartUs;
+    m_lastCalibImage = gray.clone();
+    m_haveLastCalibDetection = true;
+
+    DrawFrame(bgr);
+
+    ++m_calibImageCount;
+
+    const double accumMs = static_cast<double>(m_calibBuilder->Config().accumulationUs) / 1000.0;
+    const int expectedCorners = cb.innerCornerRows * cb.innerCornerCols;
+    if (det.found)
+    {
+        m_labelCalibStatus->setText(Tr(
+            QStringLiteral("Detected: YES (%1/%2 corners) - image #%3 (Δt=%4 ms)"),
+            QStringLiteral("검출: 성공 (코너 %1/%2) - 이미지 #%3 (Δt=%4 ms)"))
+            .arg(static_cast<int>(det.corners.size()))
+            .arg(expectedCorners)
+            .arg(m_calibImageCount)
+            .arg(accumMs, 0, 'f', 0));
+    }
+    else
+    {
+        m_labelCalibStatus->setText(Tr(
+            QStringLiteral("Detected: NO - image #%1 (Δt=%2 ms)"),
+            QStringLiteral("검출: 실패 - 이미지 #%1 (Δt=%2 ms)"))
+            .arg(m_calibImageCount)
+            .arg(accumMs, 0, 'f', 0));
+    }
+}
+
+eventcore::CheckerboardConfig MainWindow::ReadCheckerboardConfigFromUI() const
+{
+    eventcore::CheckerboardConfig cfg;
+    cfg.innerCornerRows = std::max(2, m_editCbRows->text().toInt());
+    cfg.innerCornerCols = std::max(2, m_editCbCols->text().toInt());
+
+    const double sq = m_editCbSquareMm->text().toDouble();
+    cfg.squareSizeMm = sq > 0.0 ? sq : 25.0;
+
+    return cfg;
+}
+
+void MainWindow::onCaptureSampleClicked()
+{
+    if (!m_haveLastCalibDetection)
+    {
+        AppendLog(QStringLiteral("Capture failed: no calibration image yet"));
+        return;
+    }
+
+    // 저장 시에는 정밀(thorough) 검출을 한 번 수행해 최상의 코너를 얻는다(라이브 경로는 빠른 검출만 함).
+    eventcore::CheckerboardDetection det = m_lastCalibDetection;
+    if (!m_lastCalibImage.empty())
+    {
+        const eventcore::CheckerboardDetection thorough =
+            eventcore::CheckerboardDetector::Detect(m_lastCalibImage, m_lastCalibConfig, /*thorough=*/true);
+        if (thorough.found)
+        {
+            det = thorough;
+        }
+    }
+
+    if (!det.found)
+    {
+        AppendLog(QStringLiteral("Capture failed: no checkerboard detected in the current image"));
+        return;
+    }
+
+    const bool ok = m_calibSamples.AddSample(m_lastCalibConfig, det, m_lastCalibFrameUs);
+    if (!ok)
+    {
+        // 가장 흔한 실패 원인: 이미 수집된 샘플과 체커보드 설정(rows/cols/square)이 달라짐.
+        AppendLog(QStringLiteral("Capture failed: checkerboard settings differ from collected samples "
+                                 "(press Clear first), or detection was invalid"));
+        return;
+    }
+
+    AppendLog(QStringLiteral("Captured sample #%1 (%2 corners) at t=%3 us")
+        .arg(m_calibSamples.Count())
+        .arg(det.corners.size())
+        .arg(m_lastCalibFrameUs));
+    UpdateCalibrationSampleUi();
+}
+
+void MainWindow::onRemoveLastSampleClicked()
+{
+    if (m_calibSamples.RemoveLast())
+    {
+        AppendLog(QStringLiteral("Removed last sample (remaining: %1)").arg(m_calibSamples.Count()));
+    }
+    UpdateCalibrationSampleUi();
+}
+
+void MainWindow::onClearSamplesClicked()
+{
+    m_calibSamples.Clear();
+    AppendLog(QStringLiteral("Cleared all calibration samples"));
+    UpdateCalibrationSampleUi();
+}
+
+void MainWindow::UpdateCalibrationSampleUi()
+{
+    const size_t count = m_calibSamples.Count();
+
+    if (m_labelSamples)
+    {
+        m_labelSamples->setText(Tr(QStringLiteral("Samples: %1"), QStringLiteral("샘플: %1"))
+            .arg(static_cast<int>(count)));
+    }
+
+    // Capture는 calibration 모드일 때만, Remove/Clear는 샘플이 있을 때만 활성화.
+    const bool calibOn = m_calibrationMode.load();
+    if (m_btnCaptureSample)
+    {
+        m_btnCaptureSample->setEnabled(calibOn);
+    }
+    if (m_btnRemoveLastSample)
+    {
+        m_btnRemoveLastSample->setEnabled(count > 0);
+    }
+    if (m_btnClearSamples)
+    {
+        m_btnClearSamples->setEnabled(count > 0);
+    }
+}
+
+void MainWindow::onCalibrationModeToggled(bool checked)
+{
+    m_calibrationMode.store(checked);
+
+    // 재생 중에도 즉시 반영된다: calibration 중에는 워커 스레드의 볼 검출을 끄고, 해제하면 다시 켠다.
+    m_stream.SetBallDetectionEnabled(!checked);
+
+    if (checked)
+    {
+        // 실행 중이면 즉시 빌더를 준비해 다음 프레임부터 누적을 시작한다.
+        if (m_runState != RunState::Idle)
+        {
+            RecreateCalibrationBuilder();
+        }
+        AppendLog(QStringLiteral("Calibration mode ON (accumulation %1 ms) - ball detection / shot trigger paused")
+            .arg(m_editAccumMs->text()));
+    }
+    else
+    {
+        m_calibBuilder.reset();
+        m_haveLastCalibDetection = false;  // 캐시된 검출 결과 무효화(다음 Capture는 새 프레임을 요구)
+        m_labelCalibStatus->setText(Tr(QStringLiteral("Calibration image: -"),
+                                       QStringLiteral("calibration 이미지: -")));
+        AppendLog(QStringLiteral("Calibration mode OFF - ball detection / shot trigger resumed"));
+    }
+
+    // 수집된 샘플(m_calibSamples)은 유지하고, 버튼 활성화 상태만 모드에 맞게 갱신한다.
+    UpdateCalibrationSampleUi();
 }

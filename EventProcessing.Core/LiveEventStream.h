@@ -28,6 +28,17 @@ namespace eventcore
         bool modifiable = false;
     };
 
+    // 현재 열려 있는 소스(라이브 카메라 또는 RAW 파일을 녹화한 원본 카메라)의 식별 정보.
+    // Metavision::CameraConfiguration에서 그대로 가져온다. RAW 재생 시에도 파일에 기록된 원본
+    // 카메라 정보가 들어 있을 수 있다. 스트림이 열려 있지 않으면 모든 필드가 비어 있다.
+    struct CameraInfo
+    {
+        std::string serialNumber;    // 카메라 고유 시리얼 번호(고유 식별자)
+        std::string generationName;  // 센서 세대 이름(예: "4.1")
+        std::string integrator;      // 통합사(제조사) 이름
+        std::string pluginName;      // 이 카메라를 연 HAL 플러그인 이름
+    };
+
     // 실시간 라이브 카메라 또는 RAW 파일의 실시간(real_time_playback) 재생 스트림.
     // windowUs 간격(대략적인 화면 갱신 주기)마다 그 사이 수신된 이벤트를 EventProcessor::Process로
     // 누적/분석해 콜백으로 전달한다.
@@ -37,7 +48,11 @@ namespace eventcore
     class LiveEventStream
     {
     public:
-        using FrameCallback = std::function<void(const EventProcessingResult& result, lli windowStartUs, lli windowEndUs)>;
+        // result: 기존과 동일한 누적/분석 결과(ShotTrigger 등이 쓰는 것).
+        // events: 이 윈도우에서 수신된 원본 event 배치. calibration image builder처럼 원본 event가
+        //         필요한 소비자를 위해 함께 전달한다(EventProcessor::Process 동작은 바뀌지 않음).
+        //         참조는 콜백이 반환될 때까지만 유효하므로, 이후에도 보관하려면 복사해야 한다.
+        using FrameCallback = std::function<void(const EventProcessingResult& result, const std::vector<Event>& events, lli windowStartUs, lli windowEndUs)>;
 
         LiveEventStream();
         ~LiveEventStream();
@@ -90,8 +105,26 @@ namespace eventcore
         // 않으면 false를 반환한다.
         bool SetBias(const std::string& biasName, int value);
 
+        // 현재 카메라의 모든 bias를 .bias 파일로 저장한다(I_LL_Biases::save_to_file). 성공 시 true.
+        // path는 UTF-8 인코딩(한글 등 비ASCII 경로도 허용). 파실리티가 없거나 실패하면 false.
+        bool SaveBiasesToFile(const std::string& utf8Path);
+
+        // .bias 파일에서 bias를 읽어 카메라에 적용한다(I_LL_Biases::load_from_file). 성공 시 true.
+        // path는 UTF-8 인코딩. 파실리티가 없거나 파일이 없거나 실패하면 false.
+        bool LoadBiasesFromFile(const std::string& utf8Path);
+
+        // 현재 열려 있는 소스의 식별 정보(시리얼 번호 등)를 가져온다. 스트림이 열려 있지 않거나
+        // 정보를 얻지 못하면 모든 필드가 빈 CameraInfo를 반환한다.
+        CameraInfo GetCameraInfo() const;
+
         int Width() const { return m_width; }
         int Height() const { return m_height; }
+
+        // 각 윈도우 처리 시 볼 검출(EventProcessor의 noise 필터/BallDetector/오버레이)을 켤지 끌지.
+        // 재생 중에도 즉시 반영된다(WindowLoop가 매 윈도우마다 읽음). 기본값 true.
+        // Calibration Mode처럼 볼 검출이 필요 없을 때 GUI가 이를 꺼서 불필요한 검출을 막는다.
+        void SetBallDetectionEnabled(bool enabled) { m_ballDetectionEnabled = enabled; }
+        bool IsBallDetectionEnabled() const { return m_ballDetectionEnabled; }
 
         // Start()가 false를 반환했을 때, 실패 원인(SDK 예외 메시지 등)을 확인한다.
         const std::string& LastError() const { return m_lastError; }
@@ -103,6 +136,7 @@ namespace eventcore
         std::thread m_windowThread;
         std::atomic<bool> m_running{ false };
         std::atomic<bool> m_paused{ false };
+        std::atomic<bool> m_ballDetectionEnabled{ true };
 
         // WindowLoop가 마지막으로 처리한 배치의 끝 시각. Resume()이 seek로 되돌아갈 지점.
         std::atomic<lli> m_lastProcessedUs{ 0 };

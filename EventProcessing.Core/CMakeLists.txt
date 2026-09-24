@@ -1,5 +1,8 @@
 set(EVENTCORE_SOURCES
     BallDetector.cpp
+    CalibrationImageBuilder.cpp
+    CalibrationObservation.cpp
+    CheckerboardDetector.cpp
     CsvEventSource.cpp
     EventAccumulator.cpp
     EventFilter.cpp
@@ -14,6 +17,10 @@ set(EVENTCORE_SOURCES
 
 set(EVENTCORE_HEADERS
     BallDetector.h
+    CalibrationImageBuilder.h
+    CalibrationObservation.h
+    CalibrationTypes.h
+    CheckerboardDetector.h
     CsvEventSource.h
     Event.h
     EventAccumulator.h
