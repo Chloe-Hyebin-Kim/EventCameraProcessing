@@ -120,6 +120,12 @@ namespace eventcore
         int Width() const { return m_width; }
         int Height() const { return m_height; }
 
+        // 각 윈도우 처리 시 볼 검출(EventProcessor의 noise 필터/BallDetector/오버레이)을 켤지 끌지.
+        // 재생 중에도 즉시 반영된다(WindowLoop가 매 윈도우마다 읽음). 기본값 true.
+        // Calibration Mode처럼 볼 검출이 필요 없을 때 GUI가 이를 꺼서 불필요한 검출을 막는다.
+        void SetBallDetectionEnabled(bool enabled) { m_ballDetectionEnabled = enabled; }
+        bool IsBallDetectionEnabled() const { return m_ballDetectionEnabled; }
+
         // Start()가 false를 반환했을 때, 실패 원인(SDK 예외 메시지 등)을 확인한다.
         const std::string& LastError() const { return m_lastError; }
 
@@ -130,6 +136,7 @@ namespace eventcore
         std::thread m_windowThread;
         std::atomic<bool> m_running{ false };
         std::atomic<bool> m_paused{ false };
+        std::atomic<bool> m_ballDetectionEnabled{ true };
 
         // WindowLoop가 마지막으로 처리한 배치의 끝 시각. Resume()이 seek로 되돌아갈 지점.
         std::atomic<lli> m_lastProcessedUs{ 0 };

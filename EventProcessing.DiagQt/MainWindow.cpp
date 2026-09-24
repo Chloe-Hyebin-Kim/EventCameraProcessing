@@ -1015,12 +1015,14 @@ void MainWindow::StartStream()
     // 콜백은 워커 스레드에서 호출된다. this를 직접 캡처해 호출하는 대신, QMetaObject::invokeMethod의
     // context-object 오버로드를 사용해 UI 스레드로 안전하게 마샬링한다 (this가 이미 파괴되었다면
     // Qt가 알아서 호출을 건너뛴다).
-    // Calibration Mode로 Start하면, 원본 event를 누적할 빌더를 미리 준비한다.
+    // Calibration Mode로 Start하면, 원본 event를 누적할 빌더를 미리 준비하고 볼 검출을 끈다.
     m_calibImageCount = 0;
     if (m_calibrationMode.load())
     {
         RecreateCalibrationBuilder();
     }
+    // Calibration 중에는 BallDetector/ShotTrigger가 필요 없으므로 워커 스레드의 볼 검출을 끈다.
+    m_stream.SetBallDetectionEnabled(!m_calibrationMode.load());
 
     const bool ok = m_stream.Start(
         live ? "" : rawPathStd.c_str(),
@@ -1826,6 +1828,9 @@ void MainWindow::onCalibrationModeToggled(bool checked)
 {
     m_calibrationMode.store(checked);
 
+    // 재생 중에도 즉시 반영된다: calibration 중에는 워커 스레드의 볼 검출을 끄고, 해제하면 다시 켠다.
+    m_stream.SetBallDetectionEnabled(!checked);
+
     if (checked)
     {
         // 실행 중이면 즉시 빌더를 준비해 다음 프레임부터 누적을 시작한다.
@@ -1833,7 +1838,7 @@ void MainWindow::onCalibrationModeToggled(bool checked)
         {
             RecreateCalibrationBuilder();
         }
-        AppendLog(QStringLiteral("Calibration mode ON (accumulation %1 ms) - shot trigger paused")
+        AppendLog(QStringLiteral("Calibration mode ON (accumulation %1 ms) - ball detection / shot trigger paused")
             .arg(m_editAccumMs->text()));
     }
     else
@@ -1841,6 +1846,6 @@ void MainWindow::onCalibrationModeToggled(bool checked)
         m_calibBuilder.reset();
         m_labelCalibStatus->setText(Tr(QStringLiteral("Calibration image: -"),
                                        QStringLiteral("calibration 이미지: -")));
-        AppendLog(QStringLiteral("Calibration mode OFF - shot trigger resumed"));
+        AppendLog(QStringLiteral("Calibration mode OFF - ball detection / shot trigger resumed"));
     }
 }

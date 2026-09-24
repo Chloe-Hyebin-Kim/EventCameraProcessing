@@ -521,7 +521,7 @@ namespace eventcore
             runningClockUs = batchEnd;
             m_lastProcessedUs = batchEnd;
 
-            const EventProcessingResult result = EventProcessor::Process(batch, m_width, m_height, batchStart, batchEnd - batchStart);
+            const EventProcessingResult result = EventProcessor::Process(batch, m_width, m_height, batchStart, batchEnd - batchStart, m_ballDetectionEnabled.load());
 
             if (callback)
             {
