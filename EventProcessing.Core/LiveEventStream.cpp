@@ -525,7 +525,7 @@ namespace eventcore
 
             if (callback)
             {
-                callback(result, batchStart, batchEnd);
+                callback(result, batch, batchStart, batchEnd);
             }
         }
 

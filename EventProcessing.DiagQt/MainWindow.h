@@ -10,12 +10,19 @@
 #include <QString>
 #include <QWidget>
 
+#include <atomic>
 #include <deque>
 #include <memory>
 #include <vector>
 
+namespace eventcore
+{
+    class CalibrationImageBuilder;  // Calibration/이미지 빌더(원본 event 누적). 구현은 .cpp에서 include.
+}
+
 QT_BEGIN_NAMESPACE
 class QAction;
+class QCheckBox;
 class QFormLayout;
 class QGroupBox;
 class QKeyEvent;
@@ -36,6 +43,10 @@ struct FrameMessage
     eventcore::BallDetectionResult ball;
     eventcore::lli windowStartUs = 0;
     eventcore::lli windowEndUs = 0;
+
+    // Calibration Mode일 때만 채워진다(그 외에는 빈 벡터로 두어 불필요한 복사를 피한다).
+    // 원본 event를 UI 스레드의 CalibrationImageBuilder로 넘기기 위한 스냅샷.
+    std::vector<eventcore::Event> events;
 };
 
 // Qt Widgets 기반 Live/RAW Diagnostic Viewer. Windows/Linux(및 다른 Qt 지원 플랫폼)에서
@@ -68,6 +79,9 @@ private slots:
     // 현재 카메라 bias 조합을 .bias 파일로 저장 / 파일에서 불러와 적용.
     void onSaveBiasClicked();
     void onLoadBiasClicked();
+    // Calibration Mode 체크박스 토글. 켜지면 원본 event를 누적해 calibration 이미지를 화면에
+    // 표시하고(ShotTrigger/BallDetector 경로는 건너뜀), 끄면 기존 동작으로 복귀한다.
+    void onCalibrationModeToggled(bool checked);
 
 private:
     // 버튼 두 개, 각각 두 가지 역할을 겸한다:
@@ -156,6 +170,13 @@ private:
     // QMetaObject::invokeMethod(..., Qt::QueuedConnection)로 UI 스레드에 마샬링해서 처리한다.
     void OnFrameReady(std::shared_ptr<FrameMessage> msg);
 
+    // Calibration Mode 전용 프레임 처리(UI 스레드). msg->events를 CalibrationImageBuilder에
+    // 누적하고, Δt가 차서 이미지가 완성되면 그 polarity 이미지를 프리뷰에 표시한다.
+    // ShotTrigger/BallDetector/녹화 경로는 전혀 건드리지 않는다.
+    void OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg);
+    // 현재 UI의 Accumulation(ms)와 스트림 해상도로 CalibrationImageBuilder를 새로 만든다.
+    void RecreateCalibrationBuilder();
+
     void SeekTo(eventcore::lli timestampUs);
     eventcore::lli SliderValueToTimestamp(int value) const;
     int TimestampToSliderValue(eventcore::lli timestampUs) const;
@@ -169,6 +190,12 @@ private:
     RunState m_runState = RunState::Idle;
     AppLanguage m_language = AppLanguage::English;
     bool m_liveMode = false;
+
+    // Calibration Mode 상태. m_calibrationMode는 워커 스레드(Start 콜백)에서 읽고 UI 스레드에서
+    // 쓰므로 atomic으로 둔다. 원본 event 복사는 이 플래그가 켜져 있을 때만 수행한다.
+    std::atomic<bool> m_calibrationMode{ false };
+    std::unique_ptr<eventcore::CalibrationImageBuilder> m_calibBuilder;
+    int m_calibImageCount = 0;  // 이번 실행에서 완성된 calibration 이미지 수(상태 표시용)
 
     // 마지막으로 로그에 남긴 샷 상태. 매 프레임 ShotTrigger가 돌려주는 상태가 이 값과 다르면
     // 상태 전이로 보고 로그에 한 줄 남긴다(READY뿐 아니라 SEARCHING/IMPACT/TRJCT 전이 모두).
@@ -229,6 +256,14 @@ private:
     QGroupBox* m_boxSource = nullptr;
     QGroupBox* m_boxOutput = nullptr;
     QGroupBox* m_boxShotTrigger = nullptr;
+
+    // Calibration Mode UI(Phase 1: 모드 토글 + 누적 시간 + 상태 표시). Capture/Run 등 나머지 버튼은
+    // 이후 Phase에서 추가한다.
+    QGroupBox* m_boxCalibration = nullptr;
+    QCheckBox* m_checkCalibMode = nullptr;
+    QLabel* m_labelAccumMs = nullptr;
+    QLineEdit* m_editAccumMs = nullptr;
+    QLabel* m_labelCalibStatus = nullptr;
 
     // Camera Bias (Metavision HAL I_LL_Biases). IMX636의 알려진 표준 bias 6종은 앱 시작 시부터
     // 비활성화된 자리표시자 슬라이더로 항상 보이고(SeedBiasPlaceholders()), 라이브 카메라가

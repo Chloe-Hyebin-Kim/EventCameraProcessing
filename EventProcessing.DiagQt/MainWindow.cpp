@@ -1,9 +1,11 @@
 #include "MainWindow.h"
 
 #include "Utf8Path.h"
+#include "CalibrationImageBuilder.h"
 
 #include <QAction>
 #include <QActionGroup>
+#include <QCheckBox>
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QDialog>
@@ -155,6 +157,9 @@ MainWindow::MainWindow(QWidget* parent)
     m_editMaxDirDeviationDeg->setText(QStringLiteral("35"));
     m_editMissToleranceMs->setText(QStringLiteral("150"));
     m_editWindowUs->setText(QStringLiteral("10000"));
+    // Calibration 누적 시간 초기 기본값 50 ms(실험용 시작값, 변경 가능). 하드코딩된 상수가 아니라
+    // 이 입력 필드 값이 CalibrationImageBuilder로 전달된다.
+    m_editAccumMs->setText(QStringLiteral("50"));
 
     // bias 기본값(연결 시 카메라에 적용됨). 사용자가 슬라이더로 바꾸면 이 값이 갱신되어,
     // 프로그램이 켜져 있는 동안 Start/Stop을 반복해도 마지막 값이 유지된다.
@@ -331,6 +336,38 @@ void MainWindow::BuildUi()
     paramLayout->addWidget(m_editWindowUs, 2, 5);
 
     root->addWidget(m_boxShotTrigger);
+
+    // --- Calibration (Phase 1: 모드 토글 + 누적 시간 + 상태) ---
+    // Calibration Mode가 켜지면 원본 event를 Δt(누적 시간)만큼 모아 polarity 기반 calibration
+    // 이미지를 만들어 프리뷰에 표시한다. 이 모드에서는 ShotTrigger/BallDetector 경로를 건너뛰므로,
+    // 기존 샷 감지/녹화 동작에 영향을 주지 않는다.
+    m_boxCalibration = new QGroupBox(this);
+    auto* calibLayout = new QHBoxLayout(m_boxCalibration);
+
+    m_checkCalibMode = new QCheckBox(m_boxCalibration);
+    m_labelAccumMs = new QLabel(m_boxCalibration);
+    m_editAccumMs = new QLineEdit(m_boxCalibration);
+    m_editAccumMs->setMaximumWidth(80);
+    m_labelCalibStatus = new QLabel(m_boxCalibration);
+
+    calibLayout->addWidget(m_checkCalibMode);
+    calibLayout->addSpacing(16);
+    calibLayout->addWidget(m_labelAccumMs);
+    calibLayout->addWidget(m_editAccumMs);
+    calibLayout->addStretch();
+    calibLayout->addWidget(m_labelCalibStatus);
+
+    root->addWidget(m_boxCalibration);
+
+    connect(m_checkCalibMode, &QCheckBox::toggled, this, &MainWindow::onCalibrationModeToggled);
+    // 누적 시간이 바뀌면(실행 중 + calibration 모드) 빌더를 새 Δt로 다시 만든다.
+    connect(m_editAccumMs, &QLineEdit::editingFinished, this, [this]()
+    {
+        if (m_calibrationMode.load() && m_runState != RunState::Idle)
+        {
+            RecreateCalibrationBuilder();
+        }
+    });
 
     // --- Camera bias (Live camera only; populated after a successful Start()) ---
     m_boxBias = new QGroupBox(this);
@@ -561,6 +598,27 @@ void MainWindow::RetranslateUi()
     m_btnBrowseOutput->setText(Tr(QStringLiteral("Browse..."), QStringLiteral("찾아보기...")));
 
     m_boxShotTrigger->setTitle(Tr(QStringLiteral("Shot Trigger"), QStringLiteral("샷 트리거")));
+
+    m_boxCalibration->setTitle(Tr(QStringLiteral("Calibration"), QStringLiteral("캘리브레이션")));
+    m_checkCalibMode->setText(Tr(QStringLiteral("Calibration Mode"), QStringLiteral("캘리브레이션 모드")));
+    m_labelAccumMs->setText(Tr(QStringLiteral("Accumulation (ms)"), QStringLiteral("누적 시간 (ms)")));
+    m_editAccumMs->setToolTip(Tr(
+        QStringLiteral(
+            "Temporal window (milliseconds) of events accumulated into one\n"
+            "calibration image. Longer windows give denser edges but blur fast\n"
+            "checkerboard motion. A typical starting point is 50-100 ms; adjust\n"
+            "for your lighting and how fast you move the checkerboard."),
+        QStringLiteral(
+            "하나의 calibration 이미지에 누적할 event 시간 창(밀리초)입니다.\n"
+            "길수록 edge가 촘촘해지지만 빠르게 움직이는 checkerboard는 번져\n"
+            "보입니다. 보통 50~100 ms에서 시작해 조명과 checkerboard 이동\n"
+            "속도에 맞춰 조정합니다.")));
+    // 상태 라벨은 실행 상황에 따라 갱신되므로, 여기서는 기본(대기) 문구만 채운다.
+    if (m_calibImageCount == 0)
+    {
+        m_labelCalibStatus->setText(Tr(QStringLiteral("Calibration image: -"),
+                                       QStringLiteral("calibration 이미지: -")));
+    }
 
     m_boxBias->setTitle(Tr(QStringLiteral("Camera Bias"), QStringLiteral("카메라 Bias")));
     m_btnSaveBias->setText(Tr(QStringLiteral("Save Bias..."), QStringLiteral("Bias 저장...")));
@@ -957,16 +1015,29 @@ void MainWindow::StartStream()
     // 콜백은 워커 스레드에서 호출된다. this를 직접 캡처해 호출하는 대신, QMetaObject::invokeMethod의
     // context-object 오버로드를 사용해 UI 스레드로 안전하게 마샬링한다 (this가 이미 파괴되었다면
     // Qt가 알아서 호출을 건너뛴다).
+    // Calibration Mode로 Start하면, 원본 event를 누적할 빌더를 미리 준비한다.
+    m_calibImageCount = 0;
+    if (m_calibrationMode.load())
+    {
+        RecreateCalibrationBuilder();
+    }
+
     const bool ok = m_stream.Start(
         live ? "" : rawPathStd.c_str(),
         windowUs,
-        [this](const EventProcessingResult& result, lli startUs, lli endUs)
+        [this](const EventProcessingResult& result, const std::vector<Event>& events, lli startUs, lli endUs)
         {
             auto msg = std::make_shared<FrameMessage>();
             msg->frame = result.debugImage.clone();
             msg->ball = result.ball;
             msg->windowStartUs = startUs;
             msg->windowEndUs = endUs;
+
+            // Calibration Mode일 때만 원본 event를 복사해 UI 스레드로 넘긴다(그 외에는 복사 안 함).
+            if (m_calibrationMode.load())
+            {
+                msg->events = events;
+            }
 
             QMetaObject::invokeMethod(this, [this, msg]() { OnFrameReady(msg); }, Qt::QueuedConnection);
         });
@@ -1610,6 +1681,23 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
 
     m_gotFirstFrame = true;
 
+    // Calibration Mode: 원본 event를 누적해 calibration 이미지를 표시하는 별도 경로.
+    // ShotTrigger/BallDetector/녹화 로직은 전혀 실행하지 않는다(기존 동작에 영향 없음).
+    if (m_calibrationMode.load())
+    {
+        // RAW 재생 중 seek 슬라이더/시간 표시는 그대로 갱신한다(사용자 편의).
+        if (m_seekRangeKnown && !m_sliderPosition->isSliderDown())
+        {
+            m_sliderPosition->blockSignals(true);
+            m_sliderPosition->setValue(TimestampToSliderValue(msg->windowStartUs));
+            m_sliderPosition->blockSignals(false);
+        }
+        UpdateTimeLabel(msg->windowStartUs);
+
+        OnCalibrationFrame(msg);
+        return;
+    }
+
     DrawFrame(msg->frame);
 
     if (m_processingPaused)
@@ -1674,5 +1762,85 @@ void MainWindow::OnFrameReady(std::shared_ptr<FrameMessage> msg)
             .arg(m_captureFrameIndex)
             .arg(m_currentCaptureDir));
         FinishCaptureSave();
+    }
+}
+
+void MainWindow::RecreateCalibrationBuilder()
+{
+    eventcore::CalibrationImageConfig cfg;
+
+    double ms = m_editAccumMs ? m_editAccumMs->text().toDouble() : 50.0;
+    if (ms <= 0.0)
+    {
+        ms = 50.0;  // 잘못된 입력이면 기본값으로 되돌린다(빌더 내부에서도 최소값으로 한 번 더 클램프됨).
+    }
+    cfg.accumulationUs = static_cast<lli>(ms * 1000.0);
+
+    // 스트림이 열려 있으면 실제 센서 해상도를, 아니면 IMX636 기본 해상도(WIDTH/HEIGHT)를 쓴다.
+    const int w = m_stream.Width() > 0 ? m_stream.Width() : WIDTH;
+    const int h = m_stream.Height() > 0 ? m_stream.Height() : HEIGHT;
+
+    m_calibBuilder = std::make_unique<eventcore::CalibrationImageBuilder>(cfg, w, h);
+    m_calibImageCount = 0;
+}
+
+void MainWindow::OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg)
+{
+    if (!m_calibBuilder)
+    {
+        RecreateCalibrationBuilder();
+    }
+    if (!m_calibBuilder)
+    {
+        return;
+    }
+
+    const bool ready = m_calibBuilder->AddEvents(msg->events, msg->windowStartUs, msg->windowEndUs);
+    if (!ready)
+    {
+        return;
+    }
+
+    // 완성된 단일 채널 calibration 이미지를 프리뷰 표시용 BGR로 변환한다(DrawFrame은 CV_8UC3 기대).
+    const cv::Mat& gray = m_calibBuilder->Image();
+    if (gray.empty())
+    {
+        return;
+    }
+
+    cv::Mat bgr;
+    cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
+    DrawFrame(bgr);
+
+    ++m_calibImageCount;
+
+    const double accumMs = static_cast<double>(m_calibBuilder->Config().accumulationUs) / 1000.0;
+    m_labelCalibStatus->setText(Tr(
+        QStringLiteral("Calibration image #%1 (Δt=%2 ms)"),
+        QStringLiteral("calibration 이미지 #%1 (Δt=%2 ms)"))
+        .arg(m_calibImageCount)
+        .arg(accumMs, 0, 'f', 0));
+}
+
+void MainWindow::onCalibrationModeToggled(bool checked)
+{
+    m_calibrationMode.store(checked);
+
+    if (checked)
+    {
+        // 실행 중이면 즉시 빌더를 준비해 다음 프레임부터 누적을 시작한다.
+        if (m_runState != RunState::Idle)
+        {
+            RecreateCalibrationBuilder();
+        }
+        AppendLog(QStringLiteral("Calibration mode ON (accumulation %1 ms) - shot trigger paused")
+            .arg(m_editAccumMs->text()));
+    }
+    else
+    {
+        m_calibBuilder.reset();
+        m_labelCalibStatus->setText(Tr(QStringLiteral("Calibration image: -"),
+                                       QStringLiteral("calibration 이미지: -")));
+        AppendLog(QStringLiteral("Calibration mode OFF - shot trigger resumed"));
     }
 }

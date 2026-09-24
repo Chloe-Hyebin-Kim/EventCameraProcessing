@@ -48,7 +48,11 @@ namespace eventcore
     class LiveEventStream
     {
     public:
-        using FrameCallback = std::function<void(const EventProcessingResult& result, lli windowStartUs, lli windowEndUs)>;
+        // result: 기존과 동일한 누적/분석 결과(ShotTrigger 등이 쓰는 것).
+        // events: 이 윈도우에서 수신된 원본 event 배치. calibration image builder처럼 원본 event가
+        //         필요한 소비자를 위해 함께 전달한다(EventProcessor::Process 동작은 바뀌지 않음).
+        //         참조는 콜백이 반환될 때까지만 유효하므로, 이후에도 보관하려면 복사해야 한다.
+        using FrameCallback = std::function<void(const EventProcessingResult& result, const std::vector<Event>& events, lli windowStartUs, lli windowEndUs)>;
 
         LiveEventStream();
         ~LiveEventStream();

@@ -172,6 +172,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BallDetector.h" />
+    <ClInclude Include="CalibrationImageBuilder.h" />
+    <ClInclude Include="CalibrationTypes.h" />
     <ClInclude Include="CsvEventSource.h" />
     <ClInclude Include="Event.h" />
     <ClInclude Include="EventAccumulator.h" />
@@ -191,6 +193,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BallDetector.cpp" />
+    <ClCompile Include="CalibrationImageBuilder.cpp" />
     <ClCompile Include="CsvEventSource.cpp" />
     <ClCompile Include="EventAccumulator.cpp" />
     <ClCompile Include="EventFilter.cpp" />
