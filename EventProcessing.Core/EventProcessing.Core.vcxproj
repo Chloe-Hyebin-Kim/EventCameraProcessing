@@ -173,6 +173,7 @@
   <ItemGroup>
     <ClInclude Include="BallDetector.h" />
     <ClInclude Include="CalibrationImageBuilder.h" />
+    <ClInclude Include="CalibrationObservation.h" />
     <ClInclude Include="CalibrationTypes.h" />
     <ClInclude Include="CheckerboardDetector.h" />
     <ClInclude Include="CsvEventSource.h" />
@@ -195,6 +196,7 @@
   <ItemGroup>
     <ClCompile Include="BallDetector.cpp" />
     <ClCompile Include="CalibrationImageBuilder.cpp" />
+    <ClCompile Include="CalibrationObservation.cpp" />
     <ClCompile Include="CheckerboardDetector.cpp" />
     <ClCompile Include="CsvEventSource.cpp" />
     <ClCompile Include="EventAccumulator.cpp" />

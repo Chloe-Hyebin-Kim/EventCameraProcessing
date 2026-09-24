@@ -391,7 +391,25 @@ void MainWindow::BuildUi()
     calibRow2->addStretch();
     calibOuterLayout->addLayout(calibRow2);
 
+    // 3행: [Capture Sample] [Remove Last] [Clear] ... [Samples: N]
+    m_btnCaptureSample = new QPushButton(m_boxCalibration);
+    m_btnRemoveLastSample = new QPushButton(m_boxCalibration);
+    m_btnClearSamples = new QPushButton(m_boxCalibration);
+    m_labelSamples = new QLabel(m_boxCalibration);
+
+    auto* calibRow3 = new QHBoxLayout();
+    calibRow3->addWidget(m_btnCaptureSample);
+    calibRow3->addWidget(m_btnRemoveLastSample);
+    calibRow3->addWidget(m_btnClearSamples);
+    calibRow3->addStretch();
+    calibRow3->addWidget(m_labelSamples);
+    calibOuterLayout->addLayout(calibRow3);
+
     root->addWidget(m_boxCalibration);
+
+    connect(m_btnCaptureSample, &QPushButton::clicked, this, &MainWindow::onCaptureSampleClicked);
+    connect(m_btnRemoveLastSample, &QPushButton::clicked, this, &MainWindow::onRemoveLastSampleClicked);
+    connect(m_btnClearSamples, &QPushButton::clicked, this, &MainWindow::onClearSamplesClicked);
 
     connect(m_checkCalibMode, &QCheckBox::toggled, this, &MainWindow::onCalibrationModeToggled);
     // 누적 시간이 바뀌면(실행 중 + calibration 모드) 빌더를 새 Δt로 다시 만든다.
@@ -665,6 +683,18 @@ void MainWindow::RetranslateUi()
                        "Used later to scale the intrinsic calibration."),
         QStringLiteral("체커보드 한 칸의 실제 크기(mm)입니다.\n"
                        "이후 intrinsic calibration의 스케일에 사용됩니다.")));
+
+    m_btnCaptureSample->setText(Tr(QStringLiteral("Capture Sample"), QStringLiteral("샘플 캡처")));
+    m_btnRemoveLastSample->setText(Tr(QStringLiteral("Remove Last"), QStringLiteral("마지막 제거")));
+    m_btnClearSamples->setText(Tr(QStringLiteral("Clear"), QStringLiteral("전체 삭제")));
+    m_btnCaptureSample->setToolTip(Tr(
+        QStringLiteral("Save the checkerboard detected in the most recent calibration\n"
+                       "image as one calibration observation (objectPoints/imagePoints/\n"
+                       "timestamp). Move the board to a new pose before each capture."),
+        QStringLiteral("가장 최근 calibration 이미지에서 검출된 체커보드를 하나의\n"
+                       "observation(objectPoints/imagePoints/timestamp)으로 저장합니다.\n"
+                       "캡처할 때마다 보드를 새로운 pose로 옮기세요.")));
+    UpdateCalibrationSampleUi();
 
     // 상태 라벨은 실행 상황에 따라 갱신되므로, 여기서는 기본(대기) 문구만 채운다.
     if (m_calibImageCount == 0)
@@ -1070,6 +1100,7 @@ void MainWindow::StartStream()
     // Qt가 알아서 호출을 건너뛴다).
     // Calibration Mode로 Start하면, 원본 event를 누적할 빌더를 미리 준비하고 볼 검출을 끈다.
     m_calibImageCount = 0;
+    m_haveLastCalibDetection = false;  // 이전 실행의 검출 캐시를 캡처하지 않도록 초기화
     if (m_calibrationMode.load())
     {
         RecreateCalibrationBuilder();
@@ -1872,6 +1903,12 @@ void MainWindow::OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg)
     const eventcore::CheckerboardDetection det = eventcore::CheckerboardDetector::Detect(gray, cb);
     eventcore::CheckerboardDetector::DrawCorners(bgr, cb, det);
 
+    // 수동 Capture를 위해 가장 최근 검출 결과를 캐시한다(성공 여부와 무관하게 저장; Capture 시 found 확인).
+    m_lastCalibDetection = det;
+    m_lastCalibConfig = cb;
+    m_lastCalibFrameUs = msg->windowStartUs;
+    m_haveLastCalibDetection = true;
+
     DrawFrame(bgr);
 
     ++m_calibImageCount;
@@ -1910,6 +1947,72 @@ eventcore::CheckerboardConfig MainWindow::ReadCheckerboardConfigFromUI() const
     return cfg;
 }
 
+void MainWindow::onCaptureSampleClicked()
+{
+    if (!m_haveLastCalibDetection || !m_lastCalibDetection.found)
+    {
+        AppendLog(QStringLiteral("Capture failed: no checkerboard currently detected"));
+        return;
+    }
+
+    const bool ok = m_calibSamples.AddSample(m_lastCalibConfig, m_lastCalibDetection, m_lastCalibFrameUs);
+    if (!ok)
+    {
+        // 가장 흔한 실패 원인: 이미 수집된 샘플과 체커보드 설정(rows/cols/square)이 달라짐.
+        AppendLog(QStringLiteral("Capture failed: checkerboard settings differ from collected samples "
+                                 "(press Clear first), or detection was invalid"));
+        return;
+    }
+
+    AppendLog(QStringLiteral("Captured sample #%1 (%2 corners) at t=%3 us")
+        .arg(m_calibSamples.Count())
+        .arg(m_lastCalibDetection.corners.size())
+        .arg(m_lastCalibFrameUs));
+    UpdateCalibrationSampleUi();
+}
+
+void MainWindow::onRemoveLastSampleClicked()
+{
+    if (m_calibSamples.RemoveLast())
+    {
+        AppendLog(QStringLiteral("Removed last sample (remaining: %1)").arg(m_calibSamples.Count()));
+    }
+    UpdateCalibrationSampleUi();
+}
+
+void MainWindow::onClearSamplesClicked()
+{
+    m_calibSamples.Clear();
+    AppendLog(QStringLiteral("Cleared all calibration samples"));
+    UpdateCalibrationSampleUi();
+}
+
+void MainWindow::UpdateCalibrationSampleUi()
+{
+    const size_t count = m_calibSamples.Count();
+
+    if (m_labelSamples)
+    {
+        m_labelSamples->setText(Tr(QStringLiteral("Samples: %1"), QStringLiteral("샘플: %1"))
+            .arg(static_cast<int>(count)));
+    }
+
+    // Capture는 calibration 모드일 때만, Remove/Clear는 샘플이 있을 때만 활성화.
+    const bool calibOn = m_calibrationMode.load();
+    if (m_btnCaptureSample)
+    {
+        m_btnCaptureSample->setEnabled(calibOn);
+    }
+    if (m_btnRemoveLastSample)
+    {
+        m_btnRemoveLastSample->setEnabled(count > 0);
+    }
+    if (m_btnClearSamples)
+    {
+        m_btnClearSamples->setEnabled(count > 0);
+    }
+}
+
 void MainWindow::onCalibrationModeToggled(bool checked)
 {
     m_calibrationMode.store(checked);
@@ -1930,8 +2033,12 @@ void MainWindow::onCalibrationModeToggled(bool checked)
     else
     {
         m_calibBuilder.reset();
+        m_haveLastCalibDetection = false;  // 캐시된 검출 결과 무효화(다음 Capture는 새 프레임을 요구)
         m_labelCalibStatus->setText(Tr(QStringLiteral("Calibration image: -"),
                                        QStringLiteral("calibration 이미지: -")));
         AppendLog(QStringLiteral("Calibration mode OFF - ball detection / shot trigger resumed"));
     }
+
+    // 수집된 샘플(m_calibSamples)은 유지하고, 버튼 활성화 상태만 모드에 맞게 갱신한다.
+    UpdateCalibrationSampleUi();
 }

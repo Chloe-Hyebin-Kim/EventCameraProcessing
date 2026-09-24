@@ -5,7 +5,9 @@
 //  EventProcessing.Console을 대신 사용할 수 있다.)
 #include "LiveEventStream.h"
 #include "ShotTrigger.h"
-#include "CalibrationTypes.h"  // CheckerboardConfig (값 반환 헬퍼가 완전한 타입을 필요로 함)
+#include "CalibrationTypes.h"       // CheckerboardConfig (값 반환 헬퍼가 완전한 타입을 필요로 함)
+#include "CheckerboardDetector.h"   // CheckerboardDetection (멤버로 값 보관)
+#include "CalibrationObservation.h" // CalibrationSampleCollector (멤버로 값 보관)
 
 #include <QMap>
 #include <QString>
@@ -83,6 +85,11 @@ private slots:
     // Calibration Mode 체크박스 토글. 켜지면 원본 event를 누적해 calibration 이미지를 화면에
     // 표시하고(ShotTrigger/BallDetector 경로는 건너뜀), 끄면 기존 동작으로 복귀한다.
     void onCalibrationModeToggled(bool checked);
+    // Calibration observation 수집(수동 Capture 방식): 현재(가장 최근 완성) 프레임의 검출 결과를
+    // 하나의 observation으로 저장 / 마지막 것 제거 / 전체 초기화.
+    void onCaptureSampleClicked();
+    void onRemoveLastSampleClicked();
+    void onClearSamplesClicked();
 
 private:
     // 버튼 두 개, 각각 두 가지 역할을 겸한다:
@@ -179,6 +186,8 @@ private:
     void RecreateCalibrationBuilder();
     // Checkerboard(rows/cols/square mm) 설정을 UI에서 읽는다.
     eventcore::CheckerboardConfig ReadCheckerboardConfigFromUI() const;
+    // 수집된 샘플 개수/버튼 활성화 상태 등 calibration observation UI를 갱신한다.
+    void UpdateCalibrationSampleUi();
 
     void SeekTo(eventcore::lli timestampUs);
     eventcore::lli SliderValueToTimestamp(int value) const;
@@ -199,6 +208,16 @@ private:
     std::atomic<bool> m_calibrationMode{ false };
     std::unique_ptr<eventcore::CalibrationImageBuilder> m_calibBuilder;
     int m_calibImageCount = 0;  // 이번 실행에서 완성된 calibration 이미지 수(상태 표시용)
+
+    // 수동 Capture를 위해 "가장 최근에 완성된 calibration 이미지"의 검출 결과를 캐시한다.
+    // Capture 버튼은 이 캐시를 하나의 observation으로 저장한다.
+    eventcore::CheckerboardDetection m_lastCalibDetection;
+    eventcore::CheckerboardConfig m_lastCalibConfig;
+    eventcore::lli m_lastCalibFrameUs = 0;
+    bool m_haveLastCalibDetection = false;
+
+    // 수집된 calibration observation(여러 pose). Start/Stop을 반복해도 세션 동안 유지된다(Clear로만 비움).
+    eventcore::CalibrationSampleCollector m_calibSamples;
 
     // 마지막으로 로그에 남긴 샷 상태. 매 프레임 ShotTrigger가 돌려주는 상태가 이 값과 다르면
     // 상태 전이로 보고 로그에 한 줄 남긴다(READY뿐 아니라 SEARCHING/IMPACT/TRJCT 전이 모두).
@@ -276,6 +295,12 @@ private:
     QLineEdit* m_editCbCols = nullptr;
     QLabel* m_labelCbSquareMm = nullptr;
     QLineEdit* m_editCbSquareMm = nullptr;
+
+    // Observation 수집 컨트롤(Phase 3).
+    QPushButton* m_btnCaptureSample = nullptr;
+    QPushButton* m_btnRemoveLastSample = nullptr;
+    QPushButton* m_btnClearSamples = nullptr;
+    QLabel* m_labelSamples = nullptr;
 
     // Camera Bias (Metavision HAL I_LL_Biases). IMX636의 알려진 표준 bias 6종은 앱 시작 시부터
     // 비활성화된 자리표시자 슬라이더로 항상 보이고(SeedBiasPlaceholders()), 라이브 카메라가
