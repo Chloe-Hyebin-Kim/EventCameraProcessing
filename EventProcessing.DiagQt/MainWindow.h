@@ -11,11 +11,13 @@
 
 #include <QMap>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 namespace eventcore
@@ -50,6 +52,24 @@ struct FrameMessage
     // Calibration Mode일 때만 채워진다(그 외에는 빈 벡터로 두어 불필요한 복사를 피한다).
     // 원본 event를 UI 스레드의 CalibrationImageBuilder로 넘기기 위한 스냅샷.
     std::vector<eventcore::Event> events;
+};
+
+// 워커 스레드에서 프레임 처리를 마친 뒤 UI 스레드로 넘기는 "표시용" 데이터.
+// 프레임(preview)은 최신 것만 의미가 있어 coalesce(덮어쓰기)되지만, 로그 줄은 유실되면 안 되므로
+// 누적된다. UI 스레드는 이 데이터로 화면/라벨/로그만 갱신하고, 처리 로직은 전혀 수행하지 않는다.
+struct WorkerUiUpdate
+{
+    bool hasFrame = false;
+    cv::Mat frame;                 // BGR(오버레이 적용됨). preview 표시용.
+    eventcore::lli windowStartUs = 0;
+
+    bool hasShotState = false;
+    eventcore::ShotState shotState = eventcore::ShotState::Searching;
+
+    bool hasCalibStatus = false;
+    QString calibStatus;
+
+    QStringList logs;              // 이번 배치에서 남길 로그 줄(누적, 유실 금지).
 };
 
 // Qt Widgets 기반 Live/RAW Diagnostic Viewer. Windows/Linux(및 다른 Qt 지원 플랫폼)에서
@@ -149,7 +169,7 @@ private:
     void StopManualRecord();
     void StopStream(const QString& logMessage);
     void PushPreRollFrame(const std::shared_ptr<FrameMessage>& msg);
-    void FlushPreRollBuffer(eventcore::lli impactUs);
+    void FlushPreRollBuffer(eventcore::lli impactUs, WorkerUiUpdate& upd);
 
     // 앱 시작 시 한 번, IMX636의 알려진 표준 bias 6종에 대해 비활성화된 슬라이더 행을 미리
     // 만들어 둔다(연결 전이라 실제 값/범위를 모르므로 자리표시자 상태). BuildUi()에서 호출.
@@ -174,16 +194,25 @@ private:
     // 행만 제거한다(Stop, 또는 RAW 모드로 시작할 때).
     void ClearBiasControls();
 
-    // LiveEventStream의 콜백은 워커 스레드에서 호출된다. 캡처한 프레임은 힙에 올려
-    // QMetaObject::invokeMethod(..., Qt::QueuedConnection)로 UI 스레드에 마샬링해서 처리한다.
-    void OnFrameReady(std::shared_ptr<FrameMessage> msg);
+    // LiveEventStream의 콜백(워커 스레드)에서 직접 호출된다. 모든 프레임 처리(샷 트리거/pre-roll/
+    // 녹화/calibration 누적·검출)를 워커 스레드에서 수행하여 UI 스레드를 절대 막지 않는다.
+    // 처리 결과 중 화면 표시에 필요한 데이터만 WorkerUiUpdate로 만들어 UI 스레드에 coalesce 전달한다.
+    // m_procMutex로 처리 상태를 보호한다.
+    void HandleFrameOnWorker(const eventcore::EventProcessingResult& result,
+                             const std::vector<eventcore::Event>& events,
+                             eventcore::lli startUs, eventcore::lli endUs);
+    // WorkerUiUpdate를 coalesced 우편함(m_pendingUi)에 병합하고, 아직 예약된 게 없으면
+    // ApplyPendingUi() 호출을 UI 스레드에 1건 예약한다(m_uiMutex 보호). 워커 스레드에서 호출.
+    void PostUiUpdate(WorkerUiUpdate&& update);
+    // UI 스레드에서 실행: 우편함의 최신 업데이트 1건을 꺼내 화면/라벨/로그에 반영한다.
+    void ApplyPendingUi();
 
-    // Calibration Mode 전용 프레임 처리(UI 스레드). msg->events를 CalibrationImageBuilder에
-    // 누적하고, Δt가 차서 이미지가 완성되면 그 polarity 이미지를 프리뷰에 표시한다.
-    // ShotTrigger/BallDetector/녹화 경로는 전혀 건드리지 않는다.
-    void OnCalibrationFrame(const std::shared_ptr<FrameMessage>& msg);
-    // 현재 UI의 Accumulation(ms)와 스트림 해상도로 CalibrationImageBuilder를 새로 만든다.
-    void RecreateCalibrationBuilder();
+    // m_procMutex를 이미 쥔 상태에서 호출한다: config snapshot으로 CalibrationImageBuilder를 새로 만든다.
+    // (UI 위젯을 만지지 않으므로 워커 스레드에서도 안전하다.)
+    void RebuildCalibBuilderLocked();
+    // UI 스레드에서 호출: 현재 UI의 Accumulation(ms)/Checkerboard 설정을 snapshot에 반영한다
+    // (m_procMutex로 보호). 워커 스레드는 이 snapshot만 읽는다.
+    void SnapshotCalibConfigFromUi();
     // Checkerboard(rows/cols/square mm) 설정을 UI에서 읽는다.
     eventcore::CheckerboardConfig ReadCheckerboardConfigFromUI() const;
     // 수집된 샘플 개수/버튼 활성화 상태 등 calibration observation UI를 갱신한다.
@@ -228,9 +257,26 @@ private:
     // Live 카메라 모드에서만 쓰인다: Pause 동안 카메라/미리보기는 계속 흐르게 두고(끼어든 상황이
     // 지나가는 걸 볼 수 있게), ShotTrigger 갱신과 프레임 저장(녹화)만 건너뛴다. RAW 모드의 Pause는
     // m_stream.Pause()로 재생 자체를 멈추므로 이 플래그와 무관하게 콜백이 아예 오지 않는다.
-    bool m_processingPaused = false;
+    std::atomic<bool> m_processingPaused{ false };
 
     QTimer* m_pollTimer = nullptr;
+
+    // 워커 프레임 처리 파이프라인(스레드 경계) --------------------------------------------------
+    // 워커 스레드가 만지는 처리 상태(m_trigger, m_preRollBuffer, 캡처/녹화 상태, calibration
+    // 빌더/캐시 등)를 보호한다. UI 스레드에서 이 상태를 건드리는 조작(Capture/Clear/모드 토글/
+    // 녹화 시작·정지 등)도 이 뮤텍스를 짧게 쥔다. 이 뮤텍스를 쥔 채로 m_stream.Start/Stop/Pause를
+    // 호출하지 않는다(워커가 이 뮤텍스를 기다리는 중일 수 있어 데드락).
+    std::mutex m_procMutex;
+
+    // UI로 넘길 표시 데이터의 coalesced 우편함. m_uiMutex로 보호. m_uiPosted가 true면 이미
+    // ApplyPendingUi() 호출이 UI 큐에 예약되어 있다는 뜻(추가 예약을 막아 큐가 쌓이지 않게 한다).
+    std::mutex m_uiMutex;
+    WorkerUiUpdate m_pendingUi;
+    bool m_uiPosted = false;
+
+    // UI에서 snapshot한 calibration 설정(워커 스레드는 UI 위젯 대신 이 값을 읽는다). m_procMutex 보호.
+    eventcore::CheckerboardConfig m_cbConfigSnapshot;
+    eventcore::lli m_accumUsSnapshot = 50000;
 
     // Impact 확정 이전 프레임들을 preCaptureSeconds만큼 보관해 두는 링 버퍼. Impact가 확정되면
     // (justTriggered) 여기서 기준 프레임 이후분을 한꺼번에 저장하고, 이후 프레임은 Trajectory
