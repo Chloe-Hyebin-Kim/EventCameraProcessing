@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Calibration">
+      <UniqueIdentifier>{2b7a1f3c-9d4e-4a1b-8c2f-1e6a7b0c5d21}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -30,23 +33,23 @@
     <ClInclude Include="BallDetector.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="CalibrationImageBuilder.h">
-      <Filter>헤더 파일</Filter>
+    <ClInclude Include="Calibration\CalibrationImageBuilder.h">
+      <Filter>Calibration</Filter>
     </ClInclude>
-    <ClInclude Include="CalibrationIO.h">
-      <Filter>헤더 파일</Filter>
+    <ClInclude Include="Calibration\CalibrationIO.h">
+      <Filter>Calibration</Filter>
     </ClInclude>
-    <ClInclude Include="CalibrationObservation.h">
-      <Filter>헤더 파일</Filter>
+    <ClInclude Include="Calibration\CalibrationObservation.h">
+      <Filter>Calibration</Filter>
     </ClInclude>
-    <ClInclude Include="CalibrationTypes.h">
-      <Filter>헤더 파일</Filter>
+    <ClInclude Include="Calibration\CalibrationTypes.h">
+      <Filter>Calibration</Filter>
     </ClInclude>
-    <ClInclude Include="CameraCalibrator.h">
-      <Filter>헤더 파일</Filter>
+    <ClInclude Include="Calibration\CameraCalibrator.h">
+      <Filter>Calibration</Filter>
     </ClInclude>
-    <ClInclude Include="CheckerboardDetector.h">
-      <Filter>헤더 파일</Filter>
+    <ClInclude Include="Calibration\CheckerboardDetector.h">
+      <Filter>Calibration</Filter>
     </ClInclude>
     <ClInclude Include="Event.h">
       <Filter>헤더 파일</Filter>
@@ -101,20 +104,20 @@
     <ClCompile Include="BallDetector.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="CalibrationImageBuilder.cpp">
-      <Filter>소스 파일</Filter>
+    <ClCompile Include="Calibration\CalibrationImageBuilder.cpp">
+      <Filter>Calibration</Filter>
     </ClCompile>
-    <ClCompile Include="CalibrationIO.cpp">
-      <Filter>소스 파일</Filter>
+    <ClCompile Include="Calibration\CalibrationIO.cpp">
+      <Filter>Calibration</Filter>
     </ClCompile>
-    <ClCompile Include="CalibrationObservation.cpp">
-      <Filter>소스 파일</Filter>
+    <ClCompile Include="Calibration\CalibrationObservation.cpp">
+      <Filter>Calibration</Filter>
     </ClCompile>
-    <ClCompile Include="CameraCalibrator.cpp">
-      <Filter>소스 파일</Filter>
+    <ClCompile Include="Calibration\CameraCalibrator.cpp">
+      <Filter>Calibration</Filter>
     </ClCompile>
-    <ClCompile Include="CheckerboardDetector.cpp">
-      <Filter>소스 파일</Filter>
+    <ClCompile Include="Calibration\CheckerboardDetector.cpp">
+      <Filter>Calibration</Filter>
     </ClCompile>
     <ClCompile Include="EventFilter.cpp">
       <Filter>소스 파일</Filter>

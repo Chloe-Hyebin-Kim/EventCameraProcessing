@@ -172,12 +172,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BallDetector.h" />
-    <ClInclude Include="CalibrationImageBuilder.h" />
-    <ClInclude Include="CalibrationIO.h" />
-    <ClInclude Include="CalibrationObservation.h" />
-    <ClInclude Include="CalibrationTypes.h" />
-    <ClInclude Include="CameraCalibrator.h" />
-    <ClInclude Include="CheckerboardDetector.h" />
+    <ClInclude Include="Calibration\CalibrationImageBuilder.h" />
+    <ClInclude Include="Calibration\CalibrationIO.h" />
+    <ClInclude Include="Calibration\CalibrationObservation.h" />
+    <ClInclude Include="Calibration\CalibrationTypes.h" />
+    <ClInclude Include="Calibration\CameraCalibrator.h" />
+    <ClInclude Include="Calibration\CheckerboardDetector.h" />
     <ClInclude Include="CsvEventSource.h" />
     <ClInclude Include="Event.h" />
     <ClInclude Include="EventAccumulator.h" />
@@ -197,11 +197,21 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BallDetector.cpp" />
-    <ClCompile Include="CalibrationImageBuilder.cpp" />
-    <ClCompile Include="CalibrationIO.cpp" />
-    <ClCompile Include="CalibrationObservation.cpp" />
-    <ClCompile Include="CameraCalibrator.cpp" />
-    <ClCompile Include="CheckerboardDetector.cpp" />
+    <ClCompile Include="Calibration\CalibrationImageBuilder.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Calibration\CalibrationIO.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Calibration\CalibrationObservation.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Calibration\CameraCalibrator.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Calibration\CheckerboardDetector.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="CsvEventSource.cpp" />
     <ClCompile Include="EventAccumulator.cpp" />
     <ClCompile Include="EventFilter.cpp" />

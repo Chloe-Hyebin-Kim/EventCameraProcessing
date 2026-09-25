@@ -3,7 +3,7 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 
-#include "Event.h"
+#include "../Event.h"
 #include "CalibrationTypes.h"
 
 namespace eventcore
