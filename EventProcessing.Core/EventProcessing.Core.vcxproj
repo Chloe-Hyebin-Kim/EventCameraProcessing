@@ -173,6 +173,7 @@
   <ItemGroup>
     <ClInclude Include="BallDetector.h" />
     <ClInclude Include="CalibrationImageBuilder.h" />
+    <ClInclude Include="CalibrationIO.h" />
     <ClInclude Include="CalibrationObservation.h" />
     <ClInclude Include="CalibrationTypes.h" />
     <ClInclude Include="CameraCalibrator.h" />
@@ -197,6 +198,7 @@
   <ItemGroup>
     <ClCompile Include="BallDetector.cpp" />
     <ClCompile Include="CalibrationImageBuilder.cpp" />
+    <ClCompile Include="CalibrationIO.cpp" />
     <ClCompile Include="CalibrationObservation.cpp" />
     <ClCompile Include="CameraCalibrator.cpp" />
     <ClCompile Include="CheckerboardDetector.cpp" />

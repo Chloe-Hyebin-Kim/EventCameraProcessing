@@ -113,6 +113,9 @@ private slots:
     void onClearSamplesClicked();
     // 수집된 observation으로 intrinsic calibration(cv::calibrateCamera)을 실행한다.
     void onRunCalibrationClicked();
+    // 마지막 calibration 결과를 파일로 저장 / 파일에서 불러온다(OpenCV FileStorage YAML/XML).
+    void onSaveCalibrationClicked();
+    void onLoadCalibrationClicked();
 
 private:
     // 버튼 두 개, 각각 두 가지 역할을 겸한다:
@@ -354,6 +357,8 @@ private:
     QPushButton* m_btnRemoveLastSample = nullptr;
     QPushButton* m_btnClearSamples = nullptr;
     QPushButton* m_btnRunCalibration = nullptr;
+    QPushButton* m_btnSaveCalibration = nullptr;
+    QPushButton* m_btnLoadCalibration = nullptr;
     QLabel* m_labelSamples = nullptr;
 
     // 마지막 calibration 결과(Phase 5 검증 / Phase 6 저장에서 사용). success=false면 아직 없음.
