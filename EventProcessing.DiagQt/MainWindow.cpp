@@ -1,9 +1,9 @@
 #include "MainWindow.h"
 
 #include "Utf8Path.h"
-#include "CalibrationImageBuilder.h"
-#include "CheckerboardDetector.h"
-#include "CalibrationIO.h"
+#include "Calibration/CalibrationImageBuilder.h"
+#include "Calibration/CheckerboardDetector.h"
+#include "Calibration/CalibrationIO.h"
 
 #include <QAction>
 #include <QActionGroup>

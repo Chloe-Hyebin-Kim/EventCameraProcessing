@@ -5,10 +5,10 @@
 //  EventProcessing.Console을 대신 사용할 수 있다.)
 #include "LiveEventStream.h"
 #include "ShotTrigger.h"
-#include "CalibrationTypes.h"       // CheckerboardConfig (값 반환 헬퍼가 완전한 타입을 필요로 함)
-#include "CheckerboardDetector.h"   // CheckerboardDetection (멤버로 값 보관)
-#include "CalibrationObservation.h" // CalibrationSampleCollector (멤버로 값 보관)
-#include "CameraCalibrator.h"       // CalibrationResult (멤버로 값 보관)
+#include "Calibration/CalibrationTypes.h"       // CheckerboardConfig (값 반환 헬퍼가 완전한 타입을 필요로 함)
+#include "Calibration/CheckerboardDetector.h"   // CheckerboardDetection (멤버로 값 보관)
+#include "Calibration/CalibrationObservation.h" // CalibrationSampleCollector (멤버로 값 보관)
+#include "Calibration/CameraCalibrator.h"       // CalibrationResult (멤버로 값 보관)
 
 #include <QMap>
 #include <QString>
