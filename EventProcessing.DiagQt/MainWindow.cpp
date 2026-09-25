@@ -2192,6 +2192,41 @@ void MainWindow::onRunCalibrationClicked()
     AppendLog(QStringLiteral("  RMS reprojection error = %1 px")
         .arg(result.rmsReprojectionError, 0, 'f', 4));
 
+    // per-view(observation별) 재투영 오차 - 어느 pose가 유독 나쁜지 확인용(자동 제거하지 않음).
+    if (!result.perViewErrors.empty())
+    {
+        double worst = -1.0;
+        int worstIndex = -1;
+        double sumErr = 0.0;
+        for (size_t i = 0; i < result.perViewErrors.size(); ++i)
+        {
+            const double e = result.perViewErrors[i];
+            sumErr += e;
+            if (e > worst)
+            {
+                worst = e;
+                worstIndex = static_cast<int>(i);
+            }
+        }
+        const double meanErr = sumErr / static_cast<double>(result.perViewErrors.size());
+
+        AppendLog(QStringLiteral("  per-view error: mean %1 px, worst %2 px (view #%3)")
+            .arg(meanErr, 0, 'f', 4)
+            .arg(worst, 0, 'f', 4)
+            .arg(worstIndex));
+
+        const int cornersPerView = result.checkerboard.innerCornerRows * result.checkerboard.innerCornerCols;
+        for (size_t i = 0; i < result.perViewErrors.size(); ++i)
+        {
+            const lli ts = (i < result.viewTimestamps.size()) ? result.viewTimestamps[i] : 0;
+            AppendLog(QStringLiteral("    view #%1: %2 px  (%3 corners, t=%4 us)")
+                .arg(static_cast<int>(i))
+                .arg(result.perViewErrors[i], 0, 'f', 4)
+                .arg(cornersPerView)
+                .arg(ts));
+        }
+    }
+
     m_labelCalibStatus->setText(Tr(
         QStringLiteral("Calibrated: RMS %1 px (%2 views)"),
         QStringLiteral("캘리브레이션 완료: RMS %1 px (%2 장)"))

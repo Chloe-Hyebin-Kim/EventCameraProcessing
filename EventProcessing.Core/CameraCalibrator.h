@@ -38,6 +38,12 @@ namespace eventcore
         std::vector<cv::Mat> rvecs;
         std::vector<cv::Mat> tvecs;
 
+        // per-observation(view별) 재투영 오차(px, RMS)와 각 view의 원본 timestamp.
+        // 세 벡터(rvecs/tvecs/perViewErrors/viewTimestamps)는 calibration에 실제로 사용된
+        // observation과 같은 순서/개수를 가진다. 특정 view의 오차가 유독 큰지 확인하는 용도.
+        std::vector<double> perViewErrors;
+        std::vector<lli> viewTimestamps;
+
         // 편의 접근자(cameraMatrix가 비어 있으면 0을 돌려준다).
         double fx() const { return cameraMatrix.empty() ? 0.0 : cameraMatrix.at<double>(0, 0); }
         double fy() const { return cameraMatrix.empty() ? 0.0 : cameraMatrix.at<double>(1, 1); }

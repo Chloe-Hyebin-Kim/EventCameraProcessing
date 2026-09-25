@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "CameraCalibrator.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace eventcore
 {
     CalibrationResult CameraCalibrator::Calibrate(const std::vector<CalibrationObservation>& observations,
@@ -23,8 +26,10 @@ namespace eventcore
         // object/image 대응쌍을 유효한 것만 모은다.
         std::vector<std::vector<cv::Point3f>> objectPoints;
         std::vector<std::vector<cv::Point2f>> imagePoints;
+        std::vector<lli> usedTimestamps;
         objectPoints.reserve(observations.size());
         imagePoints.reserve(observations.size());
+        usedTimestamps.reserve(observations.size());
 
         for (const CalibrationObservation& obs : observations)
         {
@@ -34,6 +39,7 @@ namespace eventcore
             }
             objectPoints.push_back(obs.objectPoints);
             imagePoints.push_back(obs.imagePoints);
+            usedTimestamps.push_back(obs.timestampUs);
         }
 
         result.numObservations = static_cast<int>(objectPoints.size());
@@ -61,9 +67,29 @@ namespace eventcore
             result.cameraMatrix = cameraMatrix;
             result.distCoeffs = distCoeffs;
             result.rmsReprojectionError = rms;
-            result.rvecs = std::move(rvecs);
-            result.tvecs = std::move(tvecs);
+            result.rvecs = rvecs;
+            result.tvecs = tvecs;
+            result.viewTimestamps = usedTimestamps;
             result.message = "OK";
+
+            // per-view 재투영 오차: 각 view의 3D 코너를 추정된 K/D/외부파라미터로 다시 투영해
+            // 검출된 코너와의 RMS 거리를 구한다(projectPoints). 임계값으로 자동 제거하지 않는다.
+            result.perViewErrors.resize(objectPoints.size(), 0.0);
+            for (size_t i = 0; i < objectPoints.size(); ++i)
+            {
+                std::vector<cv::Point2f> projected;
+                cv::projectPoints(objectPoints[i], rvecs[i], tvecs[i], cameraMatrix, distCoeffs, projected);
+
+                double sumSq = 0.0;
+                const size_t n = std::min(projected.size(), imagePoints[i].size());
+                for (size_t j = 0; j < n; ++j)
+                {
+                    const double dx = static_cast<double>(projected[j].x) - imagePoints[i][j].x;
+                    const double dy = static_cast<double>(projected[j].y) - imagePoints[i][j].y;
+                    sumSq += dx * dx + dy * dy;
+                }
+                result.perViewErrors[i] = (n > 0) ? std::sqrt(sumSq / static_cast<double>(n)) : 0.0;
+            }
         }
         catch (const cv::Exception& ex)
         {
