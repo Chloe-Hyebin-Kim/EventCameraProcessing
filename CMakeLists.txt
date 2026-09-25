@@ -70,6 +70,21 @@ endif()
 
 find_package(OpenCV REQUIRED)
 
+# Calibration(체스판 검출/캘리브레이션)은 OpenCV calib3d 모듈이 필요하다
+# (findChessboardCorners / calibrateCamera / projectPoints, 그리고 결과 저장에 쓰는 FileStorage는 core).
+# calib3d가 없는 OpenCV로 잡히면 런타임에 뒤늦게 깨지는 대신 configure 단계에서 즉시 실패시켜
+# 원인을 명확히 알려준다.
+#  - Windows: 리포 번들 opencv_world440은 world 빌드라 calib3d를 포함한다(타깃 이름은 opencv_world).
+#  - Linux(모듈형, 예: apt libopencv-dev): calib3d가 있으면 opencv_calib3d 타깃이 만들어진다.
+if(NOT TARGET opencv_calib3d AND NOT TARGET opencv_world)
+    message(FATAL_ERROR
+        "Found OpenCV ${OpenCV_VERSION}, but its calib3d module is not available. "
+        "Camera calibration needs calib3d (findChessboardCorners / calibrateCamera / projectPoints).\n"
+        "  Linux : install a full OpenCV, e.g.  sudo apt install libopencv-dev  "
+        "(the bundled Prophesee-linux/lib ships OpenCV core/imgproc/imgcodecs/videoio only, no calib3d).\n"
+        "  Windows: the bundled opencv_world440 already includes calib3d; no action needed.")
+endif()
+
 # Windows: 리포에 번들된 Prophesee-window\ (Metavision.props가 MSBuild 빌드에서 쓰는 것과 동일한 폴더)에
 # CMake package config가 이미 들어있으므로(share\cmake\MetavisionSDK\...), 시스템에 SDK가 따로
 # 설치되어 있지 않아도 이 리포만 clone하면 바로 잡히도록 검색 경로 맨 앞에 추가한다.
