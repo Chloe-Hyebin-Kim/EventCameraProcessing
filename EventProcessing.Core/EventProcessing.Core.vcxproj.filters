@@ -33,10 +33,16 @@
     <ClInclude Include="CalibrationImageBuilder.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="CalibrationIO.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="CalibrationObservation.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="CalibrationTypes.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="CameraCalibrator.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="CheckerboardDetector.h">
@@ -98,7 +104,13 @@
     <ClCompile Include="CalibrationImageBuilder.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="CalibrationIO.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="CalibrationObservation.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="CameraCalibrator.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="CheckerboardDetector.cpp">

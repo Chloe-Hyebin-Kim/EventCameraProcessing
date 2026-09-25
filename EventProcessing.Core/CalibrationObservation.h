@@ -34,7 +34,9 @@ namespace eventcore
     public:
         // det.found여야 하고 det.corners 개수가 config의 (rows*cols)와 같아야 한다.
         // count>0인데 config가 기존과 다르면 false. 성공 시 observation을 추가하고 true.
-        bool AddSample(const CheckerboardConfig& config, const CheckerboardDetection& detection, lli timestampUs);
+        // imageSize는 이 observation이 나온 calibration 이미지 크기(센서 해상도). 첫 샘플에서 고정된다.
+        bool AddSample(const CheckerboardConfig& config, const CheckerboardDetection& detection,
+                       lli timestampUs, const cv::Size& imageSize);
 
         bool RemoveLast();
         void Clear();
@@ -45,9 +47,12 @@ namespace eventcore
         const std::vector<CalibrationObservation>& Observations() const { return m_observations; }
         // 유효 샘플이 있을 때 이 수집기가 사용 중인 체커보드 설정(Empty()면 의미 없음).
         const CheckerboardConfig& Config() const { return m_config; }
+        // 유효 샘플이 있을 때 calibration 이미지 크기(Empty()면 0x0).
+        const cv::Size& ImageSize() const { return m_imageSize; }
 
     private:
         std::vector<CalibrationObservation> m_observations;
         CheckerboardConfig m_config;
+        cv::Size m_imageSize;
     };
 }
