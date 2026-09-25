@@ -292,12 +292,17 @@ Impact로 확정된 첫 프레임 기준으로 이전 `preCaptureSeconds`(기본
 
 RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인을 거치므로, Ball로 추정되는 물체(가장 넓은 외곽선)의 중심(초록 점)과 외곽(빨간 원 + 파란 바운딩 박스)이 매 프레임 디버그 이미지에 표시됨.
 
-컨트롤 버튼은 2개: **Start(시작)/Stop(중단)** 토글 버튼과 **Pause(멈춤)/Resume(재개)** 토글 버튼. 각 버튼이 상태에 따라 라벨과 동작이 함께 바뀜(빈 라벨로 남는 경우 없음).
+컨트롤 버튼은 3개: **Start(시작)/Stop(중단)** 토글, **Pause(멈춤)/Resume(재개)** 토글, **Record(녹화)/Save(저장)** 토글. 각 버튼이 상태에 따라 라벨과 동작이 함께 바뀜(빈 라벨로 남는 경우 없음).
 
-- **Start/Stop 버튼**: IDLE일 때 라벨은 `Start`(누르면 시작). Running/Paused일 때는 라벨이 `Stop`으로 바뀌고, 누르면 항상 완전히 종료해 처음(IDLE) 상태로 되돌아감 - 미리보기 화면도 까맣게 초기화됨.
-- **Pause/Resume 버튼**: IDLE일 때는 비활성화(멈출 대상이 없음). Running일 때 라벨은 `Pause`(누르면 일시정지). Paused일 때는 라벨이 `Resume`으로 바뀜(누르면 재개).
+- **Start/Stop 버튼**: IDLE일 때 라벨은 `Start`(누르면 시작). 여기서 "Start"는 Live 모드 기준 "샷 감지 대기 시작"이지 곧바로 통짜 녹화가 아님(로그도 `Started (live camera) - watching for shots`). Running/Paused일 때는 라벨이 `Stop`으로 바뀌고, 누르면 항상 완전히 종료해 처음(IDLE) 상태로 되돌아감 - 미리보기 화면도 까맣게 초기화됨. **수동 녹화(Record) 중에 Stop을 누르면 녹화하던 것을 먼저 저장 마무리하고 종료함.**
+- **Pause/Resume 버튼**: IDLE일 때는 비활성화(Start 상태에서만 활성화). Running일 때 라벨은 `Pause`(누르면 일시정지). Paused일 때는 라벨이 `Resume`으로 바뀜(누르면 재개).
+- **Record/Save 버튼**: **Live 카메라로 Start된 상태(Running/Paused)일 때만 활성화**되고, RAW 재생 모드나 IDLE에서는 비활성화됨. `Record`를 누르면 그 순간부터 매 프레임을 `output/manual_<날짜시각>/`에 계속 저장하기 시작하고 라벨이 `Save`로 바뀜. `Save`(또는 Stop)를 누르면 녹화를 마무리함. 이 수동 녹화는 임팩트 자동 캡처(`shot_*` 폴더)와 독립적으로 동작함.
 - **Pause 동작 - RAW 파일**(영상 재생 중일 때): 재생 자체를 그 자리에서 멈춰(카메라를 정지) 화면이 멈춘 프레임 그대로 남음. `Resume`을 누르면 멈췄던 바로 그 시각으로 seek해서 이어서 재생함(멈춰 있던 시간만큼 건너뛰지 않음).
-- **Pause 동작 - Live Camera**: `Start`는 녹화 시작, `Stop`은 녹화 종료. `Pause`는 녹화 종료가 아니라 녹화만 잠시 중지하는 것으로, 카메라와 미리보기 화면은 계속 흘러서 끼어든 상황이 지나가는 걸 볼 수 있고, ShotTrigger 갱신과 프레임 저장만 건너뜀. `Resume`을 누르면 그 시점부터 다시 녹화를 재개함.
+- **Pause 동작 - Live Camera**: 카메라와 미리보기 화면은 계속 흘러서 끼어든 상황이 지나가는 걸 볼 수 있고, ShotTrigger 갱신과 프레임 저장(자동 샷 캡처 + 수동 녹화)만 잠시 멈춤 = **녹화 일시 정지**. `Resume`을 누르면 그 시점부터 다시 이어감.
+
+**Source(입력 소스) 그룹의 텍스트 박스**는 모드에 따라 역할이 다름:
+- **RAW file 모드**: 편집 가능. 선택한 RAW 파일 경로를 표시/입력함(기존 동작).
+- **Live camera 모드**: 읽기 전용(Browse... 버튼도 비활성화). `Start`로 카메라가 실제로 연결되면 그 카메라의 고유 식별자를 표시함 - `Camera::get_camera_configuration()`의 `serial_number`(고유번호)를 우선 표시하고, `integrator`(제조/통합사)와 `Camera::generation().name()`(센서 세대)이 있으면 괄호로 덧붙임. 연결 전에는 "연결되면 카메라 식별자가 표시됩니다" 안내 문구만 보임. `Stop`하면 다시 안내 문구로 돌아가고, RAW 모드로 전환하면 마지막으로 고르던 RAW 경로가 복원됨. (참고: EVK4/IMX636은 이 SDK 경로에서 MAC 주소 대신 시리얼 번호가 고유 식별자로 노출됨.)
 
 상단 메뉴바는 **File(파일) - Settings(설정) - About(정보)** 순서로 구성됨.
 
@@ -305,7 +310,13 @@ RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인�
 - **Settings**: `Language`에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 메뉴 문구, 파일 대화상자 등 화면에 보이는 UI 문구가 즉시 다시 그려짐(재시작 불필요). 단, 로그 패널(`AppendLog`) 메시지와 `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 상태 코드는 언어 설정과 무관하게 항상 영어로 고정됨.
 - **About**: `Version`은 정식 버전 번호 체계가 없어 빌드 시점의 git 커밋 해시와 날짜를 대신 보여줌(`EventProcessing.DiagQt/CMakeLists.txt`에서 컴파일 시 주입). `License`는 제품명/버전/저작권/라이선스 조항/서드파티 라이선스/연락처를 한 화면에 보여주는 About 형식 텍스트임 - 정식 오픈소스 라이선스가 아직 지정되지 않았고 저장소에 LICENSE 파일이 없다는 점을 그대로 명시하고, 실제로 확인 가능한 사실(번들된 Prophesee-window/Prophesee-linux·HDF5 SDK의 실제 라이선스 파일 경로, 실제 GitHub 저장소·이슈 트래커 주소, 서울대학교 공학전문대학원 김혜빈 연락처)만 채움(가상의 라이선스 종류나 웹사이트를 지어내지 않음). Website/Bug Report/Email은 `QTextBrowser`(`setOpenExternalLinks(true)`) 기반 다이얼로그라 실제 클릭하면 기본 브라우저/메일 클라이언트로 이동함. 이 블록은 로그와 마찬가지로 언어 설정과 무관하게 항상 영어 원문임.
 
-**Camera Bias** 그룹박스: 앱을 시작하면 바로 IMX636의 알려진 표준 bias 6종(`bias_diff`, `bias_diff_off`, `bias_diff_on`, `bias_fo`, `bias_hpf`, `bias_refr`)에 대한 슬라이더가 보이되, 아직 연결 전이라 값을 모르므로 전부 비활성화 + `--` 표시 상태로 시작함(`SeedBiasPlaceholders()`). Live camera로 `Start`가 성공하면 Metavision HAL의 `I_LL_Biases` 파실리티(`Camera::get_facility<I_LL_Biases>()`)에서 `get_all_biases()`로 읽은 실제 값/범위로 같은 슬라이더들을 갱신하고 활성화함(`PopulateBiasControls()`). 슬라이더 범위는 `LL_Bias_Info::get_bias_range()`(권장 범위, `DeviceConfig::biases_range_check_bypass`를 켜지 않는 한), 슬라이더를 움직이면 즉시 `I_LL_Biases::set()`으로 카메라에 반영됨. `LL_Bias_Info::is_modifiable()`이 false인 bias는 슬라이더가 비활성화된 채로 현재 값만 표시함. 카메라가 알려진 6종 밖의 이름을 보고하면(다른 센서/펌웨어) 그 이름의 행이 동적으로 추가됨. RAW 파일 재생이나 Stop 상태에서는 알려진 6종 슬라이더가 다시 비활성화 + `--` 상태로 돌아가고(사라지지 않음), 동적으로 추가됐던 행만 제거됨(`ClearBiasControls()`). 그룹박스 위 안내 문구가 연결 여부(Connected/Not connected)를 알려줌.
+로그 패널에는 상태가 바뀔 때마다 그 전이가 한 줄씩 남음 - READY뿐 아니라 `SEARCHING`/`READY`/`IMPACT`/`TRJCT` 사이의 모든 전이를 `State: <이전> -> <다음>` 형식으로 기록함(예: `State: SEARCHING -> READY`, `State: READY -> IMPACT`). 트리거 확정 시에는 추가로 사전 저장(pre-roll) 프레임 수를, Trajectory가 끝나면 저장된 프레임 수와 폴더 경로를 함께 남김. (로그는 언어 설정과 무관하게 항상 영어 상태 코드로 기록됨.)
+
+**Camera Bias** 그룹박스: 앱을 시작하면 바로 IMX636의 알려진 표준 bias 6종(`bias_diff`, `bias_diff_off`, `bias_diff_on`, `bias_fo`, `bias_hpf`, `bias_refr`)에 대한 슬라이더가 보이되, 아직 연결 전이라 값을 모르므로 전부 비활성화 + `--` 표시 상태로 시작함(`SeedBiasPlaceholders()`). Live camera로 `Start`가 성공하면 Metavision HAL의 `I_LL_Biases` 파실리티(`Camera::get_facility<I_LL_Biases>()`)에서 `get_all_biases()`로 읽은 실제 값/범위로 같은 슬라이더들을 갱신하고 활성화함(`PopulateBiasControls()`). 슬라이더 범위는 `LL_Bias_Info::get_bias_range()`(권장 범위, `DeviceConfig::biases_range_check_bypass`를 켜지 않는 한), 슬라이더를 움직이면 즉시 `I_LL_Biases::set()`으로 카메라에 반영됨. `LL_Bias_Info::is_modifiable()`이 false인 bias는 슬라이더가 비활성화된 채로 현재 값만 표시함. 슬라이더는 2열로 배치됨 - 왼쪽 열은 `bias_diff`/`bias_diff_off`/`bias_diff_on`, 오른쪽 열은 `bias_fo`/`bias_hpf`/`bias_refr`(알려진 6종 밖의 이름은 오른쪽 열에 이어 붙음). 카메라가 알려진 6종 밖의 이름을 보고하면(다른 센서/펌웨어) 그 이름의 행이 동적으로 추가됨. RAW 파일 재생이나 Stop 상태에서는 알려진 6종 슬라이더가 다시 비활성화 + `--` 상태로 돌아가고(사라지지 않음), 동적으로 추가됐던 행만 제거됨(`ClearBiasControls()`). 그룹박스 위 안내 문구가 연결 여부(Connected/Not connected)를 알려줌.
+
+**기본값 & 값 기억**: 앱 시작 시 `bias_diff = -30`, `bias_diff_off = -15`, `bias_diff_on = -5`, `bias_fo = 20`이 기본값으로 지정되어, Live camera를 처음 연결하면 이 값들이 카메라 범위 안으로 clamp되어 자동 적용됨(`bias_hpf`/`bias_refr`은 기본값 없이 카메라가 보고한 현재 값을 사용). 사용자가 슬라이더로 값을 바꾸면 그 값을 프로그램이 메모리에 기억해 두므로, **프로그램을 종료하지 않는 한** Start->Stop->Start를 반복해도 마지막으로 설정한 값이 카메라를 다시 열 때 그대로 재적용됨(`m_savedBiasValues`). 디스크에 저장하지는 않으므로 프로그램을 완전히 종료하면 다시 위 기본값으로 돌아감. 수정 불가능한(`is_modifiable()==false`) bias에는 기억 값을 적용하지 않고 카메라 보고 값만 표시함.
+
+**Bias 저장/불러오기**: 그룹박스 아래 `Save Bias...`/`Load Bias...` 버튼으로 현재 bias 조합을 Metavision 표준 `.bias` 파일로 저장하거나(`I_LL_Biases::save_to_file`), 파일에서 읽어 카메라에 적용할 수 있음(`I_LL_Biases::load_from_file`). 두 버튼은 카메라가 실제 연결되어 있을 때만 활성화됨. 불러오면 파일의 값이 카메라에 적용된 뒤 슬라이더가 그 값으로 갱신되고, 그 값이 이후 Start/Stop에도 유지되도록 기억 값으로 채택됨. 경로에 한글 등 비ASCII 문자가 있어도 `Utf8ToPath()`로 처리됨. 저장/불러오기 성공·실패는 로그에 남음(항상 영어).
 
 Bias **이름**(`bias_diff_on` 등)은 하드웨어가 보고하는 그대로 언어 설정과 무관하게 항상 영어임. 슬라이더/이름에 마우스를 올리면 뜨는 **설명 툴팁**은 언어 설정을 따름 - 영어일 때는 `LL_Bias_Info::get_description()`이 보고한 원문을 그대로 보여주고, 한국어일 때는 `MainWindow.cpp`의 `KoreanBiasDescription()`에 있는, IMX636 표준 bias 6종(`bias_diff`/`bias_diff_off`/`bias_diff_on`/`bias_fo`/`bias_hpf`/`bias_refr`)에 대해 직접 작성한 한국어 설명으로 바뀜. **주의**: 이 한국어 설명은 HAL이 보고하는 원문 문자열을 그대로 번역한 것이 아니라(그 정확한 원문은 네트워크 제약으로 Prophesee 공식 문서에서 확인하지 못함), 공개적으로 널리 알려진 IMX636 bias 동작 방식을 바탕으로 직접 작성한 것임. 이 표에 없는 bias 이름은 한국어 모드에서도 영어 원문 설명을 그대로 보여줌(임의로 지어내지 않음).
 
