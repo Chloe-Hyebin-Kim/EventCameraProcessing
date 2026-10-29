@@ -108,6 +108,38 @@ endif()
 
 option(EVENTCORE_NO_METAVISION "Force-disable Metavision SDK support even if found" OFF)
 
+# Windows: Metavision SDK의 core 모듈 설정(MetavisionSDK_coreConfig.cmake)이 내부에서
+# find_package(Boost COMPONENTS timer REQUIRED)를 호출하는데, Boost는 리포에 번들되어 있지 않다.
+# 사전빌드 바이너리 설치 기본 경로는 C:\local\boost_<버전>\ 이지만, CMake 내장 FindBoost는 자기가
+# 아는 버전 목록(예: VS2019 번들 CMake 3.20은 1.76까지)에 대해서만 그 경로를 검색하므로 1.80 이상을
+# 깔면 못 찾는다. 그래서 BOOST_ROOT가 지정되지 않았으면 여기서 C:\local\boost_*를 직접 훑어 가장
+# 최신 버전을 BOOST_ROOT로 넘겨준다. 그래도 못 찾으면 SDK 내부의 알아보기 힘든 에러 대신 원인과
+# 해결 방법을 여기서 바로 알려준다.
+if(WIN32 AND NOT EVENTCORE_NO_METAVISION)
+    if(NOT BOOST_ROOT AND NOT Boost_DIR AND (NOT DEFINED ENV{BOOST_ROOT} OR "$ENV{BOOST_ROOT}" STREQUAL ""))
+        file(GLOB _boost_root_candidates LIST_DIRECTORIES true "C:/local/boost_*")
+        if(_boost_root_candidates)
+            list(SORT _boost_root_candidates ORDER DESCENDING)
+            list(GET _boost_root_candidates 0 _boost_root_auto)
+            set(BOOST_ROOT "${_boost_root_auto}")
+            message(STATUS "BOOST_ROOT not set - auto-detected Boost: ${BOOST_ROOT}")
+        endif()
+    endif()
+
+    find_package(Boost QUIET COMPONENTS timer)
+    if(NOT Boost_FOUND)
+        message(FATAL_ERROR
+            "Boost (timer component) not found. The bundled Metavision SDK (Prophesee-window/) requires it, "
+            "but Boost is not bundled in this repo.\n"
+            "  1. Install a prebuilt Boost from https://sourceforge.net/projects/boost/files/boost-binaries/ "
+            "matching your MSVC toolset (VS2019 -> boost_1_8x_0-msvc-14.2-64.exe, VS2022 -> ...-msvc-14.3-64.exe). "
+            "Keep the default install path C:\\local\\boost_1_8x_0\\ so it is auto-detected.\n"
+            "  2. If installed elsewhere, set the BOOST_ROOT environment variable to that folder and restart Visual Studio.\n"
+            "  3. Delete the build/ folder (or 'Project > Delete Cache and Reconfigure') and configure again.\n"
+            "To build only EventProcessing.Core/Console (CSV input, no GUI) without Boost, configure with -DEVENTCORE_NO_METAVISION=ON.")
+    endif()
+endif()
+
 set(EVENTCORE_HAVE_METAVISION OFF)
 if(NOT EVENTCORE_NO_METAVISION)
     find_package(MetavisionSDK QUIET COMPONENTS base core stream)

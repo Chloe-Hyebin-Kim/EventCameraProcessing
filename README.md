@@ -106,7 +106,8 @@
 - **Boost**: [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치
   - VS2019(MSVC 14.2) → `boost_1_8x_0-msvc-14.2-64.exe`
   - VS2022(MSVC 14.3) → `boost_1_8x_0-msvc-14.3-64.exe`
-  - 기본 설치 경로(`C:\local\boost_1_8x_0\`) 그대로 두면 CMake가 자동 감지
+  - 기본 설치 경로(`C:\local\boost_1_8x_0\`) 그대로 두면 CMake가 자동 감지 (`CMakeLists.txt`가 `C:\local\boost_*` 중 최신 버전을 `BOOST_ROOT`로 지정함 — VS2019 번들 CMake 3.20의 FindBoost는 1.76까지만 기본 경로를 알아서 직접 처리)
+  - 새 컴퓨터에서 `Could NOT find Boost (missing: Boost_INCLUDE_DIR timer)` 에러가 나면 Boost가 아직 설치 안 된 것 → 위 설치 후 `프로젝트 > 캐시 삭제 및 다시 구성`
 - **vcpkg**: 필수 아님(OpenCV/Metavision SDK가 리포에 번들되어 있어서). Boost나 Qt를 vcpkg로 관리하고 싶으면 대신 사용 가능(리포에 `vcpkg.json`/`vcpkg-configuration.json` 있지만 현재 실제로 소비되는 패키지는 없음).
 
 ### Linux (Ubuntu/Debian 기준)
