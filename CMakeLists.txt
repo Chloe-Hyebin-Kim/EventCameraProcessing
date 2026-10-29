@@ -110,12 +110,22 @@ option(EVENTCORE_NO_METAVISION "Force-disable Metavision SDK support even if fou
 
 # Windows: Metavision SDK의 core 모듈 설정(MetavisionSDK_coreConfig.cmake)이 내부에서
 # find_package(Boost COMPONENTS timer REQUIRED)를 호출하는데, Boost는 리포에 번들되어 있지 않다.
-# 사전빌드 바이너리 설치 기본 경로는 C:\local\boost_<버전>\ 이지만, CMake 내장 FindBoost는 자기가
-# 아는 버전 목록(예: VS2019 번들 CMake 3.20은 1.76까지)에 대해서만 그 경로를 검색하므로 1.80 이상을
-# 깔면 못 찾는다. 그래서 BOOST_ROOT가 지정되지 않았으면 여기서 C:\local\boost_*를 직접 훑어 가장
-# 최신 버전을 BOOST_ROOT로 넘겨준다. 그래도 못 찾으면 SDK 내부의 알아보기 힘든 에러 대신 원인과
-# 해결 방법을 여기서 바로 알려준다.
+# 실제로는 이 프로젝트가 Boost를 쓰지 않으므로(번들 DLL들이 Boost DLL을 import하지 않고, 우리가
+# include하는 Metavision 헤더도 boost/ 헤더를 끌어오지 않음 - cmake/boost-stub/BoostConfig.cmake 참고)
+# Boost가 없으면 빈 stub 패키지로 대신해서, 새 PC에서 clone만 하고 바로 빌드되게 한다.
+#
+# 실제 Boost가 설치되어 있으면 그쪽을 우선 쓴다. 사전빌드 바이너리의 기본 설치 경로는
+# C:\local\boost_<버전>\ 이지만, CMake 내장 FindBoost는 자기가 아는 버전 목록(예: VS2019 번들
+# CMake 3.20은 1.76까지)에 대해서만 그 경로를 검색해서 1.80 이상은 못 찾으므로, BOOST_ROOT가
+# 지정되지 않았으면 여기서 C:\local\boost_*를 직접 훑어 가장 최신 버전을 BOOST_ROOT로 넘겨준다.
+set(_boost_stub_dir "${CMAKE_SOURCE_DIR}/cmake/boost-stub")
 if(WIN32 AND NOT EVENTCORE_NO_METAVISION)
+    # 이전 configure에서 stub이 캐시에 남아있으면 지우고 실제 Boost를 다시 찾아본다
+    # (그 사이에 Boost를 설치했을 수 있으므로).
+    if(Boost_DIR STREQUAL _boost_stub_dir)
+        unset(Boost_DIR CACHE)
+    endif()
+
     if(NOT BOOST_ROOT AND NOT Boost_DIR AND (NOT DEFINED ENV{BOOST_ROOT} OR "$ENV{BOOST_ROOT}" STREQUAL ""))
         file(GLOB _boost_root_candidates LIST_DIRECTORIES true "C:/local/boost_*")
         if(_boost_root_candidates)
@@ -127,16 +137,13 @@ if(WIN32 AND NOT EVENTCORE_NO_METAVISION)
     endif()
 
     find_package(Boost QUIET COMPONENTS timer)
-    if(NOT Boost_FOUND)
-        message(FATAL_ERROR
-            "Boost (timer component) not found. The bundled Metavision SDK (Prophesee-window/) requires it, "
-            "but Boost is not bundled in this repo.\n"
-            "  1. Install a prebuilt Boost from https://sourceforge.net/projects/boost/files/boost-binaries/ "
-            "matching your MSVC toolset (VS2019 -> boost_1_8x_0-msvc-14.2-64.exe, VS2022 -> ...-msvc-14.3-64.exe). "
-            "Keep the default install path C:\\local\\boost_1_8x_0\\ so it is auto-detected.\n"
-            "  2. If installed elsewhere, set the BOOST_ROOT environment variable to that folder and restart Visual Studio.\n"
-            "  3. Delete the build/ folder (or 'Project > Delete Cache and Reconfigure') and configure again.\n"
-            "To build only EventProcessing.Core/Console (CSV input, no GUI) without Boost, configure with -DEVENTCORE_NO_METAVISION=ON.")
+    if(Boost_FOUND)
+        message(STATUS "Boost found: ${Boost_VERSION}")
+    else()
+        set(Boost_DIR "${_boost_stub_dir}" CACHE PATH "The directory containing a CMake configuration file for Boost." FORCE)
+        find_package(Boost REQUIRED COMPONENTS timer)
+        message(STATUS "Boost not installed - using the empty stub in cmake/boost-stub/ "
+                       "(the bundled Metavision SDK only declares Boost in its CMake config; nothing here actually uses it)")
     endif()
 endif()
 
