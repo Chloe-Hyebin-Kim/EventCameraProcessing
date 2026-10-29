@@ -1,4 +1,4 @@
-#include "pch.h"
+// Calibration/ 하위 폴더 - MSVC PCH 미사용(.vcxproj: PrecompiledHeader=NotUsing).
 #include "CalibrationIO.h"
 
 namespace eventcore

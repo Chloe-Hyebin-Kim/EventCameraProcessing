@@ -18,8 +18,7 @@
 1. **필수 프로그램 설치**
    - Visual Studio 2019(16.11+) 또는 2022 — 설치 시 **"C++를 사용한 데스크톱 개발"** 워크로드 + **"C++ CMake 도구"** 컴포넌트 체크
    - Qt — [Qt Online Installer](https://www.qt.io/download-qt-installer)로 설치. VS2022면 `MSVC 2022 64-bit` 키트(Qt 6.x) 선택
-   - Boost — [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치 (VS2022 → `boost_1_8x_0-msvc-14.3-64.exe`, 기본 경로 `C:\local\boost_1_8x_0\` 그대로 두면 자동 감지됨)
-   - OpenCV / Metavision SDK는 리포에 번들되어 있어 별도 설치 불필요
+   - OpenCV / Metavision SDK는 리포에 번들되어 있어 별도 설치 불필요, Boost도 설치 불필요(아래 Requirements 참고)
 
 2. **Qt 경로를 환경 변수로 등록**: 시스템 환경 변수에 `QT_DIR`을 Qt 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`). 설정 후 Visual Studio를 껐다 다시 켜야 반영됨.
 
@@ -38,6 +37,18 @@
    ```
    build\windows-qt\EventProcessing.DiagQt\EventProcessing.DiagQt.exe
    ```
+
+8. **(Live 카메라를 쓸 때만) 카메라 USB 드라이버(WinUSB) 설치** — PC마다 한 번만 하면 됨. RAW 파일 재생만 할 거면 생략 가능.
+
+   앱은 번들된 `libusb-1.0.dll`(빌드 시 실행 파일 옆 `hal_plugins\`로 자동 복사됨)로 카메라와 통신하는데, Windows에서 libusb가 장치에 접근하려면 그 USB 장치에 **WinUSB 드라이버**가 연결되어 있어야 함. 이건 리포에 번들할 수 없어서 새 PC마다 직접 설치해야 하고, 안 하면 Live 모드에서 카메라를 찾지 못함.
+   1. 카메라를 USB로 연결
+   2. [Zadig](https://zadig.akeo.ie/) 다운로드 후 실행(설치 없이 바로 실행됨, 관리자 권한 요청 시 허용)
+   3. 메뉴 `Options > List All Devices` 체크
+   4. 드롭다운에서 Prophesee 카메라 선택(예: `EVK4`, `Prophesee ...` 등 카메라 모델 이름으로 표시됨). 키보드/마우스 등 다른 장치를 고르지 않도록 주의 — 엉뚱한 장치의 드라이버를 바꾸면 그 장치가 동작하지 않게 됨
+   5. 오른쪽(초록 화살표 오른쪽) 드라이버를 **`WinUSB`** 로 두고 `Install Driver`(이미 다른 드라이버가 잡혀있으면 `Replace Driver`) 클릭
+   6. 완료 후 카메라를 뺐다 다시 꽂고 앱에서 Live 모드로 카메라가 잡히는지 확인
+
+   > 장치 관리자에서 카메라가 `범용 직렬 버스 장치`(Universal Serial Bus devices) 아래에 노란 느낌표 없이 보이면 정상. 잘못된 장치에 설치했다면 장치 관리자에서 그 장치 우클릭 > `디바이스 제거`(드라이버 삭제 체크) 후 다시 연결하면 원래 드라이버로 돌아감.
 
 ### Linux (Ubuntu/Debian 기준)
 
@@ -93,7 +104,7 @@
 | OpenCV | 4.4.0 | Windows는 리포에 번들(`ocv440/` + 루트 `opencv_world440(d).dll`)되어 있어 별도 설치 불필요, CMake가 자동 감지.</br> Linux는 시스템 패키지 사용(아래 참고), 4.x대면 대체로 호환. |
 | Qt | Qt5(버전 무관) 또는 Qt6 (Widgets 모듈) | 미리보기 프레임 변환에 `Format_RGB888` + `rgbSwapped()`를 쓰므로(Qt4 때부터 있는 API) 특정 최소 버전 제약 없음. |
 | Metavision SDK (Prophesee) | **5.2.0** (리포 `Prophesee-window/`에 번들된 버전) | Live 카메라 / RAW 재생(`EventProcessing.DiagQt`)에 필수.</br> 없어도 `EventProcessing.Core`/`EventProcessing.Console`은 CSV 입력만으로 빌드됨.</br> 필요 컴포넌트: `base`, `core`, `stream` (+ 내부적으로 `MetavisionHAL`, `MetavisionPSEEHWLayer`, `hdf5_ecf` 사용 — 전부 `Prophesee-window/`에 같이 번들됨). |
-| Boost | `timer` 컴포넌트만 | `Prophesee-window/`에 번들 안 되어 있음, 별도 설치 필요 (Metavision SDK의 `core` 모듈이 요구).</br> MSVC 툴셋 버전과 맞는 사전빌드 바이너리 권장(빌드 안 해도 됨). |
+| Boost | Windows: 불필요 / Linux: `timer` 컴포넌트 | Windows: 번들 Metavision SDK의 CMake 설정이 Boost `timer`를 요구하지만 실제 DLL/헤더는 Boost를 쓰지 않으므로, Boost가 없으면 `cmake/boost-stub/`의 빈 대체 패키지로 자동 대체됨(설치되어 있으면 실제 Boost 사용).</br> Linux: 시스템 패키지 또는 `Prophesee-linux/` 번들 사용. |
 
 ### Windows
 
@@ -103,10 +114,9 @@
   - VS2022 → `MSVC 2022 64-bit` 키트 (Qt 6.6+ 포함 최신)
 - **OpenCV**: 별도 설치 불필요 (리포 번들 자동 감지)
 - **Metavision SDK**: 별도 설치 불필요 (리포 `Prophesee-window/` 자동 감지, 시스템 설치본이 있으면 그건 대신 무시하고 리포 번들본을 우선 사용함)
-- **Boost**: [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/) 설치
-  - VS2019(MSVC 14.2) → `boost_1_8x_0-msvc-14.2-64.exe`
-  - VS2022(MSVC 14.3) → `boost_1_8x_0-msvc-14.3-64.exe`
-  - 기본 설치 경로(`C:\local\boost_1_8x_0\`) 그대로 두면 CMake가 자동 감지
+- **Boost**: 설치 불필요. 번들 Metavision SDK의 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 `find_package(Boost COMPONENTS timer REQUIRED)`를 호출하지만, `Prophesee-window\bin\*.dll`은 Boost DLL을 import하지 않고 이 프로젝트가 include하는 Metavision 헤더도 `boost/` 헤더를 쓰지 않음. 그래서 Boost를 못 찾으면 CMake가 `cmake/boost-stub/`의 빈 대체 패키지를 대신 써서 그대로 빌드됨(configure 로그에 `Boost not installed - using the empty stub` 표시).
+  - 실제 Boost가 설치되어 있으면 그쪽을 우선 사용(`C:\local\boost_*` 자동 감지, 또는 `BOOST_ROOT`). 나중에 `boost/` 헤더를 끌어오는 Metavision 헤더(예: `sdk/core`의 timing profiler, preprocessors)를 include하게 되면 그때는 [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/)(VS2019 → `msvc-14.2`, VS2022 → `msvc-14.3`) 설치 필요.
+- **카메라 USB 드라이버**: Live 카메라 사용 시 WinUSB 드라이버 필요(PC마다 한 번, [Zadig](https://zadig.akeo.ie/)로 설치) — 위 [Quick Start > Windows](#windows) 8번 참고. RAW 재생만 하면 불필요.
 - **vcpkg**: 필수 아님(OpenCV/Metavision SDK가 리포에 번들되어 있어서). Boost나 Qt를 vcpkg로 관리하고 싶으면 대신 사용 가능(리포에 `vcpkg.json`/`vcpkg-configuration.json` 있지만 현재 실제로 소비되는 패키지는 없음).
 
 ### Linux (Ubuntu/Debian 기준)
@@ -135,7 +145,7 @@
 |---|---|---|
 | `QT_DIR` | Windows에서 Qt 자동 감지용 (권장) | Qt 키트 경로, 예: `C:\Qt\6.5.3\msvc2019_64`. CMake가 `CMAKE_PREFIX_PATH`에 자동 추가함. |
 | `QTDIR` | `QT_DIR` 없을 때 폴백으로 사용됨 | Qt 설치 관례상의 변수명. </br>이미 다른 용도로 설정되어 있을 수 있으니 가능하면 `QT_DIR`을 새로 쓰는 걸 권장. |
-| `BOOST_ROOT` | 보통 불필요 | Boost를 기본 경로(`C:\local\boost_*`)가 아닌 곳에 설치했을 때만 필요. |
+| `BOOST_ROOT` | 불필요 | 실제 Boost를 기본 경로(`C:\local\boost_*`)가 아닌 곳에 설치했고 그걸 쓰고 싶을 때만 지정. 없으면 빈 stub으로 대체됨. |
 | `MV_HAL_PLUGIN_PATH` | 설정 불필요 | 앱이 실행 시점에 자동으로 설정함 </br> (`EnsureBundledHalPluginPath()`, 실행 파일 옆 `hal_plugins\` 탐색). 수동 설정 시 그 값이 우선됨. |
 | `OpenCV_DIR` | 설정 불필요 | 번들 OpenCV를 CMake가 IMPORTED 타깃으로 직접 구성하므로 불필요 </br>(다른 OpenCV로 덮어쓰고 싶을 때만 지정). |
 
@@ -490,7 +500,7 @@ sudo apt install cmake build-essential libopencv-dev qt6-base-dev
 
 Metavision SDK(Prophesee)는 [공식 설치 안내](https://docs.prophesee.ai)를 따라 플랫폼별로 별도 설치함(Windows는 기존처럼 리포의 `Prophesee-window\` 폴더 또는 시스템 설치를 그대로 사용). `find_package(MetavisionSDK)`로 자동 감지되며,
 
-> **Windows에서 Boost 필요**: Metavision SDK의 `core` 모듈 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 Boost `timer` 컴포넌트를 요구함(리포에 번들되어 있지 않음). Live 카메라를 안 쓰고 RAW 파일만 보더라도 RAW 디코딩 자체가 Metavision SDK를 거치므로 Boost가 필요함. [Boost 사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/)를 설치(예: `boost_1_8x_0-msvc-14.2-64.exe`, 기본 경로 `C:\local\boost_1_8x_0\`에 설치하면 CMake가 자동으로 찾음, 안 잡히면 `BOOST_ROOT` 환경 변수로 지정).
+> **Windows에서 Boost는 설치 불필요**: Metavision SDK의 `core` 모듈 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 Boost `timer` 컴포넌트를 요구하지만, 번들 DLL과 이 프로젝트가 쓰는 헤더는 실제로 Boost를 쓰지 않음. Boost가 없으면 `cmake/boost-stub/`의 빈 대체 패키지로 configure가 통과됨. 실제 Boost가 설치되어 있으면(`C:\local\boost_*` 자동 감지 또는 `BOOST_ROOT`) 그쪽을 씀.
 
 ```text
 설치되어 있으면

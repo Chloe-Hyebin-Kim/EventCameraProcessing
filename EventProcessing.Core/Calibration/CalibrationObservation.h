@@ -3,7 +3,7 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 
-#include "Event.h"                // lli
+#include "../Event.h"             // lli
 #include "CalibrationTypes.h"     // CheckerboardConfig
 #include "CheckerboardDetector.h" // CheckerboardDetection
 

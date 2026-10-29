@@ -1,4 +1,5 @@
-#include "pch.h"
+// 이 파일은 Calibration/ 하위 폴더에 있어 MSVC PCH(pch.h는 Core 루트)를 쓰지 않는다
+// (.vcxproj에서 PrecompiledHeader=NotUsing). 필요한 헤더는 직접 include한다.
 #include "CalibrationImageBuilder.h"
 
 #include <algorithm>

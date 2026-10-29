@@ -1,10 +1,10 @@
 set(EVENTCORE_SOURCES
     BallDetector.cpp
-    CalibrationImageBuilder.cpp
-    CalibrationObservation.cpp
-    CalibrationIO.cpp
-    CameraCalibrator.cpp
-    CheckerboardDetector.cpp
+    Calibration/CalibrationImageBuilder.cpp
+    Calibration/CalibrationObservation.cpp
+    Calibration/CalibrationIO.cpp
+    Calibration/CameraCalibrator.cpp
+    Calibration/CheckerboardDetector.cpp
     CsvEventSource.cpp
     EventAccumulator.cpp
     EventFilter.cpp
@@ -19,12 +19,12 @@ set(EVENTCORE_SOURCES
 
 set(EVENTCORE_HEADERS
     BallDetector.h
-    CalibrationImageBuilder.h
-    CalibrationObservation.h
-    CalibrationTypes.h
-    CalibrationIO.h
-    CameraCalibrator.h
-    CheckerboardDetector.h
+    Calibration/CalibrationImageBuilder.h
+    Calibration/CalibrationObservation.h
+    Calibration/CalibrationTypes.h
+    Calibration/CalibrationIO.h
+    Calibration/CameraCalibrator.h
+    Calibration/CheckerboardDetector.h
     CsvEventSource.h
     Event.h
     EventAccumulator.h

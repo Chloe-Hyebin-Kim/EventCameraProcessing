@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Event.h"  // eventcore::lli
+#include "../Event.h"  // eventcore::lli
 
 namespace eventcore
 {
