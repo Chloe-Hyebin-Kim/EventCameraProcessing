@@ -1,8 +1,8 @@
 # Event Camera Intrinsic Calibration — 사용법 & 파이프라인
 
 > 대상: Prophesee Metavision EVK4HD (IMX636, 1280×720)
-> 위치: `EventProcessing.Core`(알고리즘) + `EventProcessing.DiagQt`(GUI)
-> 브랜치: `claude/qt-linux-support-tpo2n2`
+> 위치: `EventProcessing.Core/Calibration/`(알고리즘) + `EventProcessing.DiagQt`(GUI)
+> 빌드 방법은 [루트 README](../../README.md) 참고
 
 ## 1. 파이프라인 개요
 
@@ -126,7 +126,8 @@
 - OpenCV **4.4.0** 기준으로 작성/검증(리포 번들 `ocv440/` 헤더).
 - calib3d 모듈이 필요(`findChessboardCorners*`, `calibrateCamera`, `projectPoints`, `FileStorage`).
   - **Windows**: 번들 `opencv_world440`에 calib3d 포함 → 그대로 빌드됨.
-  - **Linux**: 번들 `Prophesee-linux`의 OpenCV(4.2)에는 calib3d가 없음 → Linux에서 빌드하려면 calib3d 포함 OpenCV를 별도 제공해야 함(코드 문제 아님, 빌드 환경 문제).
+  - **Linux**: 시스템 OpenCV(`sudo apt install libopencv-dev`, calib3d 포함)를 사용함. 번들 `Prophesee-linux/`의 OpenCV(4.2)는 core/imgproc/imgcodecs/videoio만 있어 calib3d가 없지만, `CMakeLists.txt`는 시스템 OpenCV를 쓰므로 문제없음.
+  - calib3d가 없는 OpenCV가 잡히면 런타임이 아니라 configure 단계에서 바로 에러로 알려줌.
 
 ## 10. 검증 상태 (중요)
 

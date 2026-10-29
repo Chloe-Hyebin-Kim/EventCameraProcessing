@@ -1,62 +1,81 @@
 # EventCameraProcessing
 
-프로젝트는 이벤트 입력 및 처리 로직을 담당하는 Core Library, Batch Processing용 Console Application, 실시간 확인을 위한 Qt 기반 Diagnostic Application(Windows / Linux 공용)으로 구성함.
+Prophesee EVK4 HD(IMX636) 이벤트 카메라 데이터를 취득·시각화·처리하기 위한 C++ 프로젝트. 다음 세 부분으로 구성됨.
+
+- **EventProcessing.Core**: 이벤트 입력과 처리 로직을 담은 Static Library. Ball 검출, Shot Trigger, Camera Calibration을 포함함.
+- **EventProcessing.Console**: Batch Processing용 Command-line Application.
+- **EventProcessing.DiagQt**: 실시간 확인용 Qt 기반 Diagnostic Viewer(Windows / Linux 공용).
+
 <img width="871" height="605" alt="image" src="https://github.com/user-attachments/assets/f8ddd6cd-e0b1-4ad6-85cc-ce4898637d88" />
 
-
-</br>
-</br>
 </br>
 
+## 목차
 
-## Quick Start (소스 받아서 GUI 실행하기)
+- [Quick Start](#quick-start)
+- [Requirements](#requirements)
+- [Project Structure](#project-structure)
+- [EventProcessing.Core](#eventprocessingcore)
+- [EventProcessing.Console](#eventprocessingconsole)
+- [EventProcessing.DiagQt](#eventprocessingdiagqt)
+- [Camera Calibration](#camera-calibration)
+- [Build 구성 상세](#build-구성-상세)
+- [Research Direction](#research-direction)
+- [Current Status](#current-status)
+- [Current Limitations](#current-limitations)
 
-> **`QtVer` 브랜치 기준.** GUI(`EventProcessing.DiagQt`) 실행에 필요한 인프라(Linux용 OpenEB 빌드 스크립트, Windows Release 강제, DLL 자동 배포 등)가 현재 `QtVer` 브랜치에만 있으므로, 아래 단계는 전부 `QtVer`를 받았다는 전제로 진행함. 더 자세한 배경/트러블슈팅은 아래 [Requirements](#requirements), [알려진 이슈](#알려진-이슈) 섹션 참고.
+---
+
+## Quick Start
+
+> 아래 단계는 모두 **`QtVer` 브랜치** 기준임. GUI 빌드에 필요한 구성은 이 브랜치에 있음: 번들 SDK 자동 감지, Windows Release 강제, 런타임 DLL 자동 배포, Linux OpenEB 스크립트 등.
 
 ### Windows
 
 1. **필수 프로그램 설치**
-   - Visual Studio 2019(16.11+) 또는 2022 — 설치 시 **"C++를 사용한 데스크톱 개발"** 워크로드 + **"C++ CMake 도구"** 컴포넌트 체크
-   - Qt — [Qt Online Installer](https://www.qt.io/download-qt-installer)로 설치. VS2022면 `MSVC 2022 64-bit` 키트(Qt 6.x) 선택
-   - OpenCV / Metavision SDK는 리포에 번들되어 있어 별도 설치 불필요, Boost도 설치 불필요(아래 Requirements 참고)
+   - **Visual Studio 2019(16.11+) 또는 2022**: 설치할 때 **"C++를 사용한 데스크톱 개발"** 워크로드와 **"C++ CMake 도구"** 컴포넌트를 체크.
+   - **Qt**: [Qt Online Installer](https://www.qt.io/download-qt-installer)로 VS 버전에 맞는 키트를 설치.
+     - VS2019 → `MSVC 2019 64-bit`(Qt 6.5 LTS까지, 또는 Qt 5.15.2)
+     - VS2022 → `MSVC 2022 64-bit`
+   - OpenCV, Metavision SDK, Boost는 **설치 불필요**(리포 번들 또는 자동 대체, [Requirements](#requirements) 참고).
 
-2. **Qt 경로를 환경 변수로 등록**: 시스템 환경 변수에 `QT_DIR`을 Qt 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`). 설정 후 Visual Studio를 껐다 다시 켜야 반영됨.
-
-3. **소스 받기**
+2. **소스 받기**
    ```bash
    git clone --branch QtVer https://github.com/Chloe-Hyebin-Kim/EventCameraProcessing
    ```
 
-4. **Visual Studio에서 열기**: `EventCameraProcessing` 폴더를 **파일 > 폴더 열기(Open Folder)** 로 연다. (`.sln`을 더블클릭하는 게 아님 — 거기엔 GUI가 안 들어있음.)
+3. **Visual Studio에서 열기**: **파일 > 폴더 열기(Open Folder)** 로 `EventCameraProcessing` 폴더를 연다. `.sln`을 여는 게 아님(`.sln`에는 GUI가 없음).
 
-5. 상단 구성 드롭다운에서 **`windows-qt`** 를 선택하면 CMake가 자동으로 configure됨(잠시 대기).
+4. 상단 구성 드롭다운에서 **`windows-qt`** 를 선택하면 CMake configure가 자동으로 시작됨.
+   - Qt를 기본 경로(`C:\Qt\<버전>\msvc*_64`)에 설치했다면 자동으로 감지됨.
+   - 다른 곳에 설치했다면 시스템 환경 변수 `QT_DIR`에 그 경로를 지정하고 Visual Studio를 재시작.
 
-6. **빌드**: 상단 메뉴 `빌드 > 모두 빌드`(또는 `Ctrl+Shift+B`).
+5. **빌드**: `빌드 > 모두 빌드`(`Ctrl+Shift+B`).
 
-7. **실행**: 시작 항목을 `EventProcessing.DiagQt.exe`로 선택하고 실행(F5), 또는 빌드된 실행 파일을 직접 실행:
+6. **실행**: 시작 항목을 `EventProcessing.DiagQt.exe`로 선택하고 F5를 누른다. 또는 아래 파일을 직접 실행.
    ```
    build\windows-qt\EventProcessing.DiagQt\EventProcessing.DiagQt.exe
    ```
 
-8. **(Live 카메라를 쓸 때만) 카메라 USB 드라이버(WinUSB) 설치** — PC마다 한 번만 하면 됨. RAW 파일 재생만 할 거면 생략 가능.
+7. **(Live 카메라를 쓸 때만) 카메라 USB 드라이버(WinUSB) 설치**: PC마다 한 번만 하면 됨. RAW 파일 재생만 할 거면 생략 가능.
 
-   앱은 번들된 `libusb-1.0.dll`(빌드 시 실행 파일 옆 `hal_plugins\`로 자동 복사됨)로 카메라와 통신하는데, Windows에서 libusb가 장치에 접근하려면 그 USB 장치에 **WinUSB 드라이버**가 연결되어 있어야 함. 이건 리포에 번들할 수 없어서 새 PC마다 직접 설치해야 하고, 안 하면 Live 모드에서 카메라를 찾지 못함.
-   1. 카메라를 USB로 연결
-   2. [Zadig](https://zadig.akeo.ie/) 다운로드 후 실행(설치 없이 바로 실행됨, 관리자 권한 요청 시 허용)
-   3. 메뉴 `Options > List All Devices` 체크
-   4. 드롭다운에서 Prophesee 카메라 선택(예: `EVK4`, `Prophesee ...` 등 카메라 모델 이름으로 표시됨). 키보드/마우스 등 다른 장치를 고르지 않도록 주의 — 엉뚱한 장치의 드라이버를 바꾸면 그 장치가 동작하지 않게 됨
-   5. 오른쪽(초록 화살표 오른쪽) 드라이버를 **`WinUSB`** 로 두고 `Install Driver`(이미 다른 드라이버가 잡혀있으면 `Replace Driver`) 클릭
-   6. 완료 후 카메라를 뺐다 다시 꽂고 앱에서 Live 모드로 카메라가 잡히는지 확인
+   앱은 번들된 `libusb-1.0.dll`로 카메라와 통신함(빌드 시 실행 파일 옆 `hal_plugins\`로 자동 복사됨). Windows에서 libusb가 장치에 접근하려면 그 USB 장치에 **WinUSB 드라이버**가 연결되어 있어야 함. 이 드라이버는 리포에 번들할 수 없어서 새 PC마다 직접 설치해야 하고, 설치하지 않으면 Live 모드에서 카메라를 찾지 못함.
+   1. 카메라를 USB로 연결.
+   2. [Zadig](https://zadig.akeo.ie/)를 다운로드해서 실행(설치 없이 바로 실행됨, 관리자 권한을 요청하면 허용).
+   3. 메뉴 `Options > List All Devices` 체크.
+   4. 드롭다운에서 Prophesee 카메라를 선택(예: `EVK4`, `Prophesee ...` 등 카메라 모델 이름으로 표시됨). 키보드, 마우스 등 다른 장치를 고르지 않도록 주의. 다른 장치의 드라이버를 바꾸면 그 장치가 동작하지 않게 됨.
+   5. 오른쪽(초록 화살표 오른쪽)의 드라이버를 **`WinUSB`** 로 두고 `Install Driver` 클릭. 이미 다른 드라이버가 잡혀 있으면 `Replace Driver` 클릭.
+   6. 카메라를 뺐다 다시 꽂고, 앱의 Live 모드에서 카메라가 잡히는지 확인.
 
-   > 장치 관리자에서 카메라가 `범용 직렬 버스 장치`(Universal Serial Bus devices) 아래에 노란 느낌표 없이 보이면 정상. 잘못된 장치에 설치했다면 장치 관리자에서 그 장치 우클릭 > `디바이스 제거`(드라이버 삭제 체크) 후 다시 연결하면 원래 드라이버로 돌아감.
+   > 정상 설치됐다면 장치 관리자의 `범용 직렬 버스 장치`(Universal Serial Bus devices) 아래에 카메라가 노란 느낌표 없이 보임. 잘못된 장치에 설치했다면 장치 관리자에서 그 장치 우클릭 > `디바이스 제거`(드라이버 삭제 체크) 후 다시 연결하면 원래 드라이버로 돌아감.
 
 ### Linux (Ubuntu/Debian 기준)
 
 1. **필수 패키지 설치**
    ```bash
    sudo apt install cmake build-essential libopencv-dev qt6-base-dev
-   # qt6-base-dev가 안 잡히면 대신: qtbase5-dev
    ```
+   `qt6-base-dev`가 없는 배포판이면 대신 `qtbase5-dev`를 설치.
 
 2. **소스 받기**
    ```bash
@@ -64,592 +83,262 @@
    cd EventCameraProcessing
    ```
 
-3. **Metavision SDK(OpenEB) 준비** — 두 가지 방법이 있음.
-
-   **방법 A: 번들 그대로 써보기 (`Prophesee-linux/`, 별도 설치/빌드 없음)**
-
-   리포에 Ubuntu 20.04에서 빌드해 번들해둔 OpenEB + 의존 라이브러리(`Prophesee-linux/`)가 들어있어서, 그냥 clone만 하면 3번 단계 없이 바로 4번(Configure + 빌드)으로 넘어가도 됨. 다만 **그 컴퓨터의 시스템 OpenCV 버전이 번들(4.2)과 크게 다르면(예: Ubuntu 22.04/24.04의 기본 OpenCV 4.5+/4.6+) 빌드 시점에 라이브러리 버전 충돌로 링크가 실패할 수 있음** — 실제로 확인된 증상: `EventProcessing.Console`/`EventProcessing.DiagQt` 링크 단계에서 `libgdal`/`libgeos`/`libspatialite` 등에서 `undefined reference` 에러가 무더기로 남. 이 경우 아래 방법 B로 넘어갈 것.
-
-   **방법 B: 소스에서 직접 빌드/설치 (방법 A가 안 될 때, 또는 처음부터 이쪽을 원하면)**
-
-   그 컴퓨터의 실제 시스템 라이브러리 버전에 맞춰 새로 빌드하므로 방법 A의 버전 충돌 문제가 없음. 대신 OpenEB 자체가 커서 시간이 좀 걸림.
-   ```bash
-   ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
-   # sudo 권한이 없으면:
-   ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치 (완료 후 안내되는 환경변수 추가 필요)
-   ```
-   방법 B로 설치하면 CMake가 시스템 설치본을 우선 쓰므로, 리포의 `Prophesee-linux/`는 무시됨(`CMakeLists.txt`가 `Prophesee-linux/`를 시스템보다 먼저 검색 경로에 넣긴 하지만, `find_package`가 성공하는 쪽이 어차피 먼저 잡힌 그 경로이므로 실질적으로 방법 A가 실패하지 않는 한 방법 B 설치본이 쓰일 일은 없음 — 방법 A가 안 되면 `rm -rf Prophesee-linux`로 아예 지우고 방법 B만 쓸 것).
+3. **Metavision SDK(OpenEB) 준비**: 둘 중 하나를 고른다.
+   - **방법 A: 번들 사용(`Prophesee-linux/`, 추가 작업 없음)**. 리포에 Ubuntu 20.04에서 빌드한 OpenEB 5.2.0과 그 의존 `.so`가 들어 있어서 바로 4번으로 넘어가면 됨.
+     단, 시스템 OpenCV 버전이 번들(4.2)과 많이 다르면(Ubuntu 22.04/24.04 등) 링크 단계에서 `libgdal`/`libgeos`/`libspatialite` 등의 `undefined reference` 에러가 날 수 있음. 그러면 방법 B를 사용.
+   - **방법 B: 소스에서 빌드/설치**. 그 PC의 라이브러리 버전에 맞춰 빌드하므로 버전 충돌이 없음(빌드 시간이 좀 걸림). 방법 A에서 실패했다면 먼저 `rm -rf Prophesee-linux`를 실행해야 시스템 설치본이 확실히 쓰임.
+     ```bash
+     ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
+     ./scripts/setup-linux-openeb.sh --user   # sudo가 없으면 ~/.local/openeb에 설치 (완료 후 안내되는 환경변수 추가)
+     ```
 
 4. **Configure + 빌드**
    ```bash
    cmake --preset linux
    cmake --build build/linux -j$(nproc)
    ```
-   configure 로그에 `Metavision SDK found - Live camera / RAW support enabled` 가 보여야 `EventProcessing.DiagQt`까지 같이 빌드됨. 안 보이면 3번을 아직 안 했거나(방법 A만 있고 B는 안 했는데 A도 실패한 경우 등) 새 셸을 안 열었을 가능성이 큼. configure는 통과했는데 **빌드(링크) 단계에서 `undefined reference to ...` 에러**가 나면 방법 A의 버전 충돌이니 3번의 방법 B로 넘어갈 것.
+   configure 로그에 `Metavision SDK found - Live camera / RAW support enabled`가 보여야 `EventProcessing.DiagQt`까지 빌드됨.
 
 5. **실행**
    ```bash
    ./build/linux/EventProcessing.DiagQt/EventProcessing.DiagQt
    ```
-   `error while loading shared libraries: libmetavision_sdk_core.so.5` 같은 에러가 뜨면 `sudo ldconfig` 한 번 실행 후 다시 시도.
+   `error while loading shared libraries: libmetavision_sdk_core.so.5` 에러가 뜨면 `sudo ldconfig`를 한 번 실행한 뒤 다시 시도.
+
+6. **(Live 카메라를 쓸 때만) udev 규칙 설치**: 일반 사용자 권한으로 카메라 USB 장치에 접근하기 위해 필요함. PC마다 한 번만 하면 됨. 방법 B 스크립트는 이 단계를 자동으로 수행함.
+   ```bash
+   sudo cp Prophesee-linux/udev-rules/*.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+   ```
+   설치 후 카메라를 다시 연결.
+
+---
 
 ## Requirements
 
-### Common
-
-| 항목 | 최소 버전 | 비고 |
+| 항목 | 버전 | 비고 |
 |---|---|---|
-| CMake | 3.16 (일반 빌드) / **3.21+ 권장** | `CMakePresets.json`(schema version 3)은 3.21 이상 필요.</br> VS2019 16.11 번들 CMake는 약 3.20대라 preset 일부 기능이 불안정할 수 있음(아래 "알려진 이슈" 참고). |
-| C++ 표준 | C++17 | `CMAKE_CXX_STANDARD 17` |
-| OpenCV | 4.4.0 | Windows는 리포에 번들(`ocv440/` + 루트 `opencv_world440(d).dll`)되어 있어 별도 설치 불필요, CMake가 자동 감지.</br> Linux는 시스템 패키지 사용(아래 참고), 4.x대면 대체로 호환. |
-| Qt | Qt5(버전 무관) 또는 Qt6 (Widgets 모듈) | 미리보기 프레임 변환에 `Format_RGB888` + `rgbSwapped()`를 쓰므로(Qt4 때부터 있는 API) 특정 최소 버전 제약 없음. |
-| Metavision SDK (Prophesee) | **5.2.0** (리포 `Prophesee-window/`에 번들된 버전) | Live 카메라 / RAW 재생(`EventProcessing.DiagQt`)에 필수.</br> 없어도 `EventProcessing.Core`/`EventProcessing.Console`은 CSV 입력만으로 빌드됨.</br> 필요 컴포넌트: `base`, `core`, `stream` (+ 내부적으로 `MetavisionHAL`, `MetavisionPSEEHWLayer`, `hdf5_ecf` 사용 — 전부 `Prophesee-window/`에 같이 번들됨). |
-| Boost | Windows: 불필요 / Linux: `timer` 컴포넌트 | Windows: 번들 Metavision SDK의 CMake 설정이 Boost `timer`를 요구하지만 실제 DLL/헤더는 Boost를 쓰지 않으므로, Boost가 없으면 `cmake/boost-stub/`의 빈 대체 패키지로 자동 대체됨(설치되어 있으면 실제 Boost 사용).</br> Linux: 시스템 패키지 또는 `Prophesee-linux/` 번들 사용. |
+| CMake | 3.16+ (`CMakePresets.json`은 3.21+) | VS2019 16.11에 들어 있는 CMake는 3.20이라 preset 동작이 불안정할 수 있음([알려진 이슈](#알려진-이슈)). |
+| C++ | C++17 | |
+| Qt | Qt6 또는 Qt5 (Widgets) | Qt6을 먼저 찾고, 없으면 Qt5를 사용. 특정 최소 버전 제약 없음. |
+| OpenCV | 4.x (**calib3d 모듈 필수**) | **Windows**: 리포 번들(`ocv440/` + 루트 `opencv_world440(d).dll`)을 자동으로 사용함.</br>**Linux**: 시스템 `libopencv-dev` 사용. calib3d가 없으면 configure 단계에서 바로 실패함. |
+| Metavision SDK | 5.2.0 (`base`, `core`, `stream`) | **Windows**: 리포 번들 `Prophesee-window/`. **Linux**: 번들 `Prophesee-linux/` 또는 스크립트 설치본.</br>SDK가 없으면 CSV 입력만 지원하고 `EventProcessing.DiagQt`는 빌드되지 않음. |
+| Boost | 설치 불필요 (Windows) | 번들 SDK의 CMake 설정이 Boost `timer`를 요구하지만, 번들 DLL과 이 프로젝트가 쓰는 헤더는 Boost를 실제로 쓰지 않음. 그래서 Boost가 없으면 `cmake/boost-stub/`의 빈 대체 패키지가 자동으로 쓰임. 실제 Boost가 설치되어 있으면 그쪽을 우선 사용(`C:\local\boost_*` 자동 감지 또는 `BOOST_ROOT`).</br>Linux는 `libboost-timer-dev`(방법 B 스크립트가 같이 설치함). |
+| 카메라 드라이버 | Live 카메라 사용 시 | Windows: WinUSB([Quick Start 7번](#windows)). Linux: udev 규칙([Quick Start 6번](#linux-ubuntudebian-기준)). |
 
-### Windows
-
-- **Visual Studio**: 2019(16.11+) 또는 2022, **"C++를 사용한 CMake 도구"** 컴포넌트 + "C++를 사용한 데스크톱 개발" 워크로드
-- **Qt**: Qt Online Installer로 설치. VS 버전에 맞는 키트 필요
-  - VS2019 → `MSVC 2019 64-bit` 키트 (Qt 6.5 LTS까지 제공, 또는 Qt 5.15.2)
-  - VS2022 → `MSVC 2022 64-bit` 키트 (Qt 6.6+ 포함 최신)
-- **OpenCV**: 별도 설치 불필요 (리포 번들 자동 감지)
-- **Metavision SDK**: 별도 설치 불필요 (리포 `Prophesee-window/` 자동 감지, 시스템 설치본이 있으면 그건 대신 무시하고 리포 번들본을 우선 사용함)
-- **Boost**: 설치 불필요. 번들 Metavision SDK의 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 `find_package(Boost COMPONENTS timer REQUIRED)`를 호출하지만, `Prophesee-window\bin\*.dll`은 Boost DLL을 import하지 않고 이 프로젝트가 include하는 Metavision 헤더도 `boost/` 헤더를 쓰지 않음. 그래서 Boost를 못 찾으면 CMake가 `cmake/boost-stub/`의 빈 대체 패키지를 대신 써서 그대로 빌드됨(configure 로그에 `Boost not installed - using the empty stub` 표시).
-  - 실제 Boost가 설치되어 있으면 그쪽을 우선 사용(`C:\local\boost_*` 자동 감지, 또는 `BOOST_ROOT`). 나중에 `boost/` 헤더를 끌어오는 Metavision 헤더(예: `sdk/core`의 timing profiler, preprocessors)를 include하게 되면 그때는 [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/)(VS2019 → `msvc-14.2`, VS2022 → `msvc-14.3`) 설치 필요.
-- **카메라 USB 드라이버**: Live 카메라 사용 시 WinUSB 드라이버 필요(PC마다 한 번, [Zadig](https://zadig.akeo.ie/)로 설치) — 위 [Quick Start > Windows](#windows) 8번 참고. RAW 재생만 하면 불필요.
-- **vcpkg**: 필수 아님(OpenCV/Metavision SDK가 리포에 번들되어 있어서). Boost나 Qt를 vcpkg로 관리하고 싶으면 대신 사용 가능(리포에 `vcpkg.json`/`vcpkg-configuration.json` 있지만 현재 실제로 소비되는 패키지는 없음).
-
-### Linux (Ubuntu/Debian 기준)
-
-- **Qt6**
-  ```bash
-  sudo apt install cmake build-essential libopencv-dev qt6-base-dev
-  # Qt6 안 될 경우 대체: qtbase5-dev
-  ```
-- **Metavision SDK (OpenEB)**: 두 가지 경로가 있음.
-  - **번들(`Prophesee-linux/`)**: Ubuntu 20.04에서 빌드한 OpenEB(버전 **5.2.0**, `Prophesee-window/include/metavision/sdk/version.h`에 명시된 Windows 번들판과 동일)와, 그게 링크하는 OpenCV/Boost/HDF5/Protobuf/ffmpeg 등의 `.so`까지 `ldd`로 수집해 같이 커밋해뒀음(`readelf -d` NEEDED 기준 실제 필요한 것만 - GDAL/PostgreSQL/Kerberos까지 딸려오는데, `libopencv_videoio.so`가 실제로 이것들에 링크되어 있어서 어쩔 수 없음). `CMakeLists.txt`가 자동으로 찾아 쓰므로 clone만 하면 별도 설치 없이 바로 빌드됨.
-    **단, 그 컴퓨터의 시스템 OpenCV 버전이 번들(4.2)과 많이 다르면(Ubuntu 22.04/24.04 등) 빌드 시점에 `libgdal`/`libgeos`/`libspatialite` 등에서 `undefined reference` 링크 에러가 날 수 있음** — 번들이 링크하는 구버전 GEOS/GDAL과 시스템 OpenCV가 링크하는 신버전 GDAL이 같은 실행 파일 안에서 충돌하는 것. 이럴 땐 아래 스크립트로 넘어갈 것.
-  - **소스 빌드 스크립트** (번들이 버전 충돌 날 때, 또는 처음부터 이쪽을 원할 때): 그 컴퓨터의 실제 시스템 라이브러리 버전에 맞춰 새로 빌드하므로 위 버전 충돌이 없음.
-    ```bash
-    ./scripts/setup-linux-openeb.sh          # /usr/local에 설치 (sudo 필요)
-    # sudo 권한이 없으면:
-    ./scripts/setup-linux-openeb.sh --user   # ~/.local/openeb에 설치, CMAKE_PREFIX_PATH 안내가 출력됨
-    ```
-    OpenEB 자체가 커서 빌드에 시간이 좀 걸림. 번들이 버전 충돌로 실패한 상태였다면 `rm -rf Prophesee-linux`로 지운 뒤 이 스크립트를 쓸 것(그래야 `CMakeLists.txt`가 시스템 설치본을 확실히 사용함). 완료 후 `cmake --preset linux`를 다시 돌리면(이미 configure된 상태였다면 `build/linux/` 삭제 후) `EventProcessing.DiagQt`까지 같이 빌드된다.
-- **Boost**: `sudo apt install libboost-timer-dev` (Metavision SDK를 쓸 경우에만 필요 - 위 스크립트를 쓰면 `libboost-all-dev`로 이미 같이 설치됨)
-
+> 나중에 Boost 헤더를 쓰는 Metavision 헤더(예: `sdk/core`의 timing profiler, preprocessors)를 include하게 되면 컴파일 에러가 남. 그때는 [Boost 사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/)를 설치(VS2019 → `msvc-14.2`, VS2022 → `msvc-14.3`).
+>
+> `vcpkg.json`이 리포에 있지만 현재 실제로 사용하는 패키지는 없음(vcpkg 불필요).
 
 ### 환경 변수
 
-| 변수 | 필수 여부 | 설명 |
+| 변수 | 필요 여부 | 설명 |
 |---|---|---|
-| `QT_DIR` | Windows에서 Qt 자동 감지용 (권장) | Qt 키트 경로, 예: `C:\Qt\6.5.3\msvc2019_64`. CMake가 `CMAKE_PREFIX_PATH`에 자동 추가함. |
-| `QTDIR` | `QT_DIR` 없을 때 폴백으로 사용됨 | Qt 설치 관례상의 변수명. </br>이미 다른 용도로 설정되어 있을 수 있으니 가능하면 `QT_DIR`을 새로 쓰는 걸 권장. |
-| `BOOST_ROOT` | 불필요 | 실제 Boost를 기본 경로(`C:\local\boost_*`)가 아닌 곳에 설치했고 그걸 쓰고 싶을 때만 지정. 없으면 빈 stub으로 대체됨. |
-| `MV_HAL_PLUGIN_PATH` | 설정 불필요 | 앱이 실행 시점에 자동으로 설정함 </br> (`EnsureBundledHalPluginPath()`, 실행 파일 옆 `hal_plugins\` 탐색). 수동 설정 시 그 값이 우선됨. |
-| `OpenCV_DIR` | 설정 불필요 | 번들 OpenCV를 CMake가 IMPORTED 타깃으로 직접 구성하므로 불필요 </br>(다른 OpenCV로 덮어쓰고 싶을 때만 지정). |
-
-
+| `QT_DIR` | Qt를 기본 경로(`C:\Qt\...`) 밖에 설치했을 때만 | Qt 키트 경로(예: `C:\Qt\6.5.3\msvc2019_64`). 없으면 `QTDIR`을 대신 확인하고, 그것도 없으면 `C:\Qt\*\msvc*_64`를 자동 검색함. |
+| `BOOST_ROOT` | 보통 불필요 | 실제 Boost를 `C:\local\boost_*`가 아닌 곳에 설치했고 그걸 쓰고 싶을 때만 지정. |
+| `MV_HAL_PLUGIN_PATH` | 불필요 | 앱이 실행될 때 실행 파일 옆 `hal_plugins\`로 자동 설정함(`EnsureBundledHalPluginPath()`). 직접 설정하면 그 값이 우선됨. |
+| `OpenCV_DIR` | 불필요 | 다른 OpenCV를 쓰고 싶을 때만 지정. |
 
 ### CMake 옵션
 
 | 옵션 | 기본값 | 설명 |
 |---|---|---|
-| `EVENTCORE_NO_METAVISION` | `OFF` | `ON`으로 주면 Metavision SDK가 있어도 강제로 안 씀 </br>(CSV 입력만 지원, `EventProcessing.DiagQt` 제외). |
-| `EVENTCORE_USE_SYSTEM_METAVISION` | `OFF` | `ON`으로 주면 번들된 `Prophesee-window/`·`Prophesee-linux/` 대신 시스템에 설치된 Metavision SDK/OpenEB를 사용함 </br>(번들 버전이 실제 카메라가 녹화한 RAW 파일 포맷을 못 열 때 등). 런타임 DLL/`.so` 복사도 같이 꺼짐(버전 혼선 방지). |
-| `CMAKE_BUILD_TYPE` | `Release`(미지정 시 기본값으로 설정됨; Metavision SDK가 잡히면 Windows에서는 Release로 강제됨 - Prophesee가 Release 바이너리만 배포해 Debug와 ABI 호환 안 됨) | `Debug`/`Release` |
-| `CMAKE_PREFIX_PATH` | - | Qt 등 추가 검색 경로. `windows-qt` CMake preset이 `QT_DIR`로 자동 설정함. |
-
+| `EVENTCORE_NO_METAVISION` | `OFF` | `ON`이면 Metavision SDK를 쓰지 않음(CSV 입력만 지원, `EventProcessing.DiagQt` 제외). |
+| `EVENTCORE_USE_SYSTEM_METAVISION` | `OFF` | `ON`이면 번들(`Prophesee-window/`, `Prophesee-linux/`) 대신 시스템에 설치된 SDK를 사용함. 번들 버전이 녹화된 RAW 포맷을 못 열 때 등에 사용. 번들 런타임 복사도 같이 꺼짐. |
+| `CMAKE_BUILD_TYPE` | `Release` | Windows에서 Metavision SDK가 감지되면 Release로 강제됨([Release 전용](#release-전용-windows) 참고). |
 
 ### 알려진 이슈
 
-- **VS2019에서 CMakePresets의 OS별 자동 필터링이 불안정함**
-  - 증상: `windows-qt` preset을 만들어놔도, VS2019(16.11)가 `CMAKE_PREFIX_PATH`가 비어 있는 `linux` preset으로 조용히 configure해버리는 경우가 있었음(`condition` 필드가 기대대로 평가되지 않음).
-  - 해결/완화:
-    1. VS 상단 툴바의 구성 드롭다운에서 `windows-qt`를 직접 선택
-    2. 그와 별개로, `CMakeLists.txt`가 **Windows에서는 어떤 구성이 선택되든** 다음을 자동으로 검색하도록 이미 보강되어 있음:
-       - `QT_DIR` → 없으면 `QTDIR` 순으로 Qt 경로 자동 추가
-       - 번들 OpenCV(`ocv440/`)를 IMPORTED 타깃으로 직접 구성(별도 옵션 불필요)
-       - 번들 Metavision SDK(`Prophesee-window/`)를 `CMAKE_PREFIX_PATH` 최우선으로 추가
-      
-       
-</br>
-
-
-## Project Structure
-
-
-```text
-EventCameraProcessing/
-│
-├─ EventProcessing.Core/
-│  ├─ Event Source
-│  ├─ Event Filtering
-│  ├─ Event Accumulation
-│  ├─ Ball Detection
-│  └─ Ready / Trigger / Capture Logic
-│
-├─ EventProcessing.Console/
-│  └─ RAW / CSV / Live 입력 기반 Batch Processing
-│
-├─ EventProcessing.DiagQt/
-│  └─ Qt Widgets 기반 Live / RAW Diagnostic Viewer (Windows / Linux 공용)
-│
-├─ Prophesee-window/
-│  ├─ include/
-│  ├─ lib/
-│  └─ bin/
-│
-├─ ocv440/
-│  └─ OpenCV 4.4.0
-│
-├─ Metavision.props
-├─ EventCameraProcessing.sln    (Windows / MSBuild, Core·Console 전용)
-├─ CMakeLists.txt               (Windows / Linux 공용, DiagQt(GUI)는 이 빌드로만 생성 가능)
-└─ README.md
-```
-
-> GUI는 Qt Widgets(`EventProcessing.DiagQt`) 하나로 통일되어 있음. Windows 전용이었던 MFC 버전(`EventProcessing.Diag`)은 제거됨 - 이제 Windows와 Linux가 동일한 GUI 소스와 동일한 `CMakeLists.txt` 빌드를 공유함.
->
-> `EventCameraProcessing.sln`(MSBuild)은 `EventProcessing.Core` / `EventProcessing.Console`만 포함하며, Windows에서 기존 Visual Studio 워크플로를 유지하고 싶을 때 계속 사용할 수 있음. GUI(`EventProcessing.DiagQt`)는 Windows에서도 CMake 빌드로만 만들 수 있음 (아래 Build 섹션 참고).
-
-### EventProcessing.Core
-
-이벤트 카메라 데이터 처리에 필요한 핵심 로직을 담당하는 Static Library.
-
-주요 기능:
-
-- CSV Event Stream Loading
-- Metavision RAW File Loading
-- EVK4 HD Live Camera Input
-- Event Data Representation
-- Event Noise Filtering
-- Time-window Event Accumulation
-- Positive / Negative Event Visualization
-- Ball Candidate Detection
-- Ready / Trigger / Capture State Management
-
-`EventProcessing.Console`, `EventProcessing.DiagQt`에서 공통으로 `EventProcessing.Core`를 사용함.
-
-### EventProcessing.Console
-
-Command-line 기반 Batch Processing Application.
-
-RAW, CSV 또는 Live Camera에서 입력된 Event Stream을 일정 시간 구간으로 분할하고 Event Accumulation Image 및 Debug 결과 생성에 사용함.
-
-주요 출력:
-
-- Positive Event Image
-- Negative Event Image
-- Merged Event Image
-- Binary Mask
-- Ball Detection Debug Image
-- MP4 Visualization Video
-
-기본 Processing Flow:
-
-```text
-RAW / CSV / Live
-       │
-       ▼
-Event Source
-       │
-       ▼
-Noise Filtering
-       │
-       ▼
-Time-window Accumulation
-       │
-       ▼
-Ball Detection
-       │
-       ▼
-Image / Video Output
-```
-
-### EventProcessing.DiagQt
-
-Qt Widgets 기반 Diagnostic Application (Windows / Linux 공용).
-
-EVK4 HD Live Camera 또는 RAW Recording의 Event Stream을 실시간으로 확인하고, Ball Detection 결과를 기반으로 Shot Capture 상태를 관리하는 용도로 구성함.
-
-```text
-Searching
-    │
-    ▼
-Ball Detection
-    │
-    ▼
-Ready
-    │
-    ▼
-Direction-Consistency Trigger
-    │
-    ▼
-Impact
-    │
-    ▼
-Trajectory (TRJCT)
-    │
-    └──────────► Searching
-```
-
-Ball이 `readySeconds` 이상 동일 위치(`stableMovePx` 이내)에서 안정적으로 검출되면 `Ready` 상태로 전환함(GUI에도 `READY` 표시).
-
-Ready 상태에서 Ball이 정지 위치를 벗어난 첫 프레임부터, 연속된 이동 벡터의 방향이 서로 크게 어긋나지 않는지(`maxDirectionDeviationDeg` 이내로 `directionConsistentFrames` 구간 연속)를 확인해 지그재그성 잡음과 실제 샷(클럽으로 쳐서 한 방향으로 날아가는 궤적)을 구분함. 방향 일관성이 확정되면 그 순간을 `Impact`로 표시하고, 트리거 기준은 확인이 끝난 프레임이 아니라 이동이 시작된 가장 첫 프레임임.
-
-Impact로 확정된 첫 프레임 기준으로 이전 `preCaptureSeconds`(기본 2초, 프레임 버퍼에서 소급 저장)와 이후 `postCaptureSeconds`(기본 2초, 실시간 저장) 구간을 `Trajectory`(`TRJCT`) 상태로 저장한 뒤 `Searching`으로 복귀함.
-
-RAW 파일 재생 시에도 동일한 `EventProcessor::Process` 파이프라인을 거치므로, Ball로 추정되는 물체(가장 넓은 외곽선)의 중심(초록 점)과 외곽(빨간 원 + 파란 바운딩 박스)이 매 프레임 디버그 이미지에 표시됨.
-
-컨트롤 버튼은 3개: **Start(시작)/Stop(중단)** 토글, **Pause(멈춤)/Resume(재개)** 토글, **Record(녹화)/Save(저장)** 토글. 각 버튼이 상태에 따라 라벨과 동작이 함께 바뀜(빈 라벨로 남는 경우 없음).
-
-- **Start/Stop 버튼**: IDLE일 때 라벨은 `Start`(누르면 시작). 여기서 "Start"는 Live 모드 기준 "샷 감지 대기 시작"이지 곧바로 통짜 녹화가 아님(로그도 `Started (live camera) - watching for shots`). Running/Paused일 때는 라벨이 `Stop`으로 바뀌고, 누르면 항상 완전히 종료해 처음(IDLE) 상태로 되돌아감 - 미리보기 화면도 까맣게 초기화됨. **수동 녹화(Record) 중에 Stop을 누르면 녹화하던 것을 먼저 저장 마무리하고 종료함.**
-- **Pause/Resume 버튼**: IDLE일 때는 비활성화(Start 상태에서만 활성화). Running일 때 라벨은 `Pause`(누르면 일시정지). Paused일 때는 라벨이 `Resume`으로 바뀜(누르면 재개).
-- **Record/Save 버튼**: **Live 카메라로 Start된 상태(Running/Paused)일 때만 활성화**되고, RAW 재생 모드나 IDLE에서는 비활성화됨. `Record`를 누르면 그 순간부터 매 프레임을 `output/manual_<날짜시각>/`에 계속 저장하기 시작하고 라벨이 `Save`로 바뀜. `Save`(또는 Stop)를 누르면 녹화를 마무리함. 이 수동 녹화는 임팩트 자동 캡처(`shot_*` 폴더)와 독립적으로 동작함.
-- **Pause 동작 - RAW 파일**(영상 재생 중일 때): 재생 자체를 그 자리에서 멈춰(카메라를 정지) 화면이 멈춘 프레임 그대로 남음. `Resume`을 누르면 멈췄던 바로 그 시각으로 seek해서 이어서 재생함(멈춰 있던 시간만큼 건너뛰지 않음).
-- **Pause 동작 - Live Camera**: 카메라와 미리보기 화면은 계속 흘러서 끼어든 상황이 지나가는 걸 볼 수 있고, ShotTrigger 갱신과 프레임 저장(자동 샷 캡처 + 수동 녹화)만 잠시 멈춤 = **녹화 일시 정지**. `Resume`을 누르면 그 시점부터 다시 이어감.
-
-**Source(입력 소스) 그룹의 텍스트 박스**는 모드에 따라 역할이 다름:
-- **RAW file 모드**: 편집 가능. 선택한 RAW 파일 경로를 표시/입력함(기존 동작).
-- **Live camera 모드**: 읽기 전용(Browse... 버튼도 비활성화). `Start`로 카메라가 실제로 연결되면 그 카메라의 고유 식별자를 표시함 - `Camera::get_camera_configuration()`의 `serial_number`(고유번호)를 우선 표시하고, `integrator`(제조/통합사)와 `Camera::generation().name()`(센서 세대)이 있으면 괄호로 덧붙임. 연결 전에는 "연결되면 카메라 식별자가 표시됩니다" 안내 문구만 보임. `Stop`하면 다시 안내 문구로 돌아가고, RAW 모드로 전환하면 마지막으로 고르던 RAW 경로가 복원됨. (참고: EVK4/IMX636은 이 SDK 경로에서 MAC 주소 대신 시리얼 번호가 고유 식별자로 노출됨.)
-
-상단 메뉴바는 **File(파일) - Settings(설정) - About(정보)** 순서로 구성됨.
-
-- **File**: `Mode`(Live camera / RAW file - Source 그룹의 라디오 버튼과 양방향으로 동기화됨), `Open File...`(RAW 파일 찾아보기, 기존 Browse... 버튼과 동일), `Set Output Path...`(산출물 폴더 찾아보기, 기존 Browse... 버튼과 동일). Start/Pause/Stop은 메뉴로 옮기지 않고 버튼으로만 둠.
-- **Settings**: `Language`에서 English/한국어를 전환할 수 있음. 그룹 제목, 필드 라벨, 툴팁, 버튼 문구, 메뉴 문구, 파일 대화상자 등 화면에 보이는 UI 문구가 즉시 다시 그려짐(재시작 불필요). 단, 로그 패널(`AppendLog`) 메시지와 `SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE` 상태 코드는 언어 설정과 무관하게 항상 영어로 고정됨.
-- **About**: `Version`은 정식 버전 번호 체계가 없어 빌드 시점의 git 커밋 해시와 날짜를 대신 보여줌(`EventProcessing.DiagQt/CMakeLists.txt`에서 컴파일 시 주입). `License`는 제품명/버전/저작권/라이선스 조항/서드파티 라이선스/연락처를 한 화면에 보여주는 About 형식 텍스트임 - 정식 오픈소스 라이선스가 아직 지정되지 않았고 저장소에 LICENSE 파일이 없다는 점을 그대로 명시하고, 실제로 확인 가능한 사실(번들된 Prophesee-window/Prophesee-linux·HDF5 SDK의 실제 라이선스 파일 경로, 실제 GitHub 저장소·이슈 트래커 주소, 서울대학교 공학전문대학원 김혜빈 연락처)만 채움(가상의 라이선스 종류나 웹사이트를 지어내지 않음). Website/Bug Report/Email은 `QTextBrowser`(`setOpenExternalLinks(true)`) 기반 다이얼로그라 실제 클릭하면 기본 브라우저/메일 클라이언트로 이동함. 이 블록은 로그와 마찬가지로 언어 설정과 무관하게 항상 영어 원문임.
-
-로그 패널에는 상태가 바뀔 때마다 그 전이가 한 줄씩 남음 - READY뿐 아니라 `SEARCHING`/`READY`/`IMPACT`/`TRJCT` 사이의 모든 전이를 `State: <이전> -> <다음>` 형식으로 기록함(예: `State: SEARCHING -> READY`, `State: READY -> IMPACT`). 트리거 확정 시에는 추가로 사전 저장(pre-roll) 프레임 수를, Trajectory가 끝나면 저장된 프레임 수와 폴더 경로를 함께 남김. (로그는 언어 설정과 무관하게 항상 영어 상태 코드로 기록됨.)
-
-**Camera Bias** 그룹박스: 앱을 시작하면 바로 IMX636의 알려진 표준 bias 6종(`bias_diff`, `bias_diff_off`, `bias_diff_on`, `bias_fo`, `bias_hpf`, `bias_refr`)에 대한 슬라이더가 보이되, 아직 연결 전이라 값을 모르므로 전부 비활성화 + `--` 표시 상태로 시작함(`SeedBiasPlaceholders()`). Live camera로 `Start`가 성공하면 Metavision HAL의 `I_LL_Biases` 파실리티(`Camera::get_facility<I_LL_Biases>()`)에서 `get_all_biases()`로 읽은 실제 값/범위로 같은 슬라이더들을 갱신하고 활성화함(`PopulateBiasControls()`). 슬라이더 범위는 `LL_Bias_Info::get_bias_range()`(권장 범위, `DeviceConfig::biases_range_check_bypass`를 켜지 않는 한), 슬라이더를 움직이면 즉시 `I_LL_Biases::set()`으로 카메라에 반영됨. `LL_Bias_Info::is_modifiable()`이 false인 bias는 슬라이더가 비활성화된 채로 현재 값만 표시함. 슬라이더는 2열로 배치됨 - 왼쪽 열은 `bias_diff`/`bias_diff_off`/`bias_diff_on`, 오른쪽 열은 `bias_fo`/`bias_hpf`/`bias_refr`(알려진 6종 밖의 이름은 오른쪽 열에 이어 붙음). 카메라가 알려진 6종 밖의 이름을 보고하면(다른 센서/펌웨어) 그 이름의 행이 동적으로 추가됨. RAW 파일 재생이나 Stop 상태에서는 알려진 6종 슬라이더가 다시 비활성화 + `--` 상태로 돌아가고(사라지지 않음), 동적으로 추가됐던 행만 제거됨(`ClearBiasControls()`). 그룹박스 위 안내 문구가 연결 여부(Connected/Not connected)를 알려줌.
-
-**기본값 & 값 기억**: 앱 시작 시 `bias_diff = -30`, `bias_diff_off = -15`, `bias_diff_on = -5`, `bias_fo = 20`이 기본값으로 지정되어, Live camera를 처음 연결하면 이 값들이 카메라 범위 안으로 clamp되어 자동 적용됨(`bias_hpf`/`bias_refr`은 기본값 없이 카메라가 보고한 현재 값을 사용). 사용자가 슬라이더로 값을 바꾸면 그 값을 프로그램이 메모리에 기억해 두므로, **프로그램을 종료하지 않는 한** Start->Stop->Start를 반복해도 마지막으로 설정한 값이 카메라를 다시 열 때 그대로 재적용됨(`m_savedBiasValues`). 디스크에 저장하지는 않으므로 프로그램을 완전히 종료하면 다시 위 기본값으로 돌아감. 수정 불가능한(`is_modifiable()==false`) bias에는 기억 값을 적용하지 않고 카메라 보고 값만 표시함.
-
-**Bias 저장/불러오기**: 그룹박스 아래 `Save Bias...`/`Load Bias...` 버튼으로 현재 bias 조합을 Metavision 표준 `.bias` 파일로 저장하거나(`I_LL_Biases::save_to_file`), 파일에서 읽어 카메라에 적용할 수 있음(`I_LL_Biases::load_from_file`). 두 버튼은 카메라가 실제 연결되어 있을 때만 활성화됨. 불러오면 파일의 값이 카메라에 적용된 뒤 슬라이더가 그 값으로 갱신되고, 그 값이 이후 Start/Stop에도 유지되도록 기억 값으로 채택됨. 경로에 한글 등 비ASCII 문자가 있어도 `Utf8ToPath()`로 처리됨. 저장/불러오기 성공·실패는 로그에 남음(항상 영어).
-
-Bias **이름**(`bias_diff_on` 등)은 하드웨어가 보고하는 그대로 언어 설정과 무관하게 항상 영어임. 슬라이더/이름에 마우스를 올리면 뜨는 **설명 툴팁**은 언어 설정을 따름 - 영어일 때는 `LL_Bias_Info::get_description()`이 보고한 원문을 그대로 보여주고, 한국어일 때는 `MainWindow.cpp`의 `KoreanBiasDescription()`에 있는, IMX636 표준 bias 6종(`bias_diff`/`bias_diff_off`/`bias_diff_on`/`bias_fo`/`bias_hpf`/`bias_refr`)에 대해 직접 작성한 한국어 설명으로 바뀜. **주의**: 이 한국어 설명은 HAL이 보고하는 원문 문자열을 그대로 번역한 것이 아니라(그 정확한 원문은 네트워크 제약으로 Prophesee 공식 문서에서 확인하지 못함), 공개적으로 널리 알려진 IMX636 bias 동작 방식을 바탕으로 직접 작성한 것임. 이 표에 없는 bias 이름은 한국어 모드에서도 영어 원문 설명을 그대로 보여줌(임의로 지어내지 않음).
+- **VS2019에서 preset 선택이 무시되는 경우가 있음.** `windows-qt`가 아닌 다른 구성(예: VS 기본 `x64-Debug`)으로 configure될 수 있음.
+  - 툴바 드롭다운에서 `windows-qt`를 직접 선택할 것.
+  - 어떤 구성으로 configure되든 `CMakeLists.txt`가 Windows에서 Qt, 번들 OpenCV, 번들 Metavision SDK, Boost(또는 stub)를 자동으로 찾고 Release를 강제하므로 빌드 자체는 동작함.
+- **UI 모양이 PC마다 다르게 보일 수 있음.** 코드에서 Qt 스타일을 지정하지 않으므로, 설치된 Qt 버전과 Windows 버전에 따라 기본 스타일이 달라짐(예: Qt 6.7+를 Windows 11에서 쓰면 `windows11` 스타일).
 
 ---
 
-## Dependencies
-
-### Development Environment
+## Project Structure
 
 ```text
-Language        : C++17
-IDE             : Visual Studio 2022 (Windows) / 임의 IDE 또는 CLI (Linux)
-Platform        : Windows x64, Linux
-GUI             : Qt Widgets (EventProcessing.DiagQt, Windows·Linux 공용)
-Build           : CMake (Windows·Linux, 전체 프로젝트 / GUI 포함)
-                  MSBuild / Visual Studio Solution (Windows, Core·Console만)
+EventCameraProcessing/
+├─ EventProcessing.Core/         # 이벤트 입력·처리 Static Library
+│  └─ Calibration/               # Camera intrinsic calibration (README.md 포함)
+├─ EventProcessing.Console/      # RAW / CSV / Live 입력 Batch Processing
+├─ EventProcessing.DiagQt/       # Qt Widgets Live / RAW Diagnostic Viewer
+├─ Prophesee-window/             # 번들 Metavision SDK 5.2.0 (Windows: include / lib / bin)
+├─ Prophesee-linux/              # 번들 OpenEB 5.2.0 + 의존 .so, udev 규칙 (Linux)
+├─ ocv440/                       # 번들 OpenCV 4.4.0 (Windows, + 루트 opencv_world440(d).dll)
+├─ cmake/boost-stub/             # Boost가 없을 때 쓰는 빈 Boost CMake 패키지
+├─ scripts/setup-linux-openeb.sh # Linux OpenEB 소스 빌드/설치 스크립트
+├─ CMakeLists.txt, CMakePresets.json   # Windows / Linux 공용 빌드 (GUI 포함)
+├─ EventCameraProcessing.sln, Metavision.props  # Windows MSBuild (Core·Console만)
+└─ README.md
 ```
 
-### OpenCV
+> GUI는 Qt Widgets(`EventProcessing.DiagQt`) 하나로 통일됨. 예전의 Windows 전용 MFC 버전(`EventProcessing.Diag`)은 제거됨.
+> `EventCameraProcessing.sln`(MSBuild)은 Core와 Console만 포함함. GUI는 Windows에서도 CMake로만 빌드됨.
 
-Event Visualization 및 기본 Image Processing에 OpenCV 4.4.0 사용.
+---
 
-```text
-OpenCV 4.4.0
-```
+## EventProcessing.Core
 
-Repository 내부 경로:
+이벤트 카메라 데이터 처리의 핵심 로직. `EventProcessing.Console`과 `EventProcessing.DiagQt`가 공통으로 사용함.
 
-```text
-ocv440/
-```
+- 입력: CSV Event Stream, Metavision RAW File, EVK4 HD Live Camera (`IEventSource`, `EventSourceFactory`)
+- Event Noise Filtering (`EventFilter`)
+- Time-window Event Accumulation, Positive / Negative / Merged 시각화 (`EventAccumulator`, `EventVisualizer`)
+- Ball Candidate Detection (`BallDetector`)
+- Searching / Ready / Impact / Trajectory 상태 관리 (`ShotTrigger`)
+- Camera Intrinsic Calibration (`Calibration/`, [Camera Calibration](#camera-calibration) 참고)
 
-주요 사용 용도:
+## EventProcessing.Console
 
-- Event Accumulation Image 생성
-- Binary Image Processing
-- Contour Detection
-- Debug Visualization
-- PNG 저장
-- MP4 Video 생성
-
-### Prophesee Metavision / OpenEB
-
-EVK4 HD / IMX636 Camera 및 Metavision RAW File 처리를 위해 Metavision SDK 5.x API 사용.
-
-주요 Module:
-
-```text
-Metavision SDK Base
-Metavision SDK Core
-Metavision SDK Stream
-Metavision HAL
-```
-
-SDK Header, Import Library, Runtime DLL을 Repository 내부에서도 참조할 수 있도록 구성함.
-
-```text
-Prophesee-window/
-│
-├─ include/
-├─ lib/
-└─ bin/
-```
-
-각 Directory의 역할:
-
-```text
-Prophesee-window/include
-        ↓
-Compile-time Header
-
-Prophesee-window/lib
-        ↓
-Link-time Import Library
-
-Prophesee-window/bin
-        ↓
-Runtime DLL
-```
-
-### Metavision SDK Path
-
-`Metavision.props`에서 Metavision SDK 경로를 관리함.
-
-Repository 내부에 `Prophesee-window/`가 존재하면 해당 경로를 우선 사용하고, 존재하지 않을 경우 System-wide Metavision SDK 경로를 사용하도록 구성함.
-
-```text
-1. $(SolutionDir)Prophesee-window
-
-        ↓ if not found
-
-2. C:\Program Files\Prophesee
-```
-
-개발 PC마다 동일한 System Path를 구성해야 하는 문제를 줄이고 Repository 기준으로 Build Environment를 재현하기 위한 구조.
-
-### Runtime DLL Deployment
-
-`EventProcessing.Console`(MSBuild), 그리고 CMake로 빌드하는 모든 Windows Target(`EventProcessing.Console`, `EventProcessing.DiagQt`)에 동일한 Post-Build Copy Step 적용(`CMakeLists.txt`의 `eventcore_copy_windows_runtime_deps`).
-
-Build 완료 후
-
-```text
-Prophesee-window\bin\*.dll
-```
-
-의 Runtime DLL을 실행 파일 Output Directory로 자동 복사함.
-
-```text
-Prophesee-window\bin
-      │
-      │ Post-Build
-      ▼
-x64\Debug
-or
-x64\Release
-```
-
-System-wide `PATH` 설정에 대한 의존성을 줄이기 위한 구성.
-
-### HAL Plugin
-
-EVK4 HD Camera 사용을 위해 일반 Runtime DLL 외에 Metavision HAL Camera Plugin 사용.
-
-HAL Plugin 검색에는 다음 환경변수 사용.
-
-```text
-MV_HAL_PLUGIN_PATH
-```
-
-프로그램 시작 시 실행 파일 위치를 기준으로 Bundled HAL Plugin Directory를 검색하고 `MV_HAL_PLUGIN_PATH`를 설정하도록 구성함.
-
-```text
-EventProcessing.DiagQt.exe
-│
-├─ Metavision Runtime DLLs
-│
-└─ hal_plugins/
-   ├─ hal_plugin_prophesee.dll
-   ├─ metavision_psee_hw_layer.dll
-   └─ libusb-1.0.dll
-```
-
-별도의 System-wide HAL Plugin Path 설정 없이 실행할 수 있도록 구성함.
-
-### CMake Build (Windows / Linux, GUI 포함)
-
-`CMakeLists.txt`를 이용해 `EventProcessing.Core` / `EventProcessing.Console` / `EventProcessing.DiagQt`를 Windows와 Linux에서 동일한 방식으로 빌드함. GUI(`EventProcessing.DiagQt`)가 필요하면 두 플랫폼 모두 이 빌드를 사용해야 함(`EventCameraProcessing.sln`에는 GUI가 포함되어 있지 않음).
-
-```text
-Language        : C++17
-Build           : CMake
-GUI             : Qt Widgets (Qt6, Qt5로 fallback)
-Platform        : Windows, Linux (Ubuntu 기준, 다른 배포판도 가능)
-```
-
-필요 패키지 설치:
+Command-line Batch Processing. 입력 Event Stream을 일정 시간 구간으로 나눠 Accumulation Image와 Debug 결과를 만듦.
 
 ```bash
-# Ubuntu/Debian
-sudo apt install cmake build-essential libopencv-dev qt6-base-dev
+EventProcessing.Console <input.raw|input.csv|live> [outputDir=output] [windowUs=10000] [fps=30]
 ```
 
 ```text
-# Windows
-- CMake, Visual Studio 2022(C++ 워크로드)
-- Qt Online Installer로 Qt 설치 (예: Qt 6.x, MSVC 2022 64bit 키트)
-- OpenCV: 리포에 번들된 ocv440\ + 루트의 opencv_world440(d).dll을 CMakeLists.txt가
-          자동으로 찾아 쓰므로 별도 설치/옵션 지정 불필요 (원하면 다른 OpenCV로 덮어쓰기 가능)
+RAW / CSV / Live → Event Source → Noise Filtering → Time-window Accumulation → Ball Detection → Image / Video Output
 ```
 
-Metavision SDK(Prophesee)는 [공식 설치 안내](https://docs.prophesee.ai)를 따라 플랫폼별로 별도 설치함(Windows는 기존처럼 리포의 `Prophesee-window\` 폴더 또는 시스템 설치를 그대로 사용). `find_package(MetavisionSDK)`로 자동 감지되며,
+출력: Positive / Negative / Merged Event Image, Binary Mask, Ball Detection Debug Image, MP4 Visualization Video.
 
-> **Windows에서 Boost는 설치 불필요**: Metavision SDK의 `core` 모듈 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 Boost `timer` 컴포넌트를 요구하지만, 번들 DLL과 이 프로젝트가 쓰는 헤더는 실제로 Boost를 쓰지 않음. Boost가 없으면 `cmake/boost-stub/`의 빈 대체 패키지로 configure가 통과됨. 실제 Boost가 설치되어 있으면(`C:\local\boost_*` 자동 감지 또는 `BOOST_ROOT`) 그쪽을 씀.
+## EventProcessing.DiagQt
+
+EVK4 HD Live Camera 또는 RAW Recording의 Event Stream을 실시간으로 확인하는 Qt Widgets 앱. Ball Detection 결과를 기반으로 Shot Capture를 수행하고, Camera Bias 조정과 Calibration 기능을 제공함.
+
+### Shot Trigger 상태 머신
 
 ```text
-설치되어 있으면
-    → Live 카메라 / RAW 실시간 재생 지원 활성화
-    → EventProcessing.DiagQt 포함 전체 빌드
-
-설치되어 있지 않으면
-    → CSV 입력만 지원
-    → EventProcessing.Core / EventProcessing.Console만 빌드
-      (EventProcessing.DiagQt는 실시간 Live/RAW 재생이 목적이라 제외됨)
+Searching → (Ball 검출) → Ready → (방향 일관성 확인) → Impact → Trajectory (TRJCT) → Searching
 ```
 
-빌드 (Linux):
+- **Ready**: Ball이 `readySeconds` 이상 같은 위치(`stableMovePx` 이내)에서 안정적으로 검출되면 전환됨.
+- **Impact**: Ready 상태에서 Ball이 움직이기 시작한 뒤 연속된 이동 벡터의 방향이 `directionConsistentFrames` 동안 `maxDirectionDeviationDeg` 이내로 유지되면 확정됨. 이 방식으로 지그재그 잡음과 실제 샷을 구분함. 트리거 시점은 확인이 끝난 프레임이 아니라 이동이 시작된 첫 프레임임.
+- **Trajectory**: Impact 첫 프레임 기준으로 이전 `preCaptureSeconds`(기본 2초, 프레임 버퍼에서 소급 저장)와 이후 `postCaptureSeconds`(기본 2초)를 `shot_*` 폴더에 저장한 뒤 Searching으로 복귀함.
+- RAW 재생도 같은 `EventProcessor::Process` 파이프라인을 거침. 매 프레임 Ball 추정 물체의 중심(초록 점)과 외곽(빨간 원 + 파란 바운딩 박스)이 표시됨.
+- 상태가 바뀔 때마다 로그에 `State: <이전> -> <다음>`이 기록됨. 트리거 시에는 pre-roll 프레임 수가, Trajectory가 끝나면 저장된 프레임 수와 폴더 경로가 함께 기록됨.
 
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-```
+### 컨트롤 버튼
 
-빌드 (Windows):
+- **Start / Stop**: Start는 Live 모드에서 "샷 감지 대기 시작"을 뜻하며, 바로 녹화하는 게 아님. Stop은 항상 완전히 종료하고 IDLE로 돌아감(미리보기도 초기화). 수동 녹화 중에 Stop을 누르면 녹화를 저장한 뒤 종료함.
+- **Pause / Resume**: 실행 중에만 활성화됨.
+  - RAW: 재생을 그 자리에서 멈추고, Resume하면 멈춘 시각부터 이어서 재생함.
+  - Live: 미리보기는 계속 흐르고, ShotTrigger 갱신과 프레임 저장(자동 캡처 + 수동 녹화)만 멈춤.
+- **Record / Save**: Live로 Start된 상태에서만 활성화됨. Record를 누르면 매 프레임을 `output/manual_<날짜시각>/`에 저장하기 시작하고, Save(또는 Stop)를 누르면 마무리함. 자동 샷 캡처와 독립적으로 동작함.
 
-```bat
-cmake -B build -G "Visual Studio 17 2022" -A x64 ^
-  -DCMAKE_PREFIX_PATH="C:\Qt\6.x\msvc2022_64"
-cmake --build build --config Release
-```
+### Source 그룹 / 메뉴
 
-실행:
+- **Source 텍스트 박스**
+  - RAW 모드: RAW 파일 경로를 표시하고 편집할 수 있음.
+  - Live 모드: 읽기 전용. 연결되면 카메라 식별자를 표시함(`serial_number` 우선, `integrator`와 센서 세대가 있으면 괄호로 덧붙임). EVK4/IMX636은 MAC 주소 대신 시리얼 번호가 고유 식별자임.
+- **File**: `Mode`(Live / RAW, Source 라디오 버튼과 동기화됨), `Open File...`, `Set Output Path...`.
+- **Settings > Language**: English와 한국어를 즉시 전환함. 로그 메시지와 상태 코드(`SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE`)는 항상 영어로 고정됨.
+- **About**: `Version`은 빌드 시점의 git 커밋 해시와 날짜임. `License`는 제품, 저작권, 서드파티 라이선스(번들 SDK·HDF5 라이선스 파일 경로), 연락처를 보여줌. 정식 오픈소스 라이선스는 아직 지정되지 않음(LICENSE 파일 없음).
 
-```bash
-./build/EventProcessing.Console/EventProcessing.Console input.csv output 10000 30
-./build/EventProcessing.DiagQt/EventProcessing.DiagQt   # Metavision SDK가 감지된 경우에만 빌드됨
-```
+### Camera Bias 그룹
 
-#### Visual Studio에서 EventProcessing.DiagQt 열기
+- **슬라이더**: IMX636 표준 bias 6종(`bias_diff`, `bias_diff_off`, `bias_diff_on` / `bias_fo`, `bias_hpf`, `bias_refr`)의 슬라이더가 2열로 표시됨.
+  - 연결 전에는 비활성화되고 `--`로 표시됨.
+  - Live Start에 성공하면 HAL `I_LL_Biases`에서 읽은 실제 값과 권장 범위로 활성화됨. 슬라이더를 움직이면 `I_LL_Biases::set()`으로 즉시 반영됨.
+  - 수정 불가능한 bias(`is_modifiable()==false`)는 값만 표시함.
+  - 알려진 6종 밖의 bias가 보고되면 그 행이 동적으로 추가됨.
+- **기본값**: `bias_diff = -30`, `bias_diff_off = -15`, `bias_diff_on = -5`, `bias_fo = 20`. 처음 연결할 때 카메라 범위 안으로 clamp되어 적용됨.
+- **값 기억**: 사용자가 바꾼 값은 프로그램이 종료될 때까지 메모리에 기억되어 Start/Stop을 반복해도 다시 적용됨(디스크에는 저장하지 않음).
+- **Save Bias... / Load Bias...**: Metavision 표준 `.bias` 파일로 저장하거나 불러옴(카메라 연결 시에만 활성화). 불러온 값은 기억 값으로도 채택됨.
+- **툴팁**: 한국어 모드에서는 직접 작성한 IMX636 bias 설명을 보여줌(HAL 원문의 번역이 아님). 그 밖의 bias는 HAL 원문을 그대로 보여줌.
 
-`EventProcessing.DiagQt`는 CMake 프로젝트라 `EventCameraProcessing.sln`(MSBuild)에는 없음. `.sln`을 더블클릭하는 대신, Visual Studio에서 **파일 > 폴더 열기(Open Folder)** 로 리포 루트 폴더 자체를 열면 VS가 `CMakeLists.txt`/`CMakePresets.json`을 자동 인식해서 `Core`/`Console`/`DiagQt`를 모두 Solution Explorer에 CMake Target으로 보여줌(빌드/디버그 시작 항목으로 `EventProcessing.DiagQt.exe` 선택 가능).
+### Calibration 그룹
 
-리포에 포함된 `CMakePresets.json`의 `windows-qt` 프리셋을 쓰려면, Windows 환경 변수에 `QT_DIR`을 Qt 설치 경로로 지정(예: `C:\Qt\6.7.0\msvc2022_64`)하고 Visual Studio를 재시작함. OpenCV는 리포의 `ocv440\`을 자동으로 사용하도록 프리셋에 이미 설정되어 있음.
+Calibration Mode, 누적 시간, 체커보드 설정, 샘플 캡처, 캘리브레이션 실행, 저장/불러오기를 제공함. 아래 [Camera Calibration](#camera-calibration) 참고.
 
-Visual Studio C++용 CMake Tools 컴포넌트(Visual Studio Installer에서 "C++를 사용한 Linux 및 임베디드 개발" 또는 "C++ CMake 도구" 워크로드)가 설치되어 있어야 함. `ninja`도 함께 설치됨.
+---
 
-### Debug / Release
+## Camera Calibration
 
-Metavision/OpenEB Library의 Debug / Release Binary를 분리하여 사용함.
+체커보드를 이용한 이벤트 카메라 intrinsic calibration(K, 왜곡 계수). 알고리즘은 `EventProcessing.Core/Calibration/`에 있음. OpenCV(core/imgproc/calib3d)만 사용하므로 Live, RAW, CSV 어느 입력에서든 같은 코드로 동작함. Calibration Mode에서는 BallDetector와 ShotTrigger가 실행되지 않으므로 기존 기능에 영향이 없음.
+
+자세한 내용(파일별 역할, 검출 전략, 모델 선택 기준, 결과 해석, 저장 형식)은 **[EventProcessing.Core/Calibration/README.md](EventProcessing.Core/Calibration/README.md)** 참고.
+
+### 파이프라인
 
 ```text
-Debug
-├─ *_d.lib
-├─ *_d.dll
-└─ /MDd
-
-Release
-├─ *.lib
-├─ *.dll
-└─ /MD
+Event Stream (Live / RAW)
+   → CalibrationImageBuilder     # Δt 동안 누적 → polarity 기반 2D 이미지
+   → CheckerboardDetector        # 내부 코너 검출 (subpixel)
+   → CalibrationSampleCollector  # 여러 pose의 observation 수집
+   → CameraCalibrator            # cv::calibrateCamera → K, 왜곡, RMS, per-view 오차
+   → CalibrationIO               # YAML 저장 / 불러오기
 ```
 
-Debug와 Release Binary 혼용 시 CRT/STL Symbol 충돌 및 Runtime Dependency 문제가 발생할 수 있으므로 Configuration별로 분리하여 관리함.
+### 사용 방법 (DiagQt)
+
+1. 카메라를 실제 사용 환경과 같은 위치에 고정함(카메라는 고정하고 체커보드를 움직임).
+2. Source에서 Live camera 또는 RAW 파일을 선택.
+3. **Calibration Mode**를 체크. 프리뷰가 누적 이미지로 바뀌고 Ball 검출과 Shot Trigger가 꺼짐.
+4. **Rows / Columns / Square (mm)** 를 실제 보드에 맞게 입력함. 값은 칸 수가 아니라 **내부 코너 수**임. 예: 10×7 칸 보드면 Columns=9, Rows=6.
+5. **Accumulation (ms)** 를 조정함(초기값 50 ms, 50~100 ms 권장).
+6. **Start**를 누른 뒤 체커보드를 여러 pose로 움직이고, `Detected: YES`일 때 **Capture Sample**을 누름.
+   - 권장 pose: 정면, 좌·우·상·하 tilt, 네 모서리, 가까이, 멀리.
+   - 최소 3장이 필요하지만 **10~20장 이상**을 화면 전체에 골고루 분포시키는 것이 좋음.
+7. **Run Calibration**을 누르면 로그에 fx/fy/cx/cy, 왜곡 계수, RMS, per-view 오차가 출력됨. 오차가 유독 큰 pose가 있으면 **Remove Last** / **Clear**로 정리한 뒤 다시 실행.
+8. **Save Calibration...** 으로 `.yml`을 저장함. **Load Calibration...** 으로 다시 불러올 수 있음.
+
+> 수집한 샘플은 Start/Stop을 반복해도 유지됨(RAW를 반복 재생하면서 수집 가능). 다른 보드 설정(rows/cols/square)으로 캡처하려면 먼저 Clear해야 함.
+
+### 검증 상태
+
+Windows에서 빌드와 실행은 확인됨. 다만 아직 **실제 체커보드로 정확도를 실측 검증하지 않음**. 검증할 항목은 검출 안정성, K·왜곡 값의 타당성, RMS 수준, 저장/불러오기 왕복, pinhole과 fisheye 중 어느 모델이 맞는지임. 기본 모델은 pinhole(k1, k2, p1, p2, k3)이고 fisheye는 미구현.
+
+---
+
+## Build 구성 상세
+
+### 번들 SDK 자동 감지
+
+`CMakeLists.txt`(Windows/Linux)와 `Metavision.props`(MSBuild)는 리포에 번들된 SDK를 시스템 설치본보다 먼저 사용함. 그래서 clone만 하면 같은 빌드 환경이 재현됨.
+
+| | Windows | Linux |
+|---|---|---|
+| OpenCV | `ocv440/lib` (calib3d 포함 `opencv_world440`) | 시스템 OpenCV |
+| Metavision SDK | `Prophesee-window/` → 없으면 시스템 설치본(`C:\Program Files\Prophesee`) | `Prophesee-linux/` → 없으면 시스템 설치본 |
+| Boost | `C:\local\boost_*` / `BOOST_ROOT` → 없으면 `cmake/boost-stub/` | 시스템 Boost |
+
+### 런타임 배포
+
+빌드가 끝나면 실행에 필요한 파일이 실행 파일 옆으로 자동 복사되므로, 시스템 `PATH`를 설정하지 않아도 바로 실행됨.
+
+- **Windows**(`eventcore_copy_windows_runtime_deps`): 아래 파일을 복사함.
+  - `Prophesee-window\bin\*.dll`
+  - HAL 플러그인 → `hal_plugins\` (`hal_plugin_prophesee.dll`, `metavision_psee_hw_layer.dll`, `libusb-1.0.dll`)
+  - `opencv_world440.dll`
+  - 그 밖에 타깃이 링크한 DLL(`TARGET_RUNTIME_DLLS`, CMake 3.21+)
+  - Qt DLL은 `windeployqt`로 배포함.
+- **Linux**(`eventcore_copy_linux_runtime_deps`): `Prophesee-linux/lib`의 `.so`를 복사하고 RPATH를 `$ORIGIN`으로 설정함(`--disable-new-dtags`).
+- **HAL 플러그인 경로**: 앱이 실행될 때 실행 파일 옆 `hal_plugins/`를 찾아 `MV_HAL_PLUGIN_PATH`를 자동으로 설정함.
+
+### Release 전용 (Windows)
+
+Prophesee는 Windows용 Metavision SDK를 **Release 바이너리로만** 배포함(디버그 DLL 없음). Debug(`/MDd`)로 빌드한 코드가 Release(`/MD`) DLL과 C++ 예외나 STL 객체를 주고받으면 ABI가 맞지 않아 크래시가 남(예: RAW 파일 열기 실패 시 액세스 위반). 그래서 Metavision SDK가 감지되면 CMake가 Release 구성만 허용함.
 
 ---
 
 ## Research Direction
 
-본 프로젝트의 현재 목적은 최종 Spin Estimation Algorithm을 바로 구현하는 것이 아니라, 실제 Event Camera Data를 취득·확인하고 후속 연구에 사용할 수 있는 Event Processing Pipeline을 구축하는 것임.
-
-전체 연구 방향:
+현재 목적은 최종 Spin Estimation 알고리즘을 바로 구현하는 것이 아님. 실제 Event Camera Data를 취득·확인하고, 후속 연구에 쓸 Event Processing Pipeline을 구축하는 것이 목적임.
 
 ```text
-Event Acquisition
-       │
-       ▼
-Data Validation
-       │
-       ▼
-Event Visualization
-       │
-       ▼
-Noise Filtering
-       │
-       ▼
-Ball ROI Detection
-       │
-       ▼
-Ball Tracking
-       │
-       ▼
-Event-based Optical Flow
-       │
-       ▼
-Dimple / Surface Feature Tracking
-       │
-       ▼
-Rotation Estimation
-       │
-       ▼
-Spin Estimation
+Event Acquisition → Data Validation → Visualization → Noise Filtering → Ball ROI Detection
+  → Ball Tracking → Event-based Optical Flow → Dimple / Surface Feature Tracking
+  → Rotation Estimation → Spin Estimation
 ```
 
-### Event-based Optical Flow
+- **Ball Tracking**: 현재의 Contour 기반 Ball Candidate Detection을, 시간적으로 연속된 위치를 추적하는 방식으로 확장할 예정. 이를 통해 Club, Shoe, Player, Background Noise와 Ball을 구분.
+- **Event-based Optical Flow**: Accumulation Image 대신 각 Event의 microsecond 단위 timestamp `(x, y, t, polarity)`를 이용한 Motion Estimation을 검토.
+- **Dimple / Surface Feature Tracking**: 골프공 표면의 Dimple과 Texture가 만드는 Event Pattern으로 Surface Motion을 추적. Event Camera의 높은 시간 해상도로 Motion Blur와 Temporal Aliasing을 줄일 수 있는지 분석할 예정.
+- **Rotation / Spin Estimation**: Surface Motion과 Optical Flow로 Rotation Axis와 Angular Velocity를 추정하는 방향으로 확장. Temporal Feature Tracking, Ball Geometry Constraint, Camera Calibration, Rotation Model, Physics-based Constraint를 검토할 예정.
 
-Event Accumulation Image만 사용하는 방식에서 확장하여 각 Event의 Microsecond-level Timestamp를 이용한 Motion Estimation 적용 예정.
-
-```text
-Event = (x, y, t, polarity)
-```
-
-Ball Surface에서 발생하는 Event의 시간적 이동 관계를 이용한 Optical Flow 추정 검토.
-
-### Ball Tracking
-
-현재 Contour 기반 Ball Candidate Detection에서 시간적으로 연속된 Ball Position을 추적하는 Tracking 방식으로 확장 예정.
-
-Tracking을 통해 다음 객체와 Ball Event Cluster를 구분하는 방향으로 개선 예정.
-
-```text
-Club
-Shoe
-Player
-Background Noise
-Ball
-```
-
-### Dimple / Surface Feature Tracking
-
-골프공 표면의 Dimple 및 Texture에 의해 발생하는 Event Pattern을 이용한 Surface Motion 추적 검토.
-
-고속 회전 상황에서 Event Camera의 높은 시간 해상도를 활용하여 Frame Camera 기반 방식에서 발생할 수 있는 Motion Blur 및 Temporal Aliasing 문제 감소 가능성 분석 예정.
-
-### Rotation / Spin Estimation
-
-Ball Surface Motion 및 Event-based Optical Flow를 이용하여 Rotation Axis와 Angular Velocity를 추정하는 방향으로 확장 예정.
-
-검토 대상:
-
-```text
-Event-based Optical Flow
-Temporal Feature Tracking
-Ball Geometry Constraint
-Camera Calibration
-Rotation Model
-Physics-based Constraint
-```
-
-Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 최종 Motion / Spin Estimation에서는 원본 Event Timestamp 정보를 최대한 유지하는 방향으로 진행 예정.
-
-```text
-(x, y, t, polarity)
-```
+Accumulation Image는 Visualization과 Debugging 용도로 쓰고, 최종 Motion / Spin Estimation에서는 원본 Event Timestamp 정보를 최대한 유지할 예정.
 
 ---
 
@@ -657,62 +346,35 @@ Event Accumulation Image는 Visualization 및 Debugging 용도로 활용하고, 
 
 ### Implemented
 
-- [x] Event Data Structure
-- [x] CSV Event Stream Input
-- [x] Metavision RAW File Input
-- [x] EVK4 HD Live Camera Input
-- [x] Event Time-window Accumulation
-- [x] Positive Event Visualization
-- [x] Negative Event Visualization
-- [x] Merged Event Visualization
-- [x] Basic Noise Filtering
-- [x] Binary Mask Generation
-- [x] Basic Ball Candidate Detection
-- [x] Debug Image Generation
-- [x] PNG Output
-- [x] MP4 Visualization
-- [x] Console Batch Processing
-- [x] Qt Diagnostic Viewer (Windows / Linux)
-- [x] CMake Build (Windows / Linux)
-- [x] Searching / Ready / Impact / Trajectory (TRJCT) State Machine (direction-consistency shot trigger, pre/post capture)
-- [x] Repository-local Metavision SDK Path 구성
-- [x] Metavision Runtime DLL Post-Build Copy
-- [x] HAL Plugin Path 자동 설정
-- [x] Debug / Release Metavision Build 구성
+- [x] CSV / Metavision RAW / EVK4 HD Live 입력
+- [x] Time-window Accumulation, Positive / Negative / Merged Visualization
+- [x] Basic Noise Filtering, Binary Mask, Basic Ball Candidate Detection
+- [x] Debug Image, PNG, MP4 출력 / Console Batch Processing
+- [x] Qt Diagnostic Viewer (Windows / Linux), English / 한국어 UI
+- [x] Searching / Ready / Impact / Trajectory 상태 머신 (방향 일관성 트리거, pre/post capture, 수동 녹화)
+- [x] Live Camera Bias 조정 및 `.bias` 저장/불러오기
+- [x] Camera Intrinsic Calibration (누적 이미지 → 체커보드 검출 → `calibrateCamera` → YAML 저장/불러오기). 실측 검증은 아직 안 됨
+- [x] CMake Build (Windows / Linux), 번들 SDK 자동 감지, 런타임 DLL/.so 자동 배포, HAL Plugin 경로 자동 설정
 
 ### In Progress / Next
 
+- [ ] Calibration 실측 검증 (체커보드 실촬영, RMS, pinhole/fisheye 판단)
 - [ ] Real-world Event Data Quality Evaluation
 - [ ] Camera Bias Setting Validation
 - [ ] Event Noise Filtering 개선
-- [ ] Ball Detection Robustness 개선
-- [ ] Temporal Ball Tracking
-- [ ] Ball ROI Stabilization
-- [ ] Event-based Optical Flow
-- [ ] Motion Compensation
+- [ ] Ball Detection Robustness 개선 / Temporal Ball Tracking / Ball ROI Stabilization
+- [ ] Event-based Optical Flow / Motion Compensation
 - [ ] Dimple / Surface Feature Tracking
-- [ ] Rotation Axis Estimation
-- [ ] Angular Velocity Estimation
-- [ ] Golf Ball Spin Estimation
-- [ ] Camera Calibration Integration
+- [ ] Rotation Axis / Angular Velocity / Golf Ball Spin Estimation
+- [ ] Calibration 결과를 Tracking·Spin 추정에 적용
 - [ ] Physics-based Motion Constraint Integration
 
-현재 개발 단계:
-
 ```text
-Acquisition         [Done]
+Acquisition / RAW·Live Loading / Visualization / Basic Detection / Calibration(구현)  [Done]
         ↓
-RAW / Live Loading  [Done]
+Calibration 실측 검증 / Robust Tracking / Optical Flow                             [Next]
         ↓
-Visualization       [Done]
-        ↓
-Basic Detection     [Done]
-        ↓
-Robust Tracking     [Next]
-        ↓
-Optical Flow        [Next]
-        ↓
-Rotation / Spin     [Future]
+Rotation / Spin                                                                     [Future]
 ```
 
 ---
@@ -721,145 +383,29 @@ Rotation / Spin     [Future]
 
 ### Ball Detection Robustness
 
-현재 `BallDetector`는 Event Accumulation Image에서 Contour를 분석하여 Ball Candidate를 검출하는 기본 방식 사용.
-
-실제 Golf Swing Event Data에서는 Ball 이외에도 다음 영역에서 많은 Event가 발생함.
-
-```text
-Club
-Shoe
-Player
-Background Edge
-Lighting Noise
-```
-
-가장 큰 Contour 또는 단순 Shape 조건만 사용하는 경우 다른 객체가 Ball로 검출될 가능성이 존재함.
-
-따라서 현재 Ball Detection은 최종 Ball Tracking Algorithm이 아닌 **Data Validation 및 Trigger Logic 검증용 Prototype**에 해당함.
-
-향후 Temporal Tracking 및 ROI 기반 검출 방식 추가 필요.
+`BallDetector`는 Accumulation Image에서 Contour를 분석해 Ball Candidate를 찾는 기본 방식임. 실제 스윙 데이터에서는 Club, Shoe, Player, Background Edge, Lighting Noise에서도 Event가 많이 발생함. 그래서 가장 큰 Contour나 단순한 Shape 조건만으로는 다른 객체가 Ball로 검출될 수 있음.
+현재 Ball Detection은 **Data Validation과 Trigger Logic 검증용 Prototype**이고, Temporal Tracking과 ROI 기반 검출을 추가해야 함.
 
 ### Event Noise
 
-Event Camera는 픽셀의 밝기 변화에 반응하므로 Sensor Bias, Lighting, Reflection 및 Background Activity에 따라 Noise Event가 발생할 수 있음.
-
-현재 Basic Noise Filtering 적용 단계.
-
-추후 검토 대상:
-
-```text
-Background Activity Filtering
-Temporal Filtering
-Spatial Filtering
-Hot Pixel Removal
-ROI Filtering
-Motion-based Filtering
-```
+Sensor Bias, Lighting, Reflection, Background Activity에 따라 Noise Event가 발생함. 현재는 Basic Filtering 단계임. Background Activity / Temporal / Spatial Filtering, Hot Pixel Removal, ROI / Motion 기반 Filtering을 검토할 예정.
 
 ### Event Accumulation Window
 
-Event Visualization 시 일정 시간 동안 발생한 Event를 하나의 이미지로 누적함.
+Accumulation Image의 품질은 `windowUs`에 따라 달라짐.
+- Window가 너무 작으면 Event 수가 부족해 Ball 형태가 잘 드러나지 않음.
+- Window가 너무 크면 빠른 Motion이 한 Frame에 겹쳐 Ball Event가 퍼짐.
 
-주요 Parameter:
-
-```text
-windowUs
-```
-
-Window가 너무 작은 경우:
-
-```text
-Event 수 감소
-→ Ball Shape 표현 부족
-```
-
-Window가 너무 큰 경우:
-
-```text
-빠른 Motion이 동일 Frame에 누적
-→ Ball Event 확산
-→ Motion 정보 중첩
-```
-
-Camera Setting, Ball Speed 및 분석 목적에 따른 적절한 Window Size 선정 필요.
+Camera Setting, Ball Speed, 분석 목적에 맞는 값을 골라야 함. Calibration의 `Accumulation (ms)`도 같은 trade-off가 있음.
 
 ### Camera Bias Dependency
 
-Event 발생 특성은 Sensor Bias Setting의 영향을 받음.
-
-Bias가 적절하지 않은 경우:
-
-```text
-Background Noise 증가
-Event Rate 과다
-Ball Surface Event 부족
-Feature Contrast 저하
-```
-
-등의 문제가 발생할 수 있음.
-
-`EventProcessing.DiagQt`의 **Camera Bias** 그룹박스(Live camera 모드, Start 이후)에서 Metavision HAL `I_LL_Biases`를 통해 bias를 실시간으로 조절하며 확인할 수 있지만, 어떤 값이 실제 촬영 환경에 적절한지는 여전히 경험적으로 찾아야 함.
-
-실제 촬영 환경에서 다음 요소에 대한 반복 실험 필요.
-
-```text
-Lighting
-Sensor Bias
-Camera Position
-Ball Distance
-Lens
-Event Rate
-Background
-```
+Bias가 적절하지 않으면 Background Noise와 Event Rate가 지나치게 늘거나, Ball Surface Event와 Feature Contrast가 부족해짐. DiagQt의 Camera Bias 그룹에서 실시간으로 조절할 수 있지만, 적절한 값은 Lighting, Camera Position, Ball Distance, Lens, Background에 따라 반복 실험으로 찾아야 함.
 
 ### Accumulation Image Information Loss
 
-Event Accumulation Image는 비동기 Event Stream을 사람이 확인하기 쉬운 Image 형태로 표현하는 방법임.
-
-다만 여러 Timestamp의 Event를 하나의 Frame으로 합치므로 원본 Event의 Temporal Information 일부가 손실됨.
-
-```text
-Raw Event
-(x, y, t, polarity)
-
-        ↓ Accumulation
-
-Image
-(x, y, intensity)
-```
-
-따라서 후속 Optical Flow / Spin Estimation에서는 Accumulation Image만 사용하는 방식보다 원본 Event Timestamp를 직접 활용하는 처리 방식 병행 필요.
+Accumulation은 여러 Timestamp의 Event를 한 Frame으로 합치므로 Temporal Information 일부가 사라짐(`(x, y, t, polarity)` → `(x, y, intensity)`). 후속 Optical Flow와 Spin Estimation에서는 원본 Event Timestamp를 직접 활용하는 처리를 병행해야 함.
 
 ### Spin Estimation
 
-현재 최종 Golf Ball Spin Estimation Algorithm은 구현되지 않은 상태.
-
-현재 구현 범위:
-
-```text
-Event Acquisition
-        ↓
-Visualization
-        ↓
-Basic Filtering
-        ↓
-Ball Detection
-        ↓
-Capture
-```
-
-후속 연구 범위:
-
-```text
-Ball Tracking
-        ↓
-Event-based Optical Flow
-        ↓
-Surface Feature Tracking
-        ↓
-Rotation Estimation
-        ↓
-Spin Estimation
-```
-
-현재 프로젝트는 위 후속 연구를 진행하기 위한 Event Acquisition / Processing / Visualization 기반 구축 단계임.
+최종 Golf Ball Spin Estimation은 아직 구현되지 않음. 현재 범위는 Acquisition → Visualization → Filtering → Ball Detection → Capture, 그리고 Calibration까지임. 이후 단계는 [Research Direction](#research-direction) 참고.
