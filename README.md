@@ -38,6 +38,18 @@
    build\windows-qt\EventProcessing.DiagQt\EventProcessing.DiagQt.exe
    ```
 
+8. **(Live 카메라를 쓸 때만) 카메라 USB 드라이버(WinUSB) 설치** — PC마다 한 번만 하면 됨. RAW 파일 재생만 할 거면 생략 가능.
+
+   앱은 번들된 `libusb-1.0.dll`(빌드 시 실행 파일 옆 `hal_plugins\`로 자동 복사됨)로 카메라와 통신하는데, Windows에서 libusb가 장치에 접근하려면 그 USB 장치에 **WinUSB 드라이버**가 연결되어 있어야 함. 이건 리포에 번들할 수 없어서 새 PC마다 직접 설치해야 하고, 안 하면 Live 모드에서 카메라를 찾지 못함.
+   1. 카메라를 USB로 연결
+   2. [Zadig](https://zadig.akeo.ie/) 다운로드 후 실행(설치 없이 바로 실행됨, 관리자 권한 요청 시 허용)
+   3. 메뉴 `Options > List All Devices` 체크
+   4. 드롭다운에서 Prophesee 카메라 선택(예: `EVK4`, `Prophesee ...` 등 카메라 모델 이름으로 표시됨). 키보드/마우스 등 다른 장치를 고르지 않도록 주의 — 엉뚱한 장치의 드라이버를 바꾸면 그 장치가 동작하지 않게 됨
+   5. 오른쪽(초록 화살표 오른쪽) 드라이버를 **`WinUSB`** 로 두고 `Install Driver`(이미 다른 드라이버가 잡혀있으면 `Replace Driver`) 클릭
+   6. 완료 후 카메라를 뺐다 다시 꽂고 앱에서 Live 모드로 카메라가 잡히는지 확인
+
+   > 장치 관리자에서 카메라가 `범용 직렬 버스 장치`(Universal Serial Bus devices) 아래에 노란 느낌표 없이 보이면 정상. 잘못된 장치에 설치했다면 장치 관리자에서 그 장치 우클릭 > `디바이스 제거`(드라이버 삭제 체크) 후 다시 연결하면 원래 드라이버로 돌아감.
+
 ### Linux (Ubuntu/Debian 기준)
 
 1. **필수 패키지 설치**
@@ -104,6 +116,7 @@
 - **Metavision SDK**: 별도 설치 불필요 (리포 `Prophesee-window/` 자동 감지, 시스템 설치본이 있으면 그건 대신 무시하고 리포 번들본을 우선 사용함)
 - **Boost**: 설치 불필요. 번들 Metavision SDK의 CMake 설정(`MetavisionSDK_coreConfig.cmake`)이 `find_package(Boost COMPONENTS timer REQUIRED)`를 호출하지만, `Prophesee-window\bin\*.dll`은 Boost DLL을 import하지 않고 이 프로젝트가 include하는 Metavision 헤더도 `boost/` 헤더를 쓰지 않음. 그래서 Boost를 못 찾으면 CMake가 `cmake/boost-stub/`의 빈 대체 패키지를 대신 써서 그대로 빌드됨(configure 로그에 `Boost not installed - using the empty stub` 표시).
   - 실제 Boost가 설치되어 있으면 그쪽을 우선 사용(`C:\local\boost_*` 자동 감지, 또는 `BOOST_ROOT`). 나중에 `boost/` 헤더를 끌어오는 Metavision 헤더(예: `sdk/core`의 timing profiler, preprocessors)를 include하게 되면 그때는 [사전빌드 바이너리](https://sourceforge.net/projects/boost/files/boost-binaries/)(VS2019 → `msvc-14.2`, VS2022 → `msvc-14.3`) 설치 필요.
+- **카메라 USB 드라이버**: Live 카메라 사용 시 WinUSB 드라이버 필요(PC마다 한 번, [Zadig](https://zadig.akeo.ie/)로 설치) — 위 [Quick Start > Windows](#windows) 8번 참고. RAW 재생만 하면 불필요.
 - **vcpkg**: 필수 아님(OpenCV/Metavision SDK가 리포에 번들되어 있어서). Boost나 Qt를 vcpkg로 관리하고 싶으면 대신 사용 가능(리포에 `vcpkg.json`/`vcpkg-configuration.json` 있지만 현재 실제로 소비되는 패키지는 없음).
 
 ### Linux (Ubuntu/Debian 기준)
