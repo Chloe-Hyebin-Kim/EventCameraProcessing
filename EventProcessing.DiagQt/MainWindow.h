@@ -235,7 +235,7 @@ private:
     eventcore::ShotTriggerConfig m_activeConfig;
     bool m_running = false;
     RunState m_runState = RunState::Idle;
-    AppLanguage m_language = AppLanguage::English;
+    AppLanguage m_language = AppLanguage::Korean;
     bool m_liveMode = false;
 
     // Calibration Mode 상태. m_calibrationMode는 워커 스레드(Start 콜백)에서 읽고 UI 스레드에서

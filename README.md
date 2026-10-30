@@ -233,7 +233,7 @@ Searching → (Ball 검출) → Ready → (방향 일관성 확인) → Impact �
   - RAW 모드: RAW 파일 경로를 표시하고 편집할 수 있음.
   - Live 모드: 읽기 전용. 연결되면 카메라 식별자를 표시함(`serial_number` 우선, `integrator`와 센서 세대가 있으면 괄호로 덧붙임). EVK4/IMX636은 MAC 주소 대신 시리얼 번호가 고유 식별자임.
 - **File**: `Mode`(Live / RAW, Source 라디오 버튼과 동기화됨), `Open File...`, `Set Output Path...`.
-- **Settings > Language**: English와 한국어를 즉시 전환함. 로그 메시지와 상태 코드(`SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE`)는 항상 영어로 고정됨.
+- **Settings > Language**: 기본값은 한국어. English와 한국어를 즉시 전환함. 로그 메시지와 상태 코드(`SEARCHING`/`READY`/`IMPACT`/`TRJCT`/`IDLE`)는 항상 영어로 고정됨.
 - **About**: `Version`은 빌드 시점의 git 커밋 해시와 날짜임. `License`는 제품, 저작권, 서드파티 라이선스(번들 SDK·HDF5 라이선스 파일 경로), 연락처를 보여줌. 정식 오픈소스 라이선스는 아직 지정되지 않음(LICENSE 파일 없음).
 
 ### Camera Bias 그룹

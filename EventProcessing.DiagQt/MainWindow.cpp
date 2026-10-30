@@ -256,7 +256,7 @@ void MainWindow::BuildUi()
     m_actionLangKorean = m_menuLanguage->addAction(QStringLiteral("한국어"));
     m_actionLangEnglish->setCheckable(true);
     m_actionLangKorean->setCheckable(true);
-    m_actionLangEnglish->setChecked(true);
+    m_actionLangKorean->setChecked(true);
 
     auto* langGroup = new QActionGroup(this);
     langGroup->addAction(m_actionLangEnglish);
