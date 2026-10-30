@@ -276,7 +276,7 @@ Event Stream (Live / RAW)
 1. 카메라를 실제 사용 환경과 같은 위치에 고정함(카메라는 고정하고 체커보드를 움직임).
 2. Source에서 Live camera 또는 RAW 파일을 선택.
 3. **Calibration Mode**를 체크. 프리뷰가 누적 이미지로 바뀌고 Ball 검출과 Shot Trigger가 꺼짐.
-4. **Rows / Columns / Square (mm)** 를 실제 보드에 맞게 입력함. 값은 칸 수가 아니라 **내부 코너 수**임. 예: 10×7 칸 보드면 Columns=9, Rows=6.
+4. **Rows / Columns / Square (mm)** 를 실제 보드에 맞게 입력함. 값은 칸 수가 아니라 **내부 코너 수**임. 예: 11×7 칸 보드면 내부 코너 10×6 → Columns=10, Rows=6(기본값).
 5. **Accumulation (ms)** 를 조정함(초기값 50 ms, 50~100 ms 권장).
 6. **Start**를 누른 뒤 체커보드를 여러 pose로 움직이고, `Detected: YES`일 때 **Capture Sample**을 누름.
    - 권장 pose: 정면, 좌·우·상·하 tilt, 네 모서리, 가까이, 멀리.

@@ -50,7 +50,7 @@
 2. Source에서 `Live camera`(또는 RAW 파일)를 선택.
 3. `Calibration Mode` 체크 → BallDetector/ShotTrigger가 꺼지고, 프리뷰가 누적 이미지로 바뀐다.
 4. `Rows` / `Columns` / `Square (mm)`를 **실제 보드**에 맞게 입력.
-   - 예: 10×7 칸 보드 → 내부 코너 9×6 → Columns=9, Rows=6.
+   - 예: 11×7 칸 보드 → 내부 코너 10×6 → Columns=10, Rows=6(기본값).
 5. `Accumulation (ms)`를 조정(초기 50 ms 권장). 움직이는 체커보드의 edge가 안정적으로 보이도록 튜닝.
 6. `Start`.
 7. 체커보드를 여러 pose로 움직이며 `Detected: YES`일 때 `Capture Sample`.
@@ -69,9 +69,9 @@
 | 항목 | 기본값 | 비고 |
 |---|---|---|
 | Accumulation Δt | 50 ms | 실험용 초기값, 변경 가능(하드코딩 아님). 50~100 ms 권장 |
-| Checkerboard Columns(내부 코너, 가로) | 9 | `cv::Size(cols, rows)`로 매핑 |
+| Checkerboard Columns(내부 코너, 가로) | 10 | `cv::Size(cols, rows)`로 매핑 |
 | Checkerboard Rows(내부 코너, 세로) | 6 | |
-| Square size | 25 mm | intrinsic 스케일에 사용 |
+| Square size | 35 mm | intrinsic 스케일에 사용 |
 | polarity 이미지 값 | +255 / −0 / 없음 127 | `CalibrationImageConfig` |
 
 ## 5. 검출 전략
@@ -113,8 +113,8 @@
     rms_reprojection_error: ...
     checkerboard:
        rows: 6
-       columns: 9
-       square_size: 25.
+       columns: 10
+       square_size: 35.
     number_of_observations: ...
     model: pinhole
 
