@@ -164,9 +164,9 @@ MainWindow::MainWindow(QWidget* parent)
     // Calibration 누적 시간 초기 기본값 50 ms(실험용 시작값, 변경 가능). 하드코딩된 상수가 아니라
     // 이 입력 필드 값이 CalibrationImageBuilder로 전달된다.
     m_editAccumMs->setText(QStringLiteral("50"));
-    // Checkerboard 기본값(내부 코너 10x6, 한 칸 35 mm). 실제 사용하는 보드에 맞게 GUI에서 변경.
-    m_editCbCols->setText(QStringLiteral("10"));
-    m_editCbRows->setText(QStringLiteral("6"));
+    // Checkerboard 기본값(내부 코너 9x5, 한 칸 35 mm). 실제 사용하는 보드에 맞게 GUI에서 변경.
+    m_editCbCols->setText(QStringLiteral("9"));
+    m_editCbRows->setText(QStringLiteral("5"));
     m_editCbSquareMm->setText(QStringLiteral("35"));
 
     // bias 기본값(연결 시 카메라에 적용됨). 사용자가 슬라이더로 바꾸면 이 값이 갱신되어,
