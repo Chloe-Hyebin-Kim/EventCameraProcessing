@@ -238,15 +238,26 @@ Searching → (Ball 검출) → Ready → (방향 일관성 확인) → Impact �
 
 ### Camera Bias 그룹
 
+IMX636 표준 bias 6종의 의미(값을 올렸을 때의 동작 기준). 슬라이더 툴팁에도 같은 설명이 표시됨.
+
+| Bias | 설명 | 기본값 |
+|---|---|---|
+| `bias_diff` | ON/OFF 임계값의 기준 변경 | -30 |
+| `bias_diff_on` | 값 증가 시, 밝아지는 변화에 둔감 | -5 |
+| `bias_diff_off` | 값 증가 시, 어두워지는 변화에 민감 | -15 |
+| `bias_hpf` | 값 증가 시, 느린 밝기 변화에 둔감 | 카메라 보고 값 |
+| `bias_fo` | 값 증가 시, 빠른 밝기 변화 감지 능력 증가 | 20 |
+| `bias_refr` | 값 증가 시, 동일 픽셀에서 더 자주 이벤트 발생 | 카메라 보고 값 |
+
 - **슬라이더**: IMX636 표준 bias 6종(`bias_diff`, `bias_diff_off`, `bias_diff_on` / `bias_fo`, `bias_hpf`, `bias_refr`)의 슬라이더가 2열로 표시됨.
   - 연결 전에는 비활성화되고 `--`로 표시됨.
   - Live Start에 성공하면 HAL `I_LL_Biases`에서 읽은 실제 값과 권장 범위로 활성화됨. 슬라이더를 움직이면 `I_LL_Biases::set()`으로 즉시 반영됨.
   - 수정 불가능한 bias(`is_modifiable()==false`)는 값만 표시함.
   - 알려진 6종 밖의 bias가 보고되면 그 행이 동적으로 추가됨.
-- **기본값**: `bias_diff = -30`, `bias_diff_off = -15`, `bias_diff_on = -5`, `bias_fo = 20`. 처음 연결할 때 카메라 범위 안으로 clamp되어 적용됨.
+- **기본값**: 위 표의 값이 처음 연결할 때 카메라 범위 안으로 clamp되어 적용됨. `bias_hpf`, `bias_refr`은 카메라가 보고한 현재 값을 그대로 사용함.
 - **값 기억**: 사용자가 바꾼 값은 프로그램이 종료될 때까지 메모리에 기억되어 Start/Stop을 반복해도 다시 적용됨(디스크에는 저장하지 않음).
 - **Save Bias... / Load Bias...**: Metavision 표준 `.bias` 파일로 저장하거나 불러옴(카메라 연결 시에만 활성화). 불러온 값은 기억 값으로도 채택됨.
-- **툴팁**: 한국어 모드에서는 직접 작성한 IMX636 bias 설명을 보여줌(HAL 원문의 번역이 아님). 그 밖의 bias는 HAL 원문을 그대로 보여줌.
+- **툴팁**: 한국어 모드에서는 위 표의 설명을 보여줌. English 모드에서는 같은 뜻의 영어 설명을 보여주고, 카메라가 연결되면 HAL이 보고하는 원문으로 바뀜. 표에 없는 bias는 HAL 원문을 그대로 보여줌.
 
 ### Calibration 그룹
 
