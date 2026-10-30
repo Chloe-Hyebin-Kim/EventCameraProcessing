@@ -116,33 +116,30 @@ namespace
         QString ko;
     };
 
-    // 위 6종에 대해 직접 작성한 영어/한국어 설명. 실제 연결된 카메라/펌웨어가
-    // LL_Bias_Info::get_description()으로 보고하는 원문 그대로의 (번역)이 아니라(그 정확한 원문은
-    // 이 네트워크 환경에서 Prophesee 공식 문서를 확인할 수 없어 검증하지 못했고, 번들 SDK
-    // 헤더/플러그인 바이너리에서도 찾지 못함), 공개적으로 널리 알려진 IMX636 bias 동작 방식을
-    // 바탕으로 직접 작성한 설명이다. 연결 전 자리표시자 툴팁으로도 쓰이고, 연결 후에는 HAL이
-    // 실제 영어 설명을 보고하면 English 쪽만 그걸로 덮어쓴다(한국어는 이 표를 계속 씀).
+    // 위 6종에 대한 영어/한국어 설명(값을 올렸을 때 어떻게 동작하는지 기준). LL_Bias_Info::get_description()이
+    // 보고하는 HAL 원문의 번역이 아니라 이 프로젝트에서 직접 정리한 설명이다. 연결 전 자리표시자 툴팁으로도
+    // 쓰이고, 연결 후에는 HAL이 실제 영어 설명을 보고하면 English 쪽만 그걸로 덮어쓴다(한국어는 이 표를 계속 씀).
     const QMap<QString, BiasDescriptionPair>& KnownBiasDescriptions()
     {
         static const QMap<QString, BiasDescriptionPair> table = {
             { QStringLiteral("bias_diff"), {
-                QStringLiteral("Common reference level for event detection; bias_diff_on/off act as offsets around this baseline."),
-                QStringLiteral("이벤트 감지의 공통 기준 레벨. bias_diff_on/off는 이 기준을 중심으로 한 오프셋으로 동작함.") } },
+                QStringLiteral("Shifts the reference level for the ON/OFF thresholds."),
+                QStringLiteral("ON/OFF 임계값의 기준 변경") } },
             { QStringLiteral("bias_diff_off"), {
-                QStringLiteral("OFF-event (brightness decrease) detection threshold. Lower values make it more sensitive."),
-                QStringLiteral("밝기 감소(OFF 이벤트) 감지 문턱값. 값을 낮출수록 더 민감해짐(작은 변화에도 이벤트 발생).") } },
+                QStringLiteral("Higher values make it more sensitive to brightness decreases."),
+                QStringLiteral("값 증가 시, 어두워지는 변화에 민감") } },
             { QStringLiteral("bias_diff_on"), {
-                QStringLiteral("ON-event (brightness increase) detection threshold. Higher values make it more sensitive."),
-                QStringLiteral("밝기 증가(ON 이벤트) 감지 문턱값. 값을 높일수록 더 민감해짐(작은 변화에도 이벤트 발생).") } },
+                QStringLiteral("Higher values make it less sensitive to brightness increases."),
+                QStringLiteral("값 증가 시, 밝아지는 변화에 둔감") } },
             { QStringLiteral("bias_fo"), {
-                QStringLiteral("Photoreceptor bandwidth (low-pass filter). Lower values react faster to brightness changes but add more noise."),
-                QStringLiteral("포토리시버(photoreceptor)의 대역폭(로우패스 필터). 낮출수록 빠른 밝기 변화에 더 민감해지지만 노이즈도 함께 증가함.") } },
+                QStringLiteral("Higher values improve detection of fast brightness changes."),
+                QStringLiteral("값 증가 시, 빠른 밝기 변화 감지 능력 증가") } },
             { QStringLiteral("bias_hpf"), {
-                QStringLiteral("High-pass filter cutoff, controlling how much slow (low-frequency) brightness change (e.g. flicker) is filtered out."),
-                QStringLiteral("하이패스 필터 컷오프. 조명 깜빡임 등 느리게(저주파로) 변하는 밝기 변화를 걸러내는 정도를 조절함.") } },
+                QStringLiteral("Higher values make it less sensitive to slow brightness changes."),
+                QStringLiteral("값 증가 시, 느린 밝기 변화에 둔감") } },
             { QStringLiteral("bias_refr"), {
-                QStringLiteral("Refractory period: minimum time before a pixel can fire another event after one. Higher values reduce the event rate."),
-                QStringLiteral("리프랙토리(불응) 기간. 한 픽셀이 이벤트를 낸 뒤 다시 이벤트를 낼 수 있을 때까지의 최소 시간으로, 높일수록 이벤트 레이트가 줄어듦.") } },
+                QStringLiteral("Higher values let the same pixel fire events more often."),
+                QStringLiteral("값 증가 시, 동일 픽셀에서 더 자주 이벤트 발생") } },
         };
         return table;
     }
