@@ -1,8 +1,8 @@
 # Event Camera Intrinsic Calibration — 사용법 & 파이프라인
 
 > 대상: Prophesee Metavision EVK4HD (IMX636, 1280×720)
-> 위치: `EventProcessing.Core`(알고리즘) + `EventProcessing.DiagQt`(GUI)
-> 브랜치: `claude/qt-linux-support-tpo2n2`
+> 위치: `EventProcessing.Core/Calibration/`(알고리즘) + `EventProcessing.DiagQt`(GUI)
+> 빌드 방법은 [루트 README](../../README.md) 참고
 
 ## 1. 파이프라인 개요
 
@@ -50,7 +50,7 @@
 2. Source에서 `Live camera`(또는 RAW 파일)를 선택.
 3. `Calibration Mode` 체크 → BallDetector/ShotTrigger가 꺼지고, 프리뷰가 누적 이미지로 바뀐다.
 4. `Rows` / `Columns` / `Square (mm)`를 **실제 보드**에 맞게 입력.
-   - 예: 10×7 칸 보드 → 내부 코너 9×6 → Columns=9, Rows=6.
+   - 예: 11×7 칸 보드 → 내부 코너 10×6 → Columns=10, Rows=6(기본값).
 5. `Accumulation (ms)`를 조정(초기 50 ms 권장). 움직이는 체커보드의 edge가 안정적으로 보이도록 튜닝.
 6. `Start`.
 7. 체커보드를 여러 pose로 움직이며 `Detected: YES`일 때 `Capture Sample`.
@@ -69,9 +69,9 @@
 | 항목 | 기본값 | 비고 |
 |---|---|---|
 | Accumulation Δt | 50 ms | 실험용 초기값, 변경 가능(하드코딩 아님). 50~100 ms 권장 |
-| Checkerboard Columns(내부 코너, 가로) | 9 | `cv::Size(cols, rows)`로 매핑 |
+| Checkerboard Columns(내부 코너, 가로) | 10 | `cv::Size(cols, rows)`로 매핑 |
 | Checkerboard Rows(내부 코너, 세로) | 6 | |
-| Square size | 25 mm | intrinsic 스케일에 사용 |
+| Square size | 35 mm | intrinsic 스케일에 사용 |
 | polarity 이미지 값 | +255 / −0 / 없음 127 | `CalibrationImageConfig` |
 
 ## 5. 검출 전략
@@ -113,8 +113,8 @@
     rms_reprojection_error: ...
     checkerboard:
        rows: 6
-       columns: 9
-       square_size: 25.
+       columns: 10
+       square_size: 35.
     number_of_observations: ...
     model: pinhole
 
@@ -126,7 +126,8 @@
 - OpenCV **4.4.0** 기준으로 작성/검증(리포 번들 `ocv440/` 헤더).
 - calib3d 모듈이 필요(`findChessboardCorners*`, `calibrateCamera`, `projectPoints`, `FileStorage`).
   - **Windows**: 번들 `opencv_world440`에 calib3d 포함 → 그대로 빌드됨.
-  - **Linux**: 번들 `Prophesee-linux`의 OpenCV(4.2)에는 calib3d가 없음 → Linux에서 빌드하려면 calib3d 포함 OpenCV를 별도 제공해야 함(코드 문제 아님, 빌드 환경 문제).
+  - **Linux**: 시스템 OpenCV(`sudo apt install libopencv-dev`, calib3d 포함)를 사용함. 번들 `Prophesee-linux/`의 OpenCV(4.2)는 core/imgproc/imgcodecs/videoio만 있어 calib3d가 없지만, `CMakeLists.txt`는 시스템 OpenCV를 쓰므로 문제없음.
+  - calib3d가 없는 OpenCV가 잡히면 런타임이 아니라 configure 단계에서 바로 에러로 알려줌.
 
 ## 10. 검증 상태 (중요)
 
