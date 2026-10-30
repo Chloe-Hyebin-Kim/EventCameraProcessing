@@ -41,6 +41,10 @@ namespace eventcore
         // 마지막으로 완성된 calibration 이미지(CV_8UC1). 아직 한 번도 완성되지 않았으면 비어 있다.
         const cv::Mat& Image() const { return m_image; }
 
+        // Image()와 같은 누적 구간의 픽셀별 event 개수(극성 무관, CV_8UC1, 255에서 포화).
+        // 움직이는 체커보드처럼 경계에만 event가 생기는 경우 EdgeCheckerboardReconstructor의 입력으로 쓴다.
+        const cv::Mat& EventCountImage() const { return m_eventCount; }
+
         // 현재까지 누적된 시간(microseconds). 아직 누적을 시작하지 않았으면 0.
         lli CurrentSpanUs() const;
 
@@ -70,5 +74,6 @@ namespace eventcore
         lli m_lastUs = 0;
 
         cv::Mat m_image;  // 마지막으로 완성된 CV_8UC1 이미지
+        cv::Mat m_eventCount;  // m_image와 같은 구간의 event 개수(CV_8UC1, 포화)
     };
 }

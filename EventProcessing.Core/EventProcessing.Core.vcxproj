@@ -178,6 +178,7 @@
     <ClInclude Include="Calibration\CalibrationTypes.h" />
     <ClInclude Include="Calibration\CameraCalibrator.h" />
     <ClInclude Include="Calibration\CheckerboardDetector.h" />
+    <ClInclude Include="Calibration\EdgeCheckerboardReconstructor.h" />
     <ClInclude Include="CsvEventSource.h" />
     <ClInclude Include="Event.h" />
     <ClInclude Include="EventAccumulator.h" />
@@ -210,6 +211,9 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Calibration\CheckerboardDetector.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Calibration\EdgeCheckerboardReconstructor.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="CsvEventSource.cpp" />

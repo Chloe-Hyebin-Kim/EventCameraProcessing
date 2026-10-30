@@ -1,5 +1,6 @@
 // Calibration/ 하위 폴더 - MSVC PCH 미사용(.vcxproj: PrecompiledHeader=NotUsing).
 #include "CheckerboardDetector.h"
+#include "EdgeCheckerboardReconstructor.h"
 
 namespace eventcore
 {
@@ -102,6 +103,66 @@ namespace eventcore
         }
 
         return det;
+    }
+
+    CheckerboardDetection CheckerboardDetector::DetectEventImages(const cv::Mat& polarityImage, const cv::Mat& eventCountImage,
+                                                                  const CheckerboardConfig& config, bool thorough,
+                                                                  cv::Mat* detectionImage)
+    {
+        // 경계 재구성을 먼저 시도한다. 움직이는 보드에서는 polarity 이미지 검출이 거의 항상 실패하는데
+        // 그 시도(특히 thorough)가 비싸기 때문이다. 깜빡이는 패턴처럼 칸 전체에 event가 있으면 칸 후보가
+        // 생기지 않아 재구성이 곧바로 실패하고, 아래 polarity 이미지 검출로 넘어간다.
+        if (!eventCountImage.empty())
+        {
+            // 라이브(thorough=false)에서는 큰 이미지면 절반 해상도로 먼저 시도한다(이 환경 측정 기준 약 5배 빠름).
+            // 절반 해상도는 작은 칸/강한 노이즈/빠른 움직임에서 놓칠 수 있으므로, 실패하면 원 해상도로 다시 시도한다.
+            // 코너는 원 해상도 좌표로 되돌린다(라이브 오버레이용; Capture는 thorough로 원 해상도에서 다시 검출).
+            constexpr int kHalfResMinWidth = 1000;
+            if (!thorough && eventCountImage.cols >= kHalfResMinWidth)
+            {
+                cv::Mat halfCount;
+                cv::resize(eventCountImage, halfCount, cv::Size(), 0.5, 0.5, cv::INTER_AREA);
+                const EdgeReconstruction halfRec = EdgeCheckerboardReconstructor::Reconstruct(halfCount);
+                if (halfRec.ok)
+                {
+                    CheckerboardDetection halfDet = Detect(halfRec.image, config, /*thorough=*/false);
+                    if (halfDet.found)
+                    {
+                        for (cv::Point2f& c : halfDet.corners)
+                        {
+                            c = (c + cv::Point2f(0.5f, 0.5f)) * 2.0f - cv::Point2f(0.5f, 0.5f);
+                        }
+                        halfDet.fromEdgeReconstruction = true;
+                        if (detectionImage)
+                        {
+                            cv::resize(halfRec.image, *detectionImage, eventCountImage.size(), 0, 0, cv::INTER_NEAREST);
+                        }
+                        return halfDet;
+                    }
+                }
+            }
+
+            const EdgeReconstruction rec = EdgeCheckerboardReconstructor::Reconstruct(eventCountImage);
+            if (rec.ok)
+            {
+                CheckerboardDetection edgeDet = Detect(rec.image, config, thorough);
+                if (edgeDet.found)
+                {
+                    edgeDet.fromEdgeReconstruction = true;
+                    if (detectionImage)
+                    {
+                        *detectionImage = rec.image;
+                    }
+                    return edgeDet;
+                }
+            }
+        }
+
+        if (detectionImage)
+        {
+            *detectionImage = polarityImage;
+        }
+        return Detect(polarityImage, config, thorough);
     }
 
     void CheckerboardDetector::DrawCorners(cv::Mat& bgrImage, const CheckerboardConfig& config, const CheckerboardDetection& detection)

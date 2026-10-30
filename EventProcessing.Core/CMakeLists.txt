@@ -5,6 +5,7 @@ set(EVENTCORE_SOURCES
     Calibration/CalibrationIO.cpp
     Calibration/CameraCalibrator.cpp
     Calibration/CheckerboardDetector.cpp
+    Calibration/EdgeCheckerboardReconstructor.cpp
     CsvEventSource.cpp
     EventAccumulator.cpp
     EventFilter.cpp
@@ -25,6 +26,7 @@ set(EVENTCORE_HEADERS
     Calibration/CalibrationIO.h
     Calibration/CameraCalibrator.h
     Calibration/CheckerboardDetector.h
+    Calibration/EdgeCheckerboardReconstructor.h
     CsvEventSource.h
     Event.h
     EventAccumulator.h

@@ -252,6 +252,8 @@ private:
     bool m_haveLastCalibDetection = false;
     // 가장 최근 완성된 calibration 이미지(CV_8UC1)의 사본. Capture 시 정밀(thorough) 재검출에 쓴다.
     cv::Mat m_lastCalibImage;
+    // 같은 구간의 픽셀별 event 개수(CV_8UC1). 움직이는 보드의 경계 재구성 검출에 쓴다.
+    cv::Mat m_lastCalibCountImage;
 
     // 수집된 calibration observation(여러 pose). Start/Stop을 반복해도 세션 동안 유지된다(Clear로만 비움).
     eventcore::CalibrationSampleCollector m_calibSamples;

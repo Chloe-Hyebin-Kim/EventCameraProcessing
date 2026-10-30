@@ -1851,8 +1851,10 @@ void MainWindow::HandleFrameOnWorker(const EventProcessingResult& result, const 
                 cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
 
                 const eventcore::CheckerboardConfig cb = m_cbConfigSnapshot;
+                // 움직이는 보드의 경계 띠로 칸을 재구성해 먼저 찾고, 실패하면 polarity 이미지(깜빡이는 패턴 등)에서 찾는다.
+                const cv::Mat& countImage = m_calibBuilder->EventCountImage();
                 const eventcore::CheckerboardDetection det =
-                    eventcore::CheckerboardDetector::Detect(gray, cb, /*thorough=*/false);
+                    eventcore::CheckerboardDetector::DetectEventImages(gray, countImage, cb, /*thorough=*/false);
                 eventcore::CheckerboardDetector::DrawCorners(bgr, cb, det);
 
                 // 수동 Capture를 위한 캐시(성공 여부 무관, Capture 시 found 확인).
@@ -1860,6 +1862,7 @@ void MainWindow::HandleFrameOnWorker(const EventProcessingResult& result, const 
                 m_lastCalibConfig = cb;
                 m_lastCalibFrameUs = startUs;
                 m_lastCalibImage = gray.clone();
+                m_lastCalibCountImage = countImage.clone();
                 m_haveLastCalibDetection = true;
 
                 ++m_calibImageCount;
@@ -1867,9 +1870,12 @@ void MainWindow::HandleFrameOnWorker(const EventProcessingResult& result, const 
                 const int expected = cb.innerCornerRows * cb.innerCornerCols;
                 upd.hasCalibStatus = true;
                 upd.calibStatus = det.found
-                    ? Tr(QStringLiteral("Detected: YES (%1/%2 corners) - image #%3 (Δt=%4 ms)"),
-                         QStringLiteral("검출: 성공 (코너 %1/%2) - 이미지 #%3 (Δt=%4 ms)"))
+                    ? Tr(QStringLiteral("Detected: YES (%1/%2 corners, %5) - image #%3 (Δt=%4 ms)"),
+                         QStringLiteral("검출: 성공 (코너 %1/%2, %5) - 이미지 #%3 (Δt=%4 ms)"))
                         .arg(static_cast<int>(det.corners.size())).arg(expected).arg(m_calibImageCount).arg(accumMs, 0, 'f', 0)
+                        .arg(det.fromEdgeReconstruction
+                                 ? Tr(QStringLiteral("edge reconstruction"), QStringLiteral("경계 재구성"))
+                                 : Tr(QStringLiteral("polarity image"), QStringLiteral("극성 이미지")))
                     : Tr(QStringLiteral("Detected: NO - image #%1 (Δt=%2 ms)"),
                          QStringLiteral("검출: 실패 - 이미지 #%1 (Δt=%2 ms)"))
                         .arg(m_calibImageCount).arg(accumMs, 0, 'f', 0);
@@ -2097,6 +2103,7 @@ void MainWindow::onCaptureSampleClicked()
     eventcore::CheckerboardDetection cached;
     eventcore::CheckerboardConfig cfg;
     cv::Mat imageCopy;
+    cv::Mat countCopy;
     lli frameUs = 0;
     {
         std::lock_guard<std::mutex> lock(m_procMutex);
@@ -2107,6 +2114,10 @@ void MainWindow::onCaptureSampleClicked()
         if (!m_lastCalibImage.empty())
         {
             imageCopy = m_lastCalibImage.clone();
+        }
+        if (!m_lastCalibCountImage.empty())
+        {
+            countCopy = m_lastCalibCountImage.clone();
         }
     }
 
@@ -2121,7 +2132,7 @@ void MainWindow::onCaptureSampleClicked()
     if (!imageCopy.empty())
     {
         const eventcore::CheckerboardDetection thorough =
-            eventcore::CheckerboardDetector::Detect(imageCopy, cfg, /*thorough=*/true);
+            eventcore::CheckerboardDetector::DetectEventImages(imageCopy, countCopy, cfg, /*thorough=*/true);
         if (thorough.found)
         {
             det = thorough;
@@ -2146,10 +2157,11 @@ void MainWindow::onCaptureSampleClicked()
         return;
     }
 
-    AppendLog(QStringLiteral("Captured sample #%1 (%2 corners) at t=%3 us")
+    AppendLog(QStringLiteral("Captured sample #%1 (%2 corners, %4) at t=%3 us")
         .arg(m_calibSamples.Count())
         .arg(det.corners.size())
-        .arg(frameUs));
+        .arg(frameUs)
+        .arg(det.fromEdgeReconstruction ? QStringLiteral("edge reconstruction") : QStringLiteral("polarity image")));
     UpdateCalibrationSampleUi();
 }
 

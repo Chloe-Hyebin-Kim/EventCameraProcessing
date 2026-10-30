@@ -94,6 +94,9 @@ namespace eventcore
     {
         m_image.create(m_height, m_width, CV_8UC1);
 
+        cv::Mat total = m_posCount + m_negCount;
+        total.convertTo(m_eventCount, CV_8UC1);  // saturate_cast: 255에서 포화
+
         const uchar posV = static_cast<uchar>(std::clamp(m_config.positiveValue, 0, 255));
         const uchar negV = static_cast<uchar>(std::clamp(m_config.negativeValue, 0, 255));
         const uchar noneV = static_cast<uchar>(std::clamp(m_config.noEventValue, 0, 255));
