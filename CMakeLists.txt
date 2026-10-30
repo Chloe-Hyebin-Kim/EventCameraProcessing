@@ -70,6 +70,21 @@ endif()
 
 find_package(OpenCV REQUIRED)
 
+# Calibration(체스판 검출/캘리브레이션)은 OpenCV calib3d 모듈이 필요하다
+# (findChessboardCorners / calibrateCamera / projectPoints, 그리고 결과 저장에 쓰는 FileStorage는 core).
+# calib3d가 없는 OpenCV로 잡히면 런타임에 뒤늦게 깨지는 대신 configure 단계에서 즉시 실패시켜
+# 원인을 명확히 알려준다.
+#  - Windows: 리포 번들 opencv_world440은 world 빌드라 calib3d를 포함한다(타깃 이름은 opencv_world).
+#  - Linux(모듈형, 예: apt libopencv-dev): calib3d가 있으면 opencv_calib3d 타깃이 만들어진다.
+if(NOT TARGET opencv_calib3d AND NOT TARGET opencv_world)
+    message(FATAL_ERROR
+        "Found OpenCV ${OpenCV_VERSION}, but its calib3d module is not available. "
+        "Camera calibration needs calib3d (findChessboardCorners / calibrateCamera / projectPoints).\n"
+        "  Linux : install a full OpenCV, e.g.  sudo apt install libopencv-dev  "
+        "(the bundled Prophesee-linux/lib ships OpenCV core/imgproc/imgcodecs/videoio only, no calib3d).\n"
+        "  Windows: the bundled opencv_world440 already includes calib3d; no action needed.")
+endif()
+
 # Windows: 리포에 번들된 Prophesee-window\ (Metavision.props가 MSBuild 빌드에서 쓰는 것과 동일한 폴더)에
 # CMake package config가 이미 들어있으므로(share\cmake\MetavisionSDK\...), 시스템에 SDK가 따로
 # 설치되어 있지 않아도 이 리포만 clone하면 바로 잡히도록 검색 경로 맨 앞에 추가한다.
@@ -92,6 +107,45 @@ if(UNIX AND NOT APPLE AND NOT EVENTCORE_USE_SYSTEM_METAVISION AND EXISTS "${CMAK
 endif()
 
 option(EVENTCORE_NO_METAVISION "Force-disable Metavision SDK support even if found" OFF)
+
+# Windows: Metavision SDK의 core 모듈 설정(MetavisionSDK_coreConfig.cmake)이 내부에서
+# find_package(Boost COMPONENTS timer REQUIRED)를 호출하는데, Boost는 리포에 번들되어 있지 않다.
+# 실제로는 이 프로젝트가 Boost를 쓰지 않으므로(번들 DLL들이 Boost DLL을 import하지 않고, 우리가
+# include하는 Metavision 헤더도 boost/ 헤더를 끌어오지 않음 - cmake/boost-stub/BoostConfig.cmake 참고)
+# Boost가 없으면 빈 stub 패키지로 대신해서, 새 PC에서 clone만 하고 바로 빌드되게 한다.
+#
+# 실제 Boost가 설치되어 있으면 그쪽을 우선 쓴다. 사전빌드 바이너리의 기본 설치 경로는
+# C:\local\boost_<버전>\ 이지만, CMake 내장 FindBoost는 자기가 아는 버전 목록(예: VS2019 번들
+# CMake 3.20은 1.76까지)에 대해서만 그 경로를 검색해서 1.80 이상은 못 찾으므로, BOOST_ROOT가
+# 지정되지 않았으면 여기서 C:\local\boost_*를 직접 훑어 가장 최신 버전을 BOOST_ROOT로 넘겨준다.
+set(_boost_stub_dir "${CMAKE_SOURCE_DIR}/cmake/boost-stub")
+if(WIN32 AND NOT EVENTCORE_NO_METAVISION)
+    # 이전 configure에서 stub이 캐시에 남아있으면 지우고 실제 Boost를 다시 찾아본다
+    # (그 사이에 Boost를 설치했을 수 있으므로).
+    if(Boost_DIR STREQUAL _boost_stub_dir)
+        unset(Boost_DIR CACHE)
+    endif()
+
+    if(NOT BOOST_ROOT AND NOT Boost_DIR AND (NOT DEFINED ENV{BOOST_ROOT} OR "$ENV{BOOST_ROOT}" STREQUAL ""))
+        file(GLOB _boost_root_candidates LIST_DIRECTORIES true "C:/local/boost_*")
+        if(_boost_root_candidates)
+            list(SORT _boost_root_candidates ORDER DESCENDING)
+            list(GET _boost_root_candidates 0 _boost_root_auto)
+            set(BOOST_ROOT "${_boost_root_auto}")
+            message(STATUS "BOOST_ROOT not set - auto-detected Boost: ${BOOST_ROOT}")
+        endif()
+    endif()
+
+    find_package(Boost QUIET COMPONENTS timer)
+    if(Boost_FOUND)
+        message(STATUS "Boost found: ${Boost_VERSION}")
+    else()
+        set(Boost_DIR "${_boost_stub_dir}" CACHE PATH "The directory containing a CMake configuration file for Boost." FORCE)
+        find_package(Boost REQUIRED COMPONENTS timer)
+        message(STATUS "Boost not installed - using the empty stub in cmake/boost-stub/ "
+                       "(the bundled Metavision SDK only declares Boost in its CMake config; nothing here actually uses it)")
+    endif()
+endif()
 
 set(EVENTCORE_HAVE_METAVISION OFF)
 if(NOT EVENTCORE_NO_METAVISION)
