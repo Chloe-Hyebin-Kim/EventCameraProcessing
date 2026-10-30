@@ -36,7 +36,7 @@ namespace eventcore
     struct CheckerboardConfig
     {
         int innerCornerRows = 6;     // 세로 방향 내부 코너 수
-        int innerCornerCols = 9;     // 가로 방향 내부 코너 수
-        double squareSizeMm = 25.0;  // 한 칸(square)의 실제 한 변 길이(mm). intrinsic 계산 스케일에 사용.
+        int innerCornerCols = 10;    // 가로 방향 내부 코너 수
+        double squareSizeMm = 35.0;  // 한 칸(square)의 실제 한 변 길이(mm). intrinsic 계산 스케일에 사용.
     };
 }
