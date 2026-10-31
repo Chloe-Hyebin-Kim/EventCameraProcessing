@@ -10,6 +10,8 @@
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QDateTime>
+#include <QDir>
+#include <QFile>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileDialog>
@@ -2129,13 +2131,17 @@ void MainWindow::onCaptureSampleClicked()
 
     // 저장 시에는 정밀(thorough) 검출을 한 번 수행해 최상의 코너를 얻는다(라이브 경로는 빠른 검출만 함).
     eventcore::CheckerboardDetection det = cached;
+    cv::Mat detectionImage;  // 실제로 코너를 찾은 이미지(경계 재구성 시 재구성 이미지). 저장용.
     if (!imageCopy.empty())
     {
+        cv::Mat thoroughImage;
         const eventcore::CheckerboardDetection thorough =
-            eventcore::CheckerboardDetector::DetectEventImages(imageCopy, countCopy, cfg, /*thorough=*/true);
+            eventcore::CheckerboardDetector::DetectEventImages(imageCopy, countCopy, cfg, /*thorough=*/true,
+                                                               &thoroughImage);
         if (thorough.found)
         {
             det = thorough;
+            detectionImage = thoroughImage;
         }
     }
 
@@ -2162,13 +2168,125 @@ void MainWindow::onCaptureSampleClicked()
         .arg(det.corners.size())
         .arg(frameUs)
         .arg(det.fromEdgeReconstruction ? QStringLiteral("edge reconstruction") : QStringLiteral("polarity image")));
+
+    // 샘플은 calibration 계산용으로 메모리에 보관되지만, 확인/재현을 위해 이미지도 output에 저장한다.
+    SaveCalibrationSampleImages(imageCopy, detectionImage, cfg, det);
     UpdateCalibrationSampleUi();
+}
+
+void MainWindow::SaveCalibrationSampleImages(const cv::Mat& polarityImage, const cv::Mat& detectionImage,
+                                             const eventcore::CheckerboardConfig& cfg,
+                                             const eventcore::CheckerboardDetection& det)
+{
+    // m_outputDir은 Start 때 채워진다. 혹시 비어 있으면 UI 입력값을 쓴다.
+    QString outDir = m_outputDir.isEmpty() ? m_editOutputDir->text() : m_outputDir;
+    if (outDir.isEmpty())
+    {
+        outDir = QStringLiteral("./output");
+    }
+
+    if (m_calibSampleDir.isEmpty())
+    {
+        m_calibSampleDir = QStringLiteral("%1/calibration_%2")
+            .arg(outDir)
+            .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+    }
+
+    std::error_code ec;
+    fs::create_directories(ToNativePath(m_calibSampleDir), ec);
+    if (ec)
+    {
+        AppendLog(QStringLiteral("Sample image save failed: cannot create folder %1 (%2)")
+            .arg(QDir(m_calibSampleDir).absolutePath())
+            .arg(QString::fromStdString(ec.message())));
+        m_calibSampleFiles.emplace_back();  // m_calibSamples와 인덱스를 맞춘다.
+        return;
+    }
+
+    const int index = static_cast<int>(m_calibSamples.Count());  // 방금 추가된 샘플 번호(1부터)
+    const QString prefix = QStringLiteral("%1/sample_%2")
+        .arg(m_calibSampleDir)
+        .arg(index, 3, 10, QChar('0'));
+
+    QStringList written;
+    bool allOk = true;
+    auto writeImage = [&](const QString& path, const cv::Mat& img)
+    {
+        if (img.empty())
+        {
+            return;
+        }
+        bool ok = false;
+        try
+        {
+            ok = cv::imwrite(ToNativePath(path).string(), img);
+        }
+        catch (const cv::Exception&)
+        {
+            ok = false;
+        }
+        if (ok)
+        {
+            written << path;
+        }
+        else
+        {
+            allOk = false;
+        }
+    };
+
+    // 1) 원본 polarity 누적 이미지, 2) 실제 검출에 쓴 이미지(경계 재구성일 때만 다름),
+    // 3) 검출 이미지 위에 코너(무지개색 선)를 그린 오버레이.
+    writeImage(prefix + QStringLiteral("_image.png"), polarityImage);
+    const cv::Mat& baseForOverlay = detectionImage.empty() ? polarityImage : detectionImage;
+    if (det.fromEdgeReconstruction && !detectionImage.empty())
+    {
+        writeImage(prefix + QStringLiteral("_reconstructed.png"), detectionImage);
+    }
+    if (!baseForOverlay.empty())
+    {
+        cv::Mat overlay;
+        if (baseForOverlay.channels() == 1)
+        {
+            cv::cvtColor(baseForOverlay, overlay, cv::COLOR_GRAY2BGR);
+        }
+        else
+        {
+            overlay = baseForOverlay.clone();
+        }
+        eventcore::CheckerboardDetector::DrawCorners(overlay, cfg, det);
+        writeImage(prefix + QStringLiteral("_corners.png"), overlay);
+    }
+
+    m_calibSampleFiles.push_back(written);
+
+    if (allOk && !written.isEmpty())
+    {
+        AppendLog(QStringLiteral("  saved %1 image(s): %2_*.png")
+            .arg(written.size())
+            .arg(QDir(prefix).absolutePath()));
+    }
+    else
+    {
+        AppendLog(QStringLiteral("  sample image save failed (wrote %1 file(s)) in %2")
+            .arg(written.size())
+            .arg(QDir(m_calibSampleDir).absolutePath()));
+    }
 }
 
 void MainWindow::onRemoveLastSampleClicked()
 {
     if (m_calibSamples.RemoveLast())
     {
+        // 저장해 둔 해당 샘플 이미지도 지워 폴더 내용과 수집 샘플을 일치시킨다.
+        if (!m_calibSampleFiles.empty())
+        {
+            for (const QString& f : m_calibSampleFiles.back())
+            {
+                QFile::remove(f);
+            }
+            m_calibSampleFiles.pop_back();
+        }
         AppendLog(QStringLiteral("Removed last sample (remaining: %1)").arg(m_calibSamples.Count()));
     }
     UpdateCalibrationSampleUi();
@@ -2177,7 +2295,10 @@ void MainWindow::onRemoveLastSampleClicked()
 void MainWindow::onClearSamplesClicked()
 {
     m_calibSamples.Clear();
-    AppendLog(QStringLiteral("Cleared all calibration samples"));
+    // 이미 저장된 이미지 파일은 남겨 두고, 다음 Capture부터 새 폴더를 쓴다.
+    m_calibSampleFiles.clear();
+    m_calibSampleDir.clear();
+    AppendLog(QStringLiteral("Cleared all calibration samples (saved images are kept on disk)"));
     UpdateCalibrationSampleUi();
 }
 
@@ -2205,6 +2326,33 @@ void MainWindow::onRunCalibrationClicked()
     }
 
     m_lastCalibResult = result;  // Phase 5(검증)/Phase 6(저장)에서 사용.
+
+    // 결과를 샘플 이미지 폴더(없으면 output 폴더)에 자동 저장한다. Save Calibration...으로 다른 위치에도 저장 가능.
+    {
+        QString dir = m_calibSampleDir;
+        if (dir.isEmpty())
+        {
+            dir = m_outputDir.isEmpty() ? m_editOutputDir->text() : m_outputDir;
+        }
+        if (dir.isEmpty())
+        {
+            dir = QStringLiteral("./output");
+        }
+        std::error_code ec;
+        fs::create_directories(ToNativePath(dir), ec);
+        const QString autoPath = QStringLiteral("%1/calibration_%2.yml")
+            .arg(dir)
+            .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+        std::string err;
+        if (eventcore::CalibrationIO::Save(ToNativePath(autoPath).string(), result, &err))
+        {
+            AppendLog(QStringLiteral("Calibration auto-saved: %1").arg(QDir(autoPath).absolutePath()));
+        }
+        else
+        {
+            AppendLog(QStringLiteral("Calibration auto-save failed: %1").arg(QString::fromStdString(err)));
+        }
+    }
 
     // 결과를 로그에 사람이 읽을 수 있게 남긴다. fx/fy/cx/cy는 픽셀, RMS는 픽셀 단위.
     AppendLog(QStringLiteral("Calibration OK (%1x%2, %3 views)")
@@ -2276,7 +2424,8 @@ void MainWindow::onSaveCalibrationClicked()
     }
 
     const QString defaultName = QStringLiteral("%1/calibration_%2.yml")
-        .arg(m_outputDir.isEmpty() ? QStringLiteral(".") : m_outputDir)
+        .arg(QDir(!m_calibSampleDir.isEmpty() ? m_calibSampleDir
+                  : (m_outputDir.isEmpty() ? m_editOutputDir->text() : m_outputDir)).absolutePath())
         .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
 
     const QString path = QFileDialog::getSaveFileName(
@@ -2309,7 +2458,8 @@ void MainWindow::onLoadCalibrationClicked()
     const QString path = QFileDialog::getOpenFileName(
         this,
         Tr(QStringLiteral("Load Calibration"), QStringLiteral("캘리브레이션 불러오기")),
-        m_outputDir.isEmpty() ? QString() : m_outputDir,
+        !m_calibSampleDir.isEmpty() ? QDir(m_calibSampleDir).absolutePath()
+            : QDir(m_outputDir.isEmpty() ? m_editOutputDir->text() : m_outputDir).absolutePath(),
         Tr(QStringLiteral("Calibration files (*.yml *.yaml *.xml)"),
            QStringLiteral("캘리브레이션 파일 (*.yml *.yaml *.xml)")));
 

@@ -223,6 +223,10 @@ private:
     eventcore::CheckerboardConfig ReadCheckerboardConfigFromUI() const;
     // 수집된 샘플 개수/버튼 활성화 상태 등 calibration observation UI를 갱신한다.
     void UpdateCalibrationSampleUi();
+    // Capture한 샘플 이미지(원본 누적/검출용/코너 오버레이)를 output 폴더에 PNG로 저장한다.
+    void SaveCalibrationSampleImages(const cv::Mat& polarityImage, const cv::Mat& detectionImage,
+                                     const eventcore::CheckerboardConfig& cfg,
+                                     const eventcore::CheckerboardDetection& det);
 
     void SeekTo(eventcore::lli timestampUs);
     eventcore::lli SliderValueToTimestamp(int value) const;
@@ -257,6 +261,11 @@ private:
 
     // 수집된 calibration observation(여러 pose). Start/Stop을 반복해도 세션 동안 유지된다(Clear로만 비움).
     eventcore::CalibrationSampleCollector m_calibSamples;
+    // Capture한 샘플 이미지를 저장하는 폴더(<output>/calibration_<날짜시각>). 첫 Capture 때 만들고
+    // Clear로 비우면 다음 Capture에서 새 폴더를 만든다. Run Calibration 결과(.yml)도 여기에 자동 저장한다.
+    QString m_calibSampleDir;
+    // 샘플별로 저장한 파일 경로(Remove Last 시 해당 샘플 파일도 지운다). m_calibSamples와 순서가 같다.
+    std::vector<QStringList> m_calibSampleFiles;
 
     // 마지막으로 로그에 남긴 샷 상태. 매 프레임 ShotTrigger가 돌려주는 상태가 이 값과 다르면
     // 상태 전이로 보고 로그에 한 줄 남긴다(READY뿐 아니라 SEARCHING/IMPACT/TRJCT 전이 모두).

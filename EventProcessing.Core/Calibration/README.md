@@ -64,9 +64,12 @@
    - 상태 라벨에 검출 경로가 표시된다: `경계 재구성`(움직이는 보드) / `극성 이미지`(깜빡이는 패턴 등).
    - 권장 pose: 정면 / 좌·우 tilt / 상·하 tilt / 네 모서리(좌상·우상·좌하·우하) / 가까이 / 멀리.
    - 최소 3장(기술적 최소)이지만 **10~20장 이상**, 화면 전체에 골고루 분포시키는 것이 좋다.
-8. `Run Calibration` → 로그에 fx/fy/cx/cy, 왜곡, RMS, per-view 오차 출력.
+   - Capture마다 `<output>/calibration_<날짜시각>/sample_NNN_image.png`(polarity 누적), `sample_NNN_corners.png`
+     (코너 오버레이), 경계 재구성 검출이면 `sample_NNN_reconstructed.png`가 저장된다. `Remove Last`는 해당 파일도 지우고,
+     `Clear`는 파일을 남긴 채 다음 Capture부터 새 폴더를 쓴다.
+8. `Run Calibration` → 로그에 fx/fy/cx/cy, 왜곡, RMS, per-view 오차 출력. 성공 시 위 폴더에 `calibration_<날짜시각>.yml` 자동 저장.
 9. per-view 오차에서 유독 큰 pose가 있으면 확인 후 `Remove Last` 등으로 정리하고 재실행(자동 제거는 하지 않음).
-10. `Save Calibration...` → `.yml`로 저장.
+10. `Save Calibration...` → 원하는 위치에 `.yml`로 추가 저장(자동 저장과 별개).
 
 메모:
 - 수집한 샘플은 Start/Stop을 반복해도 세션 동안 유지된다(RAW 반복 재생으로도 수집 가능). `Clear`로만 비운다.

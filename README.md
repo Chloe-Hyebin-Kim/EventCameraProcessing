@@ -292,8 +292,10 @@ Event Stream (Live / RAW)
 6. **Start**를 누른 뒤 체커보드를 여러 pose로 움직이고, `Detected: YES`일 때 **Capture Sample**을 누름.
    - 권장 pose: 정면, 좌·우·상·하 tilt, 네 모서리, 가까이, 멀리.
    - 최소 3장이 필요하지만 **10~20장 이상**을 화면 전체에 골고루 분포시키는 것이 좋음.
+   - Capture한 샘플은 `output/calibration_<날짜시각>/sample_NNN_image.png`(누적 이미지), `sample_NNN_corners.png`(코너 오버레이), 경계 재구성으로 찾은 경우 `sample_NNN_reconstructed.png`로도 저장됨. 저장 경로는 로그에 표시됨.
 7. **Run Calibration**을 누르면 로그에 fx/fy/cx/cy, 왜곡 계수, RMS, per-view 오차가 출력됨. 오차가 유독 큰 pose가 있으면 **Remove Last** / **Clear**로 정리한 뒤 다시 실행.
-8. **Save Calibration...** 으로 `.yml`을 저장함. **Load Calibration...** 으로 다시 불러올 수 있음.
+   계산이 성공하면 결과 `.yml`이 같은 `calibration_<날짜시각>/` 폴더에 자동 저장됨.
+8. **Save Calibration...** 으로 다른 위치에도 `.yml`을 저장할 수 있음. **Load Calibration...** 으로 저장된 `.yml`을 다시 불러옴(대화상자는 위 폴더에서 열림).
 
 > 수집한 샘플은 Start/Stop을 반복해도 유지됨(RAW를 반복 재생하면서 수집 가능). 다른 보드 설정(rows/cols/square)으로 캡처하려면 먼저 Clear해야 함.
 
